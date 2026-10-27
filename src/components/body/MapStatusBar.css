@@ -1,0 +1,101 @@
+/* ── Map status strip ────────────────────────────────────────────────────────
+ * Scale bar + attribution (left), cursor coordinates (right), drawn straight on
+ * the map with no chip behind it, as in the operator's screenshot. A white
+ * halo keeps the black text and lines legible over markers, roads and sea.
+ * Placement is per screen (the modifier classes at the bottom). */
+.map-status {
+  position: absolute;
+  z-index: 440;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+  color: #111;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
+}
+
+.map-status__left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Two bars sharing one baseline: metric above it (ticks up, label over the
+   end), imperial below it (ticks down, label under the end). */
+.map-status__scale {
+  position: relative;
+  height: 32px;
+}
+.map-status__bar {
+  position: absolute;
+  left: 0;
+  height: 6px;
+  box-sizing: border-box;
+  border: 0 solid #111;
+  border-left-width: 1.5px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.9);
+}
+.map-status__bar--km {
+  top: 10px;
+  border-right-width: 1.5px;
+  border-bottom-width: 1.5px;
+}
+.map-status__bar--mi {
+  top: 14.5px;
+  border-right-width: 1.5px;
+  border-top-width: 1.5px;
+}
+.map-status__lbl {
+  position: absolute;
+  right: 3px;
+  white-space: nowrap;
+}
+.map-status__bar--km .map-status__lbl { bottom: 5px; }
+.map-status__bar--mi .map-status__lbl { top: 5px; }
+
+.map-status__attrib {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.map-status__attrib a { color: inherit; text-decoration: none; }
+.map-status__attrib a:hover { text-decoration: underline; }
+.map-status__attrib a:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; border-radius: 2px; }
+
+.map-status__coords {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* No cursor on a touch screen, so nothing for the coordinates to follow. */
+@media (hover: none) {
+  .map-status__coords { display: none; }
+}
+
+/* ── Placement ──────────────────────────────────────────────────────────────
+ * Live map: the sidebar is its own column beside the map, not an overlay, so
+ * the strip starts right at the map's left edge — next to the sidebar
+ * (operator, 2026-10-04: "on desktop push it right next to the sidebar") —
+ * and stops short of the camera rail in the bottom-right corner. */
+.map-status--live {
+  left: 12px;
+  right: 64px;
+  bottom: 22px;
+}
+/* Phone: the same, a little tighter to the edges. */
+@media (max-width: 767px) {
+  .map-status--live { left: 12px; right: 60px; bottom: 16px; }
+}
+
+/* Fuel report track map: its own panel, so the full width, short of the
+   +/− buttons in the bottom-right corner. */
+.map-status--panel {
+  left: 8px;
+  right: 44px;
+  bottom: 8px;
+}

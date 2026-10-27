@@ -1,0 +1,398 @@
+/* Alerts — only what SensorPanel.css, SystemScreen.css and AuditScreen.css do
+ * not own. The page borrows the Fuel Audit's frame (stat cards, the boxed
+ * table, the open row and its detail: .aud-*), so the fuel pages read alike;
+ * everything named .alr-* is this page's own.
+ *
+ * Hallmark · component: alerts list + decision panel · genre: modern-minimal
+ * theme: sp4 + the Fuel report's --frv tokens (preflight 2026-10-12)
+ * pre-emit critique: P4 H5 E4 S4 R5 V4
+ * states: row — default · hover · focus (keyboard, the row is a button) · open;
+ *         decision — none picked · picked (pressed) · reason missing (amber
+ *         prompt, confirm disabled) · saving ("Saving…") · failed (toast);
+ *         list — loading · empty per state · error · stale (dimmed while a new
+ *         filter loads) · more to load.
+ * palette: Open --sp4-warn (work waiting), Escalated --sp4-crit, De-escalated
+ *          --sp4-ok; each pill also says its word, so none is read by colour
+ *          alone. Fuel and speed tags in ink, told apart by icon and word. */
+
+/* Four cards, the Fuel Audit's own size (AuditScreen.css .aud-stats): three
+   meters, and fuel / speed lines over every alert ever received.
+ * Hallmark · component: alerts-over-time chart · genre: modern-minimal · theme: sp4 +
+ *   the --frv tokens (fuel --alr-fuel amber, the badge's hue; speed --alr-speed
+ *   blue (--frv-s1); the key names each line, so none is read by colour alone)
+ * states: loading ("Reading…", no lines) · empty (flat at 0) · one point (dots,
+ *         no line) · hover/touch/arrow keys (cursor, dots, that point in the key)
+ *         · focus (ring on the plot). */
+.alr-root { --alr-fuel: #f59e0b; --alr-speed: var(--frv-s1); --alr-camera: var(--frv-s3); }
+.app--light .alr-root { --alr-fuel: #d97706; --alr-speed: var(--frv-s1); --alr-camera: var(--frv-s3); }
+.alr-trend { gap: 8px; }
+.alr-trend__key {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  font-size: var(--sp4-label); color: var(--sp4-text-3);
+}
+.alr-trend__key li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.alr-trend__key i { width: 10px; height: 3px; border-radius: 2px; align-self: center; background: var(--line); }
+.alr-trend__key b {
+  font-size: 18px; font-weight: 800; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; color: var(--sp4-text-1);
+}
+.alr-trend__key .alr-trend__when { margin-left: auto; color: var(--sp4-text-4); font-variant-numeric: tabular-nums; }
+.alr-trend__line--fuel { --line: var(--alr-fuel); }
+.alr-trend__line--speed { --line: var(--alr-speed); }
+.alr-trend__line--camera { --line: var(--alr-camera); }
+.alr-trend__plot {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 96px;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+.alr-trend__plot:focus-visible { outline: 2px solid var(--sp4-accent, var(--frv-s1)); outline-offset: 3px; }
+.alr-trend__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.alr-trend__grid { stroke: var(--frv-track); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.alr-trend__line {
+  fill: none; stroke: var(--line); stroke-width: 2.25;
+  stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke;
+}
+.alr-trend__cursor { stroke: var(--sp4-text-3); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.alr-trend__dot {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border-radius: 50%; background: var(--line);
+  box-shadow: 0 0 0 2px var(--sp4-surface);
+  pointer-events: none;
+}
+.alr-trend__top {
+  position: absolute; top: -2px; left: 0;
+  font-size: 10px; font-weight: 600; color: var(--sp4-text-4);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+@media (max-width: 767px) {
+  .alr-trend__plot { min-height: 72px; }
+  .alr-trend__key b { font-size: 15px; }
+}
+
+/* Read marks, per person (as in a mailbox).
+ * Hallmark · component: unread alert row · genre: modern-minimal · theme: sp4
+ * states: unread (amber dot before the plate, plate and figure at full ink,
+ *         a 3px amber edge) · read (as before) · picked/open win the
+ *         background. The dot carries "Unread" for screen readers, so the
+ *         state is never told by weight or colour alone. */
+.alr-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--alr-fuel);
+  vertical-align: 1px;
+}
+.alr-tr--unread > td:first-child { box-shadow: inset 3px 0 0 var(--alr-fuel); }
+.alr-tr--unread .sp4-reg,
+.alr-tr--unread .alr-figure b { font-weight: 800; color: var(--sp4-text-1); }
+.alr-tr--unread .alr-details { color: var(--sp4-text-1); }
+
+/* The organisation under the plate: a reader holding five tenants must see
+   whose unit it is without opening the row. */
+.alr-org {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--sp4-label);
+  font-weight: 500;
+  color: var(--sp4-text-3);
+  white-space: nowrap;
+}
+
+/* Fuel or speed, then the one figure that says what happened. */
+.alr-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: var(--sp4-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sp4-text-3);
+}
+.alr-kind .ti { font-size: 14px; }
+.alr-kind--fuel .ti { color: var(--frv-crit); }
+.alr-kind--speeding .ti { color: var(--sp4-warn); }
+.alr-kind--camera .ti { color: var(--alr-camera); }
+
+/* A camera alarm's recordings, road and driver facing, in the detail panel. */
+.alr-clips { display: grid; gap: 12px; }
+.alr-clip { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.alr-clip video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  border: 1px solid var(--sp4-line, rgba(0, 0, 0, 0.12));
+  background: #000;
+}
+.alr-clip figcaption { font-size: 12px; color: var(--sp4-muted, inherit); }
+.alr-figure { display: grid; min-width: 112px; }
+
+.alr-details { white-space: normal; min-width: 160px; max-width: 280px; color: var(--sp4-text-2); }
+
+.alr-state { display: inline-grid; justify-items: start; gap: 3px; }
+.alr-state-sub {
+  max-width: 220px;
+  font-size: var(--sp4-label);
+  color: var(--sp4-text-3);
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.alr-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
+
+/* A filter stale under a new one loading: still readable, visibly not the answer. */
+.alr-table--stale .sp4-table { opacity: 0.55; transition: opacity 120ms ease; }
+
+/* The PAGE scrolls, not the table (operator, 2026-10-12: "the 15 items to be
+   displayed as a whole"). The Fuel Audit's frame lets its box shrink to the
+   screen and scroll inside; here the cards, the filters and a whole page of
+   fifteen alerts run down the page, and the page scrolls. The box still
+   scrolls sideways when a narrow screen cannot fit its columns. */
+.alr-root { overflow-y: auto; }
+.alr-root > .sp4-body { flex: none; min-height: auto; overflow: visible; }
+.alr-root .alr-table {
+  flex: none;
+  min-height: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0;
+}
+
+/* On a phone the pager must clear the tab bar fixed over the page's foot. */
+@media (max-width: 767px) {
+  .alr-root .alr-table { margin-bottom: calc(var(--app-footer-h, 64px) + 12px); }
+}
+
+/* The app's pager (TablePager) under the fifteen rows, held at the left edge
+   while a narrow table scrolls sideways. */
+.alr-table .sp4-tpager {
+  position: sticky;
+  left: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--sp4-line);
+  background: var(--sp4-surface);
+}
+
+/* Search sits before the chips, as on the Weighbridges and Sensor pages. */
+.alr-search { min-width: 220px; }
+
+@media (max-width: 767px) {
+  /* The drawer took its widest row's width (the State and speed chips, ~460px
+     on a 375px phone), so every row was cut at the screen's edge instead of
+     scrolling: "30+ km/h" could not be reached. Held to the screen, each row
+     scrolls as SensorPanel means it to. */
+  .alr-root .sp4-filters-drawer,
+  .alr-root .sp4-filters-drawer .sp4-filter-group { min-width: 0; }
+}
+
+/* ── The open alert ──────────────────────────────────────────────────────── */
+
+/* The open alert opens in the app's detail sidebar (shared/DetailSidebar.css). */
+.dsb__sec .alr-decide { margin-top: 12px; }
+
+.alr-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+  font-size: var(--sp4-body);
+}
+.alr-facts dt { color: var(--sp4-text-3); font-weight: 600; }
+.alr-facts dd { margin: 0; color: var(--sp4-text-1); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+/* Every decision, newest first; the ones it replaced are kept and greyed. */
+.alr-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.alr-history li { padding-left: 10px; border-left: 2px solid var(--sp4-line-hi); }
+.alr-history li.is-current { border-left-color: var(--sp4-accent); }
+.alr-history li:not(.is-current) { opacity: 0.7; }
+.alr-history-what { font-weight: 700; color: var(--sp4-text-1); font-size: var(--sp4-body); }
+
+.alr-why { margin: 0; font-size: var(--sp4-body); color: var(--sp4-text-2); }
+
+/* The decision: Escalate / De-escalate, what as, the reason, then confirm. */
+.alr-decide { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--sp4-line); }
+.alr-decide-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.alr-pick { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 12px; }
+.alr-pick .ti { font-size: 15px; }
+.alr-pick--esc.is-on { border-color: var(--sp4-crit); color: var(--sp4-crit); background: rgba(239, 68, 68, 0.08); }
+.alr-pick--de.is-on { border-color: var(--sp4-ok); color: var(--sp4-ok); background: rgba(34, 197, 94, 0.08); }
+.alr-as { flex-wrap: wrap; }
+.alr-note { width: 100%; box-sizing: border-box; min-height: 72px; }
+.alr-hint { margin: 0; font-size: var(--sp4-label); line-height: 1.45; color: var(--sp4-text-3); }
+/* Escalating is the heavier act: the confirm button says so in red. */
+.sp4-submit-btn.alr-submit--esc { border-color: var(--sp4-crit); background: var(--sp4-crit); color: #fff; }
+
+/* ── Many at once ────────────────────────────────────────────────────────────
+ * states: tick — unticked · ticked · some on the page (header, indeterminate) ·
+ *         focus-visible · none (an alert this account cannot decide has no box);
+ *         row — picked (accent wash); bar — shown while anything is picked;
+ *         batch — picked per alert (pressed) · left out (dimmed) · cannot take
+ *         its pick (why, grey) · reason missing (amber prompt, confirm off) ·
+ *         saving ("Saving n of N…", all controls off) · failed (red, kept). */
+
+/* The tick before the plate: its own target; the rest of the row opens it. */
+.alr-unit { display: inline-flex; align-items: flex-start; gap: 10px; }
+.alr-tick { display: inline-grid; place-items: center; min-width: 18px; min-height: 18px; cursor: default; }
+.alr-tick input { width: 16px; height: 16px; margin: 0; accent-color: var(--sp4-accent); cursor: pointer; }
+.alr-tick input:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; }
+.alr-tick input:disabled { cursor: not-allowed; opacity: 0.45; }
+/* Opaque: the Unit cell is pinned, and the table slides under it. */
+.alr-tr--picked > td { background: color-mix(in srgb, var(--sp4-accent) 8%, var(--sp4-surface)); }
+
+.alr-bulkbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--sp4-accent) 35%, var(--sp4-line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sp4-accent) 6%, var(--sp4-surface));
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-1);
+}
+.alr-bulkbar-page { display: inline-flex; gap: 6px; font-weight: 600; color: var(--sp4-text-2); cursor: pointer; }
+.alr-bulkbar-n { white-space: nowrap; }
+.alr-bulkbar-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+
+.alr-bulk { display: grid; gap: 10px; }
+/* On the page's gutter, flush with the cards above and the boxed table below. */
+.alr-bulkbar,
+.alr-bulk { margin: var(--sp4-md, 12px) var(--sp4-gutter, 16px) 0; }
+@media (max-width: 767px) {
+  .alr-bulkbar,
+  .alr-bulk { margin-bottom: var(--sp4-md, 12px); }
+}
+.alr-bulk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--sp4-line);
+  border-radius: 8px;
+}
+.alr-bulk-item {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr) auto auto;
+  grid-template-areas: "unit what pill pick" "why why why why";
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--sp4-line);
+}
+.alr-bulk-item:first-child { border-top: 0; }
+.alr-bulk-unit { grid-area: unit; display: grid; }
+.alr-bulk-what { grid-area: what; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.alr-bulk-what .alr-kind { margin-bottom: 0; }
+.alr-bulk-item > .sp4-pill { grid-area: pill; justify-self: start; }
+.alr-bulk-pick { grid-area: pick; display: inline-flex; gap: 6px; justify-self: end; }
+.alr-bulk-pick .alr-pick,
+.alr-bulk-x { min-height: 28px; padding: 0 10px; }
+.alr-bulk-x { padding: 0 8px; }
+.alr-bulk-why { grid-area: why; font-size: var(--sp4-label); color: var(--sp4-text-3); }
+.alr-bulk-why.is-crit { color: var(--sp4-crit); font-weight: 600; }
+/* Left out of this batch: still listed, plainly not part of it. */
+.alr-bulk-item.is-left .alr-bulk-unit,
+.alr-bulk-item.is-left .alr-bulk-what { opacity: 0.6; }
+.alr-bulk-item.is-failed { background: color-mix(in srgb, var(--sp4-crit) 6%, transparent); }
+
+.alr-bulk-sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.alr-bulk-side {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--sp4-line);
+  border-left: 3px solid var(--sp4-line-hi);
+  border-radius: 8px;
+}
+.alr-bulk-side--esc { border-left-color: var(--sp4-crit); }
+.alr-bulk-side--de { border-left-color: var(--sp4-ok); }
+.alr-bulk-side-t {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--sp4-body);
+  font-weight: 700;
+  color: var(--sp4-text-1);
+}
+.alr-bulk-side--esc .alr-bulk-side-t .ti { color: var(--sp4-crit); }
+.alr-bulk-side--de .alr-bulk-side-t .ti { color: var(--sp4-ok); }
+
+/* ── Phones ──────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .alr-tick input { width: 20px; height: 20px; }
+  .alr-bulkbar-actions { margin-left: 0; width: 100%; }
+  .alr-bulkbar-actions .sp4-ghost-btn,
+  .alr-bulk-pick .alr-pick,
+  .alr-bulk-x { min-height: var(--m-ctl); }
+  .alr-bulk-list { max-height: 50vh; }
+  .alr-bulk-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "unit pill" "what what" "pick pick" "why why";
+  }
+  .alr-bulk-pick { justify-self: start; }
+  .alr-bulk .sp4-submit-btn { min-height: var(--m-action); padding: 0 16px; font-size: 13px; }
+  .alr-search { min-width: 0; flex: 1 1 auto; }
+  .alr-actions .sp4-ghost-btn,
+  .alr-pick {
+    min-height: var(--m-ctl);
+    padding: 0 12px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .alr-decide .sp4-submit-btn { min-height: var(--m-action); padding: 0 16px; font-size: 13px; }
+  .alr-details, .alr-state-sub { max-width: none; }
+}
+
+/* Cards under 600px (SensorPanel): the actions take the card's last line. */
+@media (max-width: 599px) {
+  .alr-table .sp4-table > tbody > tr > td:last-child:not(:only-child) { grid-column: 1 / -1; align-items: flex-end; }
+  .alr-table .sp4-table > tbody > tr > td:last-child:not(:only-child)::before { content: none; }
+  .alr-actions { justify-content: flex-start; flex-wrap: wrap; }
+  .alr-facts { grid-template-columns: minmax(84px, max-content) minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alr-table--stale .sp4-table { transition: none; }
+}
+
+/* Under WHEN: when an alert began well before it was reported. The list runs
+   newest report first, so this says why an older time sits higher. */
+.alr-reported {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--sp4-text-3);
+  font-weight: 400;
+}
+
+/* A fuel alert on a unit already reported for a probe repair: amber, as the
+   Units list's Reported chip and the panel's probe note. */
+.alr-probe {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, #d97706 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #d97706 12%, transparent);
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.alr-probe .ti { font-size: 11px; }

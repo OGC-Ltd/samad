@@ -1,0 +1,157 @@
+/* MobileTabBar — only visible on mobile */
+
+.mobile-tab-bar {
+  display: none; /* hidden on desktop */
+}
+
+@media (max-width: 767px) {
+  /* The `:root { --mobile-nav-h: 64px }` that used to sit here is the one thing
+     not restored with the rest of this file. The token is declared in App.css
+     now, where the map reads it to keep clear of this bar. The value here was a
+     flat 64px against a bar that measures 76px, so the map ran 12px into it.
+     Nothing about how this bar looks depends on that line. */
+
+  .mobile-tab-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 300;
+    background: rgba(255, 255, 255, 0.97);
+    border-top: 1px solid #e2e8f0;
+    padding: 8px 8px 20px; /* 20px for safe area / home indicator */
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .mobile-tab-bar__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: inherit;
+  }
+
+  .mobile-tab-bar__icon {
+    font-size: 20px;
+    color: #64748b;
+  }
+
+  .mobile-tab-bar__item--active .mobile-tab-bar__icon {
+    color: #0f172a;
+  }
+
+  /* 11px in #64748b: the old 10px #94a3b8 measured 2.6:1 on the white bar. */
+  .mobile-tab-bar__label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  /* With the resting label darker, weight carries the "you are here". */
+  .mobile-tab-bar__item--active .mobile-tab-bar__label {
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  /* Center FAB — green truck button */
+  .mobile-tab-bar__fab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    position: relative;
+  }
+
+  /* The green disc. Two selectors because the centre button is not always the
+     map: when the map is closed to somebody, another screen is promoted into
+     this slot and draws an icon font glyph instead of the truck. Same disc,
+     same size, same lift — only the mark inside it changes. */
+  .mobile-tab-bar__fab > svg,
+  .mobile-tab-bar__fab-icon {
+    width: 52px;
+    height: 52px;
+    padding: 13px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #fff;
+    border: 4px solid #fff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    margin-top: -20px; /* raises it above the bar */
+  }
+
+  /* The glyph is text, not a 26px drawing, so it needs centring in the disc
+     the svg gets for free from its own viewBox. */
+  .mobile-tab-bar__fab-icon {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .mobile-tab-bar__fab--active > svg,
+  .mobile-tab-bar__fab--active .mobile-tab-bar__fab-icon {
+    background: #059669;
+  }
+
+  .mobile-tab-bar__fab-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #047857;   /* #059669 was 3.8:1 on white */
+  }
+}
+
+/* With all five tabs, the Fleet button stays at the exact centre of the bar,
+ * at every width.
+ *
+ * Five equal fifths put it there, but on a phone they are 64-75px each and
+ * "Weighbridges" and "Maintenance" need about 72px at 11px, so those two
+ * labels ran into each other. Sizing every item by its label cured that and
+ * pushed the Fleet button 28px left of centre. So the bar is a grid whose two
+ * halves weigh the same — 2fr either side of the button — and the room is
+ * shared out WITHIN each half: Weighbridges takes a little from Maintenance on
+ * the right, and the left half, whose labels are short, is split evenly.
+ */
+@media (max-width: 767px) {
+  .mobile-tab-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 60px 1.08fr 0.92fr;
+    align-items: end;
+    justify-items: center;
+    padding-inline: 4px;
+  }
+  .mobile-tab-bar__item,
+  .mobile-tab-bar__fab { min-width: 0; width: 100%; }
+}
+/* Common phones (375-420px): a half-size down, and the active tab marked at
+   600 rather than 700 — bold "Weighbridges" sat 2px from "Maintenance". */
+@media (max-width: 420px) {
+  .mobile-tab-bar__label,
+  .mobile-tab-bar__fab-label { font-size: 10.5px; }
+  .mobile-tab-bar__item--active .mobile-tab-bar__label { font-weight: 600; }
+}
+/* A 320px phone: a hair less gutter, a narrower button column, and the labels
+   a size down, so both right-hand labels fit their columns with a gap. */
+@media (max-width: 360px) {
+  .mobile-tab-bar {
+    padding-inline: 2px;
+    grid-template-columns: 1fr 1fr 56px 1.1fr 0.9fr;
+  }
+  .mobile-tab-bar__label,
+  .mobile-tab-bar__fab-label { font-size: 10px; letter-spacing: -0.02em; }
+}

@@ -1,0 +1,109 @@
+/* DateRangePicker — one field, one calendar. In the vehicle panel's own
+   variables, with fallbacks so it stands on its own elsewhere. */
+
+.drp { position: relative; display: inline-block; }
+
+.drp-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--vdp-border, #dfe4ea);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--vdp-ink, #12181f);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.drp-field:hover { border-color: #b8c1cb; }
+.drp-field:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.drp-field--open { border-color: var(--vdp-navy, #0f2542); }
+.drp-field .ti { font-size: 15px; color: var(--vdp-ink2, #4a545e); }
+.drp-text { font-weight: 500; font-variant-numeric: tabular-nums; }
+.drp-caret { font-size: 13px !important; margin-left: -2px; }
+
+.drp-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 272px;
+  padding: 10px;
+  border: 1px solid var(--vdp-border, #dfe4ea);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+.drp--left .drp-pop { left: 0; }
+.drp--right .drp-pop { right: 0; }
+
+.drp-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.drp-chip {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--vdp-border, #dfe4ea);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--vdp-ink2, #4a545e);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.drp-chip:hover { background: #f5f7fa; }
+.drp-chip--on { background: var(--vdp-navy, #0f2542); border-color: var(--vdp-navy, #0f2542); color: #fff; }
+.drp-chip--on:hover { background: var(--vdp-navy, #0f2542); }
+
+.drp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.drp-month { font-size: 13px; font-weight: 600; color: var(--vdp-ink, #12181f); }
+.drp-nav {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vdp-ink2, #4a545e);
+  cursor: pointer;
+  font-size: 16px;
+}
+.drp-nav:hover:not(:disabled) { background: #f1f5f9; }
+.drp-nav:disabled { opacity: 0.3; cursor: default; }
+
+.drp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.drp-wd {
+  padding: 2px 0 5px;
+  font-size: 10.5px;
+  color: var(--vdp-faint, #66717d);
+  text-align: center;
+}
+.drp-day {
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--vdp-ink, #12181f);
+  font: inherit;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.drp-day:hover:not(:disabled) { background: #eef2f7; border-radius: 4px; }
+.drp-day:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; border-radius: 4px; }
+.drp-day:disabled { color: #c3cad2; cursor: default; }
+/* The picked stretch: a band, with its two ends solid */
+.drp-day--in { background: #e6ecf5; }
+.drp-day--lo, .drp-day--hi { background: var(--vdp-navy, #0f2542); color: #fff; }
+.drp-day--lo { border-radius: 4px 0 0 4px; }
+.drp-day--hi { border-radius: 0 4px 4px 0; }
+.drp-day--lo.drp-day--hi { border-radius: 4px; }
+.drp-day--lo:hover:not(:disabled), .drp-day--hi:hover:not(:disabled) { background: var(--vdp-navy, #0f2542); }
+.drp-day--today:not(.drp-day--lo):not(.drp-day--hi) { font-weight: 700; box-shadow: inset 0 -2px 0 var(--vdp-navy, #0f2542); }
+
+.drp-hint { margin: 8px 2px 0; font-size: 11px; line-height: 1.35; color: var(--vdp-mut, #6b757f); }
+
+@media (max-width: 720px) {
+  .drp-field { height: 32px; }
+  .drp-day { height: 36px; }
+}

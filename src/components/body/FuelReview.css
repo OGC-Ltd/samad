@@ -1,0 +1,108 @@
+/* Escalate / de-escalate in the fuel incident window. Type is the window's own
+   scale (--vt-fs-*), like the rest of it; no family set here. */
+
+.frv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+/* A decided alert sits in a tinted box in the decision's tone. */
+.frv--bad,
+.frv--warn,
+.frv--ok {
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--frv-edge);
+  background: var(--frv-bg);
+}
+.frv--bad { --frv-fg: var(--red, #dc2626); --frv-edge: color-mix(in srgb, var(--red, #dc2626) 35%, transparent); --frv-bg: color-mix(in srgb, var(--red, #dc2626) 7%, transparent); }
+.frv--warn { --frv-fg: var(--amber, #d97706); --frv-edge: color-mix(in srgb, var(--amber, #d97706) 35%, transparent); --frv-bg: color-mix(in srgb, var(--amber, #d97706) 7%, transparent); }
+.frv--ok  { --frv-fg: var(--green, #16a34a); --frv-edge: color-mix(in srgb, var(--green, #16a34a) 35%, transparent); --frv-bg: color-mix(in srgb, var(--green, #16a34a) 7%, transparent); }
+
+.frv-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  row-gap: 2px;
+  font-size: var(--vt-fs-label);
+}
+.frv-chip {
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  text-transform: uppercase;
+  color: var(--frv-fg);
+}
+.frv-meaning { font-weight: 600; color: var(--text-primary); }
+.frv-by { margin-left: auto; color: var(--text-muted); }
+.frv-note {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--text-secondary, var(--text-muted));
+  line-height: 1.45;
+}
+
+.frv-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.frv-ask { margin-right: auto; align-self: center; font-size: var(--vt-fs-label); color: var(--text-muted); }
+.frv-btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--vt-fs-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+.frv-btn:disabled { opacity: 0.55; cursor: default; }
+.frv-btn--up   { color: var(--red, #dc2626); border-color: color-mix(in srgb, var(--red, #dc2626) 45%, transparent); }
+.frv-btn--down { color: var(--green, #16a34a); border-color: color-mix(in srgb, var(--green, #16a34a) 45%, transparent); }
+.frv-btn--solid.frv-btn--up   { background: var(--red, #dc2626); border-color: var(--red, #dc2626); color: #fff; }
+.frv-btn--solid.frv-btn--down { background: var(--green, #16a34a); border-color: var(--green, #16a34a); color: #fff; }
+.frv-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+
+.frv-form { display: flex; flex-direction: column; gap: 6px; }
+.frv-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--vt-fs-body);
+  resize: vertical;
+}
+.frv-error { margin: 0; font-size: var(--vt-fs-label); color: var(--red, #dc2626); }
+
+/* What an escalation is raised to handle: one choice under the one Escalate
+   button (lib/fuelReview ESCALATION_REASONS). */
+.frv-reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.frv-reasons .frv-ask { margin-right: 4px; }
+.frv-reason {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--vt-fs-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+.frv-reason--on { background: var(--red, #dc2626); border-color: var(--red, #dc2626); color: #fff; }
+.frv-reason:disabled { opacity: 0.55; cursor: default; }
+.frv-reason:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+.frv-hint { margin: 0; font-size: var(--vt-fs-label); line-height: 1.45; color: var(--text-muted); }
+
+@media (max-width: 720px) {
+  .frv-btn, .frv-reason { min-height: var(--m-ctl); }
+  /* 16px stops iOS zooming the page when the box takes focus. */
+  .frv-input { font-size: 16px; }
+}

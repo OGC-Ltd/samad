@@ -1,0 +1,161 @@
+/* Hallmark · redesign: vehicle panel Alerts tab as the unit's feed · genre: modern-minimal · theme: the app's own (vdp-* tokens)
+ * states: row — default · hover · focus · active (follow-ups open a case) · arriving · appending;
+ *         list — loading (skeleton) · loading older (skeleton) · end · empty / error (EmptyNote in the tab)
+ * contrast: sentence #12181f 17:1; time / meta #6b757f 4.8:1; icon tints as LiveFeed.css
+ * motion: as LiveFeed — arrive 260ms, page fade-up 220ms with 35ms stagger (max 8); opacity-only under reduced motion */
+
+.uf {
+  --uf-ink: var(--vdp-ink, #12181f);
+  --uf-ink2: var(--vdp-ink2, #4a545e);
+  --uf-mut: var(--vdp-mut, #6b757f);
+  --uf-border: var(--vdp-border, #dfe4ea);
+  --uf-hair: var(--vdp-hair, #eceff3);
+  --uf-hover: #f8fafc;
+  --uf-press: #f1f5f9;
+  --uf-focus: #2563eb;
+  --uf-ease: cubic-bezier(0.2, 0, 0, 1);
+  --uf-ok: #15803d;    --uf-ok-soft: #f0fdf4;
+  --uf-warn: #b45309;  --uf-warn-soft: #fffbeb;
+  --uf-crit: #b91c1c;  --uf-crit-soft: #fef2f2;
+  --uf-fuel: #1d4ed8;  --uf-fuel-soft: #eff6ff;
+  --uf-plain: #64748b; --uf-plain-soft: #f1f5f9;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Day headings: stick while the day's rows scroll under them ────────────── */
+.uf-day-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--uf-border);
+  background: #fff;
+  color: var(--uf-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.uf-day + .uf-day .uf-day-head { margin-top: 6px; }
+.uf-day-n { color: var(--uf-mut); font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ── A row: icon · sentence · time ─────────────────────────────────────────── */
+.uf-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 10px;
+  width: 100%;
+  padding: 9px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--uf-hair);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.uf-row--link { cursor: pointer; border-radius: 6px; transition: background-color 120ms var(--uf-ease); }
+.uf-row--link:hover { background: var(--uf-hover); }
+.uf-row--link:active { background: var(--uf-press); }
+.uf-row:focus-visible { outline: 2px solid var(--uf-focus); outline-offset: -2px; }
+
+.uf-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--uf-plain-soft);
+  color: var(--uf-plain);
+  font-size: 15px;
+}
+.uf-row--arrive   .uf-icon { background: var(--uf-ok-soft);   color: var(--uf-ok); }
+.uf-row--fuel     .uf-icon { background: var(--uf-fuel-soft); color: var(--uf-fuel); }
+.uf-row--warning  .uf-icon { background: var(--uf-warn-soft); color: var(--uf-warn); }
+.uf-row--critical .uf-icon { background: var(--uf-crit-soft); color: var(--uf-crit); }
+
+.uf-msg {
+  padding-top: 5px;
+  color: var(--uf-ink);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.uf-time {
+  padding-top: 6px;
+  color: var(--uf-mut);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Entering ──────────────────────────────────────────────────────────────── */
+.uf-row--enter-top { animation: uf-arrive 260ms var(--uf-ease) both; }
+.uf-row--enter-page { animation: uf-append 220ms var(--uf-ease) both; animation-delay: calc(var(--i, 0) * 35ms); }
+@keyframes uf-arrive { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes uf-append { from { opacity: 0; transform: translateY(6px); } }
+
+/* ── Loading, end ──────────────────────────────────────────────────────────── */
+.uf-skel {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--uf-hair);
+}
+.uf-skel > span:first-child,
+.uf-skel i {
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 40%, #f1f5f9 80%);
+  background-size: 200% 100%;
+  animation: uf-shimmer 1.3s linear infinite;
+}
+.uf-skel > span:first-child { width: 28px; height: 28px; border-radius: 50%; }
+.uf-skel > span:last-child { display: flex; flex-direction: column; gap: 7px; padding-top: 4px; }
+.uf-skel i { display: block; height: 9px; border-radius: 4px; }
+.uf-skel i:first-child { width: 88%; }
+.uf-skel i:last-child { width: 46%; }
+@keyframes uf-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.uf-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 8px;
+  color: var(--uf-mut);
+  font-size: 11.5px;
+  text-align: center;
+}
+.uf-end i { color: var(--uf-ok); font-size: 15px; }
+.uf-more {
+  display: block;
+  margin: 12px auto;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--uf-border);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--uf-ink2);
+  cursor: pointer;
+}
+.uf-more:hover { background: var(--uf-hover); }
+.uf-more:active { background: var(--uf-press); }
+.uf-more:focus-visible { outline: 2px solid var(--uf-focus); outline-offset: 2px; }
+.uf-sentinel { display: block; height: 1px; }
+
+/* The tab's period row: "All history" beside the date picker */
+.uf-period { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .uf-row--enter-top,
+  .uf-row--enter-page { animation: uf-fade 150ms linear both; animation-delay: 0ms; }
+  @keyframes uf-fade { from { opacity: 0; } }
+  .uf-skel > span:first-child, .uf-skel i { animation: none; }
+  .uf-row--link { transition: none; }
+}

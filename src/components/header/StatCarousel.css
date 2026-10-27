@@ -1,0 +1,30 @@
+.stat-carousel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  /* Centered while everything fits … */
+  justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.stat-carousel::-webkit-scrollbar { display: none; }
+
+/* … left-anchored once the set overflows and the cycle kicks in. */
+.stat-carousel--cycle { justify-content: flex-start; }
+
+.stat-carousel__copy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+/* In cycle mode each copy carries its own trailing gap so the seam between
+   the two copies is spaced exactly like every other button gap. */
+.stat-carousel--cycle .stat-carousel__copy { padding-right: 6px; }
+
+@media (max-width: 639px) {
+  .stat-carousel__copy { gap: 8px; }
+  .stat-carousel--cycle .stat-carousel__copy { padding-right: 8px; }
+}

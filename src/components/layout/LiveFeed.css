@@ -1,0 +1,362 @@
+/* Hallmark · redesign: Live feed panel · genre: modern-minimal · theme: the app's own (preflight 2026-09-21)
+ * states: row — default · hover · focus · active · unread · arriving · appending; close / mark-read / pill / load-older —
+ *         default · hover · focus · active; panel — loading (skeleton) · empty · end of day
+ * contrast: plate #0f172a 17:1; message #475569 7.6:1; time / meta #5f6e83 4.8:1; unread row #eff6ff tint keeps ≥ 4.5:1
+ * motion: arrive 260ms slide+fade · page rows 220ms fade-up, 35ms stagger (max 8) · skeleton shimmer; all off under reduced motion
+ *
+ * Pinned to the viewport, NOT to the app body — it is rendered as a sibling of
+ * <header> inside AppHeader. `top` clears the header: at `top: 0` the panel's
+ * first 52px sat underneath a header painting at z-index 200 over this 150. */
+
+.live-feed {
+  --lf-ink: var(--text-primary, #0f172a);
+  --lf-ink-2: var(--text-secondary, #475569);
+  --lf-muted: var(--color-text-muted, #5f6e83);
+  --lf-rule: #f1f5f9;
+  --lf-line: var(--color-border, #e2e8f0);
+  --lf-hover: #f8fafc;
+  --lf-press: #f1f5f9;
+  --lf-accent: var(--accent, #2563eb);
+  --lf-accent-ink: #1d4ed8;
+  --lf-accent-soft: var(--accent-light, #eff6ff);
+  --lf-ease: cubic-bezier(0.2, 0, 0, 1);
+  --lf-ok: #15803d;      --lf-ok-soft: #f0fdf4;
+  --lf-warn: #b45309;    --lf-warn-soft: #fffbeb;
+  --lf-crit: #b91c1c;    --lf-crit-soft: #fef2f2;
+  --lf-fuel: #1d4ed8;    --lf-fuel-soft: #eff6ff;
+  --lf-plain: #64748b;   --lf-plain-soft: #f1f5f9;
+
+  position: fixed;
+  top: var(--app-header-h, 52px);
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: #fff;
+  border-left: 1px solid var(--lf-line);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.22s;
+}
+.live-feed--open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+}
+
+/* ── Head ──────────────────────────────────────────────────────────────────── */
+.live-feed__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--lf-rule);
+  flex-shrink: 0;
+}
+.live-feed__heading { min-width: 0; }
+.live-feed__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lf-ink);
+}
+.live-feed__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 5px;
+  border-radius: 999px;
+  background: var(--lf-ok-soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lf-ok);
+}
+.live-feed__live span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: lf-pulse 2s var(--lf-ease) infinite;
+}
+@keyframes lf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.live-feed__sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--lf-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-feed__top-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.live-feed__mark-read,
+.live-feed__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms var(--lf-ease), color 120ms var(--lf-ease);
+}
+.live-feed__mark-read { padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--lf-accent-ink); white-space: nowrap; }
+.live-feed__close { width: 30px; font-size: 18px; color: var(--lf-muted); }
+.live-feed__mark-read:hover { background: var(--lf-accent-soft); }
+.live-feed__close:hover { background: var(--lf-press); color: var(--lf-ink); }
+.live-feed__mark-read:active,
+.live-feed__close:active { background: var(--lf-line); }
+.live-feed__mark-read:focus-visible,
+.live-feed__close:focus-visible { outline: 2px solid var(--lf-accent); outline-offset: 1px; }
+
+/* ── List ──────────────────────────────────────────────────────────────────── */
+.live-feed__scroll { position: relative; flex: 1; min-height: 0; display: flex; }
+.live-feed__list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-bottom: 8px;
+}
+
+/* "N new" — arrivals held while the reader is further down. */
+.live-feed__pill {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--lf-accent);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transform: translateX(-50%);
+  animation: lf-pill-in 200ms var(--lf-ease);
+}
+.live-feed__pill:hover { background: var(--lf-accent-ink); }
+.live-feed__pill:active { transform: translateX(-50%) scale(0.97); }
+.live-feed__pill:focus-visible { outline: 2px solid var(--lf-ink); outline-offset: 2px; }
+@keyframes lf-pill-in { from { opacity: 0; transform: translate(-50%, -6px); } }
+
+/* Group headings: "New · 3", "Earlier today". Sticky, so the reader always
+   knows which side of the line they are on. */
+.live-feed__group {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 16px 6px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lf-muted);
+}
+.live-feed__group--new { color: var(--lf-accent-ink); }
+
+/* ── Row ───────────────────────────────────────────────────────────────────── */
+.live-feed__item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px 10px 16px;
+  border-bottom: 1px solid var(--lf-rule);
+  transition: background-color 120ms var(--lf-ease);
+}
+.live-feed__item--link { cursor: pointer; }
+.live-feed__item--link:hover { background: var(--lf-hover); }
+.live-feed__item--link:active { background: var(--lf-press); }
+.live-feed__item:focus-visible { outline: 2px solid var(--lf-accent); outline-offset: -2px; }
+
+.live-feed__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 16px;
+  background: var(--lf-plain-soft);
+  color: var(--lf-plain);
+}
+.live-feed__item--arrive   .live-feed__icon { background: var(--lf-ok-soft);   color: var(--lf-ok); }
+.live-feed__item--fuel     .live-feed__icon { background: var(--lf-fuel-soft); color: var(--lf-fuel); }
+.live-feed__item--warning  .live-feed__icon { background: var(--lf-warn-soft); color: var(--lf-warn); }
+.live-feed__item--critical .live-feed__icon { background: var(--lf-crit-soft); color: var(--lf-crit); }
+
+.live-feed__body { flex: 1; min-width: 0; }
+.live-feed__row1 { display: flex; align-items: baseline; gap: 8px; }
+.live-feed__plate {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lf-ink);
+}
+.live-feed__time {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lf-muted);
+}
+.live-feed__msg {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--lf-ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* Unread: tint, accent edge, dot. Weight on the plate, not the sentence. */
+.live-feed__item--unread { background: color-mix(in srgb, var(--lf-accent-soft) 70%, #fff); }
+.live-feed__item--unread.live-feed__item--link:hover { background: var(--lf-accent-soft); }
+.live-feed__item--unread::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lf-accent);
+}
+.live-feed__item--unread .live-feed__plate { font-weight: 700; }
+.live-feed__item--unread .live-feed__time { color: var(--lf-accent-ink); font-weight: 600; }
+.live-feed__unread-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--lf-accent);
+}
+
+/* ── Entering ──────────────────────────────────────────────────────────────── */
+/* A live arrival: drops in from above with a brief accent flash. */
+.live-feed__item--enter-top { animation: lf-arrive 260ms var(--lf-ease) both, lf-flash 1.4s var(--lf-ease) 260ms; }
+@keyframes lf-arrive { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes lf-flash { from { box-shadow: inset 0 0 0 999px rgba(37, 99, 235, 0.08); } to { box-shadow: inset 0 0 0 999px rgba(37, 99, 235, 0); } }
+/* A page of older rows: fades up in a short stagger. */
+.live-feed__item--enter-page { animation: lf-append 220ms var(--lf-ease) both; animation-delay: calc(var(--i, 0) * 35ms); }
+@keyframes lf-append { from { opacity: 0; transform: translateY(6px); } }
+
+/* ── Loading, empty, end ───────────────────────────────────────────────────── */
+.live-feed__skeleton {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  border-bottom: 1px solid var(--lf-rule);
+}
+.live-feed__sk-icon,
+.live-feed__sk-lines span {
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 40%, #f1f5f9 80%);
+  background-size: 200% 100%;
+  animation: lf-shimmer 1.3s linear infinite;
+}
+.live-feed__sk-icon { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; }
+.live-feed__sk-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; padding-top: 3px; }
+.live-feed__sk-lines span { display: block; height: 9px; border-radius: 4px; }
+.live-feed__sk-lines span:first-child { width: 42%; }
+.live-feed__sk-lines span:last-child { width: 86%; }
+@keyframes lf-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.live-feed__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 56px 24px;
+  text-align: center;
+}
+.live-feed__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--lf-ok-soft);
+  color: var(--lf-ok);
+  font-size: 24px;
+}
+.live-feed__empty-title { font-size: 14px; font-weight: 600; color: var(--lf-ink); }
+.live-feed__empty p { margin: 0; max-width: 240px; font-size: 12px; line-height: 1.5; color: var(--lf-muted); }
+
+.live-feed__end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  font-size: 11.5px;
+  color: var(--lf-muted);
+  text-align: center;
+}
+.live-feed__end i { font-size: 15px; color: var(--lf-ok); }
+.live-feed__more {
+  display: block;
+  margin: 12px auto;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--lf-line);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--lf-ink-2);
+  cursor: pointer;
+}
+.live-feed__more:hover { background: var(--lf-hover); }
+.live-feed__more:active { background: var(--lf-press); }
+.live-feed__more:focus-visible { outline: 2px solid var(--lf-accent); outline-offset: 2px; }
+
+/* Hide desktop live feed on mobile — MobileLiveFeedSheet handles it */
+@media (max-width: 767px) {
+  .live-feed { display: none !important; }
+}
+
+/* Tablet — a 320px panel over a 768px viewport covers the vehicle panel's
+   edge; it narrows and casts a shadow so the map reads as underneath. */
+@media (max-width: 1023px) {
+  .live-feed {
+    width: min(320px, 78vw);
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.14);
+  }
+  .live-feed__close { width: 40px; height: 40px; }
+}
+
+@media (pointer: coarse) {
+  .live-feed__mark-read, .live-feed__more { min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-feed, .live-feed--open { transition: none; }
+  .live-feed__item--enter-top,
+  .live-feed__item--enter-page { animation: lf-fade 150ms linear both; animation-delay: 0ms; }
+  @keyframes lf-fade { from { opacity: 0; } }
+  .live-feed__live span,
+  .live-feed__sk-icon,
+  .live-feed__sk-lines span,
+  .live-feed__pill { animation: none; }
+}

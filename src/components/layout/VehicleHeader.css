@@ -1,0 +1,266 @@
+/* Hallmark · component: vehicle panel header · genre: modern-minimal · theme: the app's own (vdp-* panel tokens)
+ * pre-emit critique: P4 H5 E4 S4 R5 V4
+ * states: icon button — default · hover · focus · active · disabled;
+ *         action — default · hover · focus · active · disabled · loading (Report: spinner) · on (Track: pressed, navy);
+ *         status — moving · speeding / theft · fuel alert · idling · parked · offline; route — stop set · no destination
+ * contrast: name #12181f 17:1; facts #4a545e 8.2:1; labels #6b757f 4.8:1; status text on its tint >= 4.9:1
+ * motion: background-colour 120ms on press targets; spinner on Report while preparing; none under reduced motion */
+
+.vdp-header.vh {
+  --vh-ink: var(--vdp-ink, #12181f);
+  --vh-ink2: var(--vdp-ink2, #4a545e);
+  --vh-mut: var(--vdp-mut, #6b757f);
+  --vh-border: var(--vdp-border, #dfe4ea);
+  --vh-hair: var(--vdp-hair, #eceff3);
+  --vh-navy: var(--vdp-navy, #0f2542);
+  --vh-navy-hover: #1b3456;
+  --vh-hover: #f5f7fa;
+  --vh-press: #eceff3;
+  --vh-focus: #2563eb;
+  --vh-route: #cbd5e1;
+  --vh-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --vh-ok: #166534;     --vh-ok-dot: #16a34a;     --vh-ok-soft: #f0fdf4;
+  --vh-danger: #b91c1c; --vh-danger-dot: #dc2626; --vh-danger-soft: #fef2f2;
+  --vh-warn: #92400e;   --vh-warn-dot: #d97706;   --vh-warn-soft: #fffbeb;
+  --vh-idle: #0e7490;   --vh-idle-dot: #06b6d4;   --vh-idle-soft: #ecfeff;
+  --vh-muted: #475569;  --vh-muted-dot: #94a3b8;  --vh-muted-soft: #f1f5f9;
+
+  padding: 14px 16px 14px 18px;
+}
+
+/* ── Name, then the panel's own tools ──────────────────────────────────────── */
+.vh-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.vh-name {
+  margin: 0;
+  min-width: 0;
+  padding-top: 2px;
+  color: var(--vh-ink);
+  font-size: 19px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  /* Long unit names ("CIVIL - Menengai - EXCAVATOR 07") take two lines,
+     never the header buttons' room. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vh-tools { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.vh-nav { display: inline-flex; align-items: center; gap: 2px; margin-right: 2px; }
+.vh-nav-count {
+  min-width: 34px;
+  color: var(--vh-mut);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.vh-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--vh-mut);
+  font-size: 17px;
+  cursor: pointer;
+  transition: background-color 120ms var(--vh-ease), color 120ms var(--vh-ease);
+}
+.vh-icon-btn:hover { background: var(--vh-hover); color: var(--vh-ink); }
+.vh-icon-btn:active { background: var(--vh-press); }
+.vh-icon-btn:focus-visible { outline: 2px solid var(--vh-focus); outline-offset: 1px; }
+.vh-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Status · driver · last report ─────────────────────────────────────────── */
+.vh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+.vh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px 0 8px;
+  border-radius: 999px;
+  background: var(--vh-muted-soft);
+  color: var(--vh-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.vh-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vh-muted-dot); }
+.vh-status--ok     { background: var(--vh-ok-soft);     color: var(--vh-ok); }
+.vh-status--ok     .vh-status-dot { background: var(--vh-ok-dot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vh-ok-dot) 18%, transparent); }
+.vh-status--danger { background: var(--vh-danger-soft); color: var(--vh-danger); }
+.vh-status--danger .vh-status-dot { background: var(--vh-danger-dot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vh-danger-dot) 18%, transparent); }
+.vh-status--warn   { background: var(--vh-warn-soft);   color: var(--vh-warn); }
+.vh-status--warn   .vh-status-dot { background: var(--vh-warn-dot); }
+.vh-status--idle   { background: var(--vh-idle-soft);   color: var(--vh-idle); }
+.vh-status--idle   .vh-status-dot { background: var(--vh-idle-dot); }
+
+.vh-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--vh-ink2);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.vh-fact .ti, .vh-where .ti { color: var(--vh-mut); font-size: 14px; }
+
+.vh-where {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--vh-ink2);
+  font-size: 12px;
+  min-width: 0;
+}
+.vh-where span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Trip: two stops joined by a line ──────────────────────────────────────── */
+.vh-route {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  list-style: none;
+  border: 1px solid var(--vh-hair);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+.vh-stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 18px;
+}
+/* The stop marker: filled where it left, ringed where it goes */
+.vh-stop::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.vh-stop--from::before { background: var(--vh-navy); }
+.vh-stop--to::before { border: 2px solid var(--vh-navy); background: #fff; }
+.vh-stop--none::before { border-color: var(--vh-route); }
+/* The line between them */
+.vh-stop--from::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 14px;
+  height: calc(100% - 4px);
+  width: 1px;
+  background: var(--vh-route);
+}
+.vh-stop-lbl { color: var(--vh-mut); font-size: 11.5px; }
+.vh-stop-val {
+  min-width: 0;
+  color: var(--vh-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vh-stop--none .vh-stop-val { color: var(--vh-mut); font-weight: 400; }
+
+/* Live-traffic arrival (TripTrafficEta). The line from Departed is drawn by
+   --from::after; the destination now gets one down to this stop too. */
+.vh-stop--to:has(+ .vh-stop--eta)::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 14px;
+  height: calc(100% - 4px);
+  width: 1px;
+  background: var(--vh-route);
+}
+.vh-stop--eta::before { background: #2563eb; }
+.vh-eta-cause,
+.vh-eta-src { grid-column: 2; min-width: 0; }
+.vh-eta-cause { font-size: 11.5px; font-weight: 700; margin-top: -4px; }
+.vh-eta-cause--traffic-here  { color: #dc2626; }
+.vh-eta-cause--stopped-clear { color: #d97706; }
+.vh-eta-cause--traffic-ahead { color: #ea580c; }
+.vh-eta-cause--clear         { color: #16a34a; }
+.vh-eta-src { color: var(--vh-mut); font-size: 10.5px; margin-top: -6px; }
+
+/* ── Track · Playback · Report ─────────────────────────────────────────────── */
+.vh-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+.vh .vh-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--vh-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--vh-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms var(--vh-ease), border-color 120ms var(--vh-ease);
+}
+.vh .vh-action .ti { color: var(--vh-ink2); font-size: 15px; }
+.vh .vh-action:hover:not(:disabled) { background: var(--vh-hover); border-color: #cfd6de; }
+.vh .vh-action:active:not(:disabled) { background: var(--vh-press); }
+.vh .vh-action:focus-visible { outline: 2px solid var(--vh-focus); outline-offset: 1px; }
+.vh .vh-action:disabled { opacity: 0.5; cursor: not-allowed; }
+.vh .vh-action[data-state='loading'] { opacity: 1; cursor: progress; color: var(--vh-mut); }
+.vh .vh-action[data-state='loading'] .ti { animation: vh-spin 0.9s linear infinite; }
+.vh .vh-action--on { background: var(--vh-navy); border-color: var(--vh-navy); color: #fff; }
+.vh .vh-action--on .ti { color: #fff; }
+.vh .vh-action--on:hover:not(:disabled) { background: var(--vh-navy-hover); border-color: var(--vh-navy-hover); }
+@keyframes vh-spin { to { transform: rotate(360deg); } }
+
+/* Phones: bigger targets */
+@media (max-width: 767px) {
+  .vh .vh-action { height: 40px; font-size: 13px; }
+  .vh-icon-btn { width: 36px; height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vh-icon-btn, .vh .vh-action { transition: none; }
+  .vh .vh-action[data-state='loading'] .ti { animation: none; }
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="222 113 428 587" role="img" aria-label="Samad Resources">
+  <!-- The SR mark, redrawn as vectors from the supplied logo. -->
+  <g fill="#b91c1c">
+    <rect x="232" y="123" width="372" height="67"/>
+    <rect x="537" y="123" width="67" height="295"/>
+    <polygon points="468,418 538,418 640,690 568,690"/>
+  </g>
+  <g fill="#111111">
+    <rect x="232" y="252" width="233" height="66"/>
+    <rect x="400" y="252" width="65" height="166"/>
+    <polygon points="232,252 320,252 465,690 377,690"/>
+    <rect x="232" y="523" width="65" height="167"/>
+    <rect x="232" y="622" width="200" height="68"/>
+  </g>
+</svg>

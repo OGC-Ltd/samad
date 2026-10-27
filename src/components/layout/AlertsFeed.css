@@ -1,0 +1,284 @@
+/* Hallmark · redesign: vehicle panel Alerts tab · genre: modern-minimal · theme: the app's own (vdp-* panel tokens)
+ * states: entry — default · hover · focus · active · open · disabled (n/a: entries are read-only or open);
+ *         switch — default · hover · focus · active · selected; loading: previous answer held (no spinner, as before);
+ *         error / empty: EmptyNote in VehicleDetailPanel
+ * contrast: title #12181f 17:1; sentence / time #6b757f 4.8:1; critical #b91c1c on #fef2f2 5.9:1; warning #b45309 on #fffbeb 4.9:1
+ *
+ * A timeline: severity-tinted discs carrying an icon for what happened, joined
+ * by a hairline rail; title + time on one line, the sentence under it.
+ * In the panel's variables (VehicleDetailPanel.css). */
+
+.af-filters,
+.af {
+  --af-ink: var(--vdp-ink, #12181f);
+  --af-ink2: var(--vdp-ink2, #4a545e);
+  --af-mut: var(--vdp-mut, #6b757f);
+  --af-faint: var(--vdp-faint, #66717d);
+  --af-border: var(--vdp-border, #dfe4ea);
+  --af-hair: var(--vdp-hair, #eceff3);
+  --af-hover: #f8fafc;
+  --af-press: #f1f5f9;
+  --af-focus: #2563eb;
+  --af-crit: #b91c1c;  --af-crit-soft: #fef2f2;
+  --af-warn: #b45309;  --af-warn-soft: #fffbeb;
+  --af-info: #64748b;  --af-info-soft: #f1f5f9;
+  --af-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ── The tab's one filter row: dates left, what to list right ─────────────── */
+.af-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.af-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--af-press);
+}
+.af-seg button {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--af-mut);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms var(--af-ease), color 120ms var(--af-ease);
+}
+.af-seg button:hover { color: var(--af-ink); }
+.af-seg button:active { transform: scale(0.98); }
+.af-seg button:focus-visible { outline: 2px solid var(--af-focus); outline-offset: 1px; }
+.af-seg button[aria-checked="true"] {
+  background: #fff;
+  color: var(--af-ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.af { display: flex; flex-direction: column; gap: 16px; }
+
+/* Nothing to list: in the middle of what is left of the tab. The tab's section
+   grows to the panel's height (.vdp-block--fill) so there is a middle. */
+.vdp-block--fill { flex: 1 0 auto; display: flex; flex-direction: column; }
+.af-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 200px;
+  padding: 24px 20px 32px;
+  text-align: center;
+}
+.af-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 22px;
+}
+.af-empty--error .af-empty-icon { background: var(--af-crit-soft); color: var(--af-crit); }
+.af-empty-title { color: var(--af-ink); font-size: 14px; font-weight: 600; }
+.af-empty-sub { max-width: 260px; color: var(--af-mut); font-size: 12.5px; line-height: 1.5; }
+
+/* ── Day heading: sticks while its alerts scroll under it ──────────────────── */
+.af-day-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--af-border);
+  background: #fff;
+  color: var(--af-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.af-day-count { color: var(--af-faint); font-size: 11.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ── The timeline ──────────────────────────────────────────────────────────── */
+.af-list { position: relative; list-style: none; margin: 0; padding: 6px 0 0; }
+.af-entry { position: relative; }
+/* The rail: from under each disc to the next one. */
+.af-entry:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 38px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--af-hair);
+}
+
+.af-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
+  column-gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 6px 4px 10px 1px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.af-row:not(button) { grid-template-columns: 30px minmax(0, 1fr); }
+button.af-row { cursor: pointer; transition: background-color 120ms var(--af-ease); }
+button.af-row:hover { background: var(--af-hover); }
+button.af-row:active { background: var(--af-press); }
+button.af-row:focus-visible { outline: 2px solid var(--af-focus); outline-offset: -2px; }
+
+.af-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--af-info-soft);
+  color: var(--af-info);
+  font-size: 15px;
+  box-shadow: 0 0 0 3px #fff;
+}
+.af-entry--critical .af-dot { background: var(--af-crit-soft); color: var(--af-crit); }
+.af-entry--warning  .af-dot { background: var(--af-warn-soft); color: var(--af-warn); }
+
+.af-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-top: 4px; }
+.af-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.af-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--af-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.af-tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--af-crit-soft);
+  color: var(--af-crit);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.af-entry--warning .af-tag { background: var(--af-warn-soft); color: var(--af-warn); }
+.af-entry--info .af-tag { background: var(--af-info-soft); color: var(--af-ink2); }
+.af-litres {
+  flex-shrink: 0;
+  color: var(--af-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.af-entry--critical .af-litres { color: var(--af-crit); }
+.af-times {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--af-info-soft);
+  color: var(--af-ink2);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+}
+.af-entry--critical .af-times { background: var(--af-crit-soft); color: var(--af-crit); }
+.af-entry--warning  .af-times { background: var(--af-warn-soft); color: var(--af-warn); }
+.af-time {
+  flex-shrink: 0;
+  color: var(--af-mut);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.af-sum {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--af-mut);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.af-sum--full { display: block; }
+
+.af-caret {
+  padding-top: 8px;
+  color: var(--af-faint);
+  font-size: 13px;
+  transition: transform 150ms var(--af-ease);
+}
+.af-caret--open { transform: rotate(180deg); }
+
+/* ── Opened: a loss's reports, or each time a repeat was raised ────────────── */
+.af-reports {
+  list-style: none;
+  margin: -4px 0 10px;
+  padding: 0 0 0 41px;
+  animation: af-open 160ms var(--af-ease);
+}
+@keyframes af-open { from { opacity: 0; transform: translateY(-3px); } }
+.af-report {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--af-hair);
+}
+.af-report-time { color: var(--af-mut); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.af-report-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.af-report-title { color: var(--af-ink); font-size: 11.5px; font-weight: 600; }
+.af-report-body { color: var(--af-mut); font-size: 11.5px; line-height: 1.4; }
+
+.af-reports--times { display: flex; flex-wrap: wrap; gap: 4px; }
+.af-chip {
+  padding: 2px 7px;
+  border: 1px solid var(--af-border);
+  border-radius: 999px;
+  color: var(--af-ink2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Said to a screen reader, not drawn: the disc's colour in words */
+.af-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .af-seg button { height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .af-seg button, button.af-row, .af-caret { transition: none; }
+  .af-reports { animation: none; }
+}

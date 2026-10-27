@@ -1,0 +1,10 @@
+/* Tailwind utilities for the shadcn/ui components (currently: the analytics
+   chart). `@tailwind base` is deliberately ABSENT — with preflight disabled in
+   tailwind.config.js it would emit almost nothing anyway, and leaving it out
+   makes it explicit that no global reset is being introduced into an app whose
+   51 stylesheets rely on browser defaults.
+
+   Imported once, from index.jsx, after the existing global stylesheets so the
+   utilities win where they are actually used. */
+@tailwind components;
+@tailwind utilities;

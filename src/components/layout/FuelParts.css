@@ -1,0 +1,235 @@
+/* Hallmark · component: vehicle panel Fuel tab (readout · day groups · tank) · genre: modern-minimal · theme: the app's own (vdp-* panel tokens)
+ * pre-emit critique: P4 H5 E4 S5 R4 V4
+ * tank: gauge bands good (green) · reserve (amber) · low (red) · none (grey needle at E); ticks lit up to the level
+ * states: readout — plain · fuel down (net loss) · fuel up · alert (overspeeds) · no reading (dash);
+ *         figures — plain · alert · warn · not available (dash);
+ *         probe chip — reporting · fault · hold · no reading; chart legend restyled as chips (chart's own states unchanged)
+ * contrast: values #12181f 17:1; labels #6b757f 4.8:1; down #b45309 4.8:1; alert #b91c1c 6.5:1 on white
+ * motion: gauge arrow turns 500ms (state, not decoration); none under reduced motion */
+
+.fp-readout,
+.fp-groups,
+.fp-tank,
+.fp-chart {
+  --fp-ink: var(--vdp-ink, #12181f);
+  --fp-ink2: var(--vdp-ink2, #4a545e);
+  --fp-mut: var(--vdp-mut, #6b757f);
+  --fp-border: var(--vdp-border, #dfe4ea);
+  --fp-hair: var(--vdp-hair, #eceff3);
+  --fp-soft: #fafbfc;
+  --fp-track: #eef1f5;
+  --fp-fuel: #f59e0b;
+  --fp-fuel-deep: #d97706;
+  --fp-crit: #b91c1c;   --fp-crit-soft: #fef2f2;
+  --fp-down: #b45309;
+  --fp-up: #15803d;
+  --fp-ok: #15803d;     --fp-ok-soft: #f0fdf4;
+  --fp-warn: #92400e;   --fp-warn-soft: #fffbeb;
+  --fp-none: #64748b;   --fp-none-soft: #f1f5f9;
+  --fp-good: #15803d;    --fp-good-soft: #f0fdf4;    --fp-good-tick: #22c55e;
+  --fp-reserve: #b45309; --fp-reserve-soft: #fffbeb; --fp-reserve-tick: #f59e0b;
+  --fp-low: #b91c1c;     --fp-low-soft: #fef2f2;     --fp-low-tick: #ef4444;
+  --fp-dial-rim: #e2e8f0;
+  --fp-dial-face: #fafbfc;
+  --fp-dial-ink: #12181f;
+  --fp-dial-mut: #94a3b8;
+  --fp-needle: #0f2542;
+  --fp-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ── The chart card, a readout over it (the Overview's speed chart) ───────── */
+.fp-chart {
+  border: 1px solid var(--fp-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.fp-chart-body { padding: 8px 10px 10px; }
+/* The Fuel tab's chart: the section's whole width, no card around it */
+.fp-chart--bare { border: 0; border-radius: 0; overflow: visible; }
+.fp-readout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--fp-hair);
+  background: var(--fp-soft);
+}
+.fp-read { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; }
+.fp-read + .fp-read { border-left: 1px solid var(--fp-hair); }
+.fp-read dt { color: var(--fp-mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-read dd { margin: 0; }
+.fp-read-val {
+  color: var(--fp-ink);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fp-read-val [title] { color: var(--fp-mut); font-weight: 400; }
+.fp-read-sub { color: var(--fp-mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-read--down .fp-read-val { color: var(--fp-down); }
+.fp-read--up .fp-read-val { color: var(--fp-up); }
+.fp-read--alert .fp-read-val,
+.fp-read--alert .fp-read-sub { color: var(--fp-crit); }
+
+/* The chart's legend as quiet chips (this card only; Overview keeps its own) */
+.fp-chart .vdp-legend { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fp-chart .vdp-legend span {
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--fp-track);
+  color: var(--fp-ink2);
+  white-space: nowrap;
+}
+.fp-chart .vdp-readout { margin-top: 2px; }
+
+/* ── Today: three labelled rows of three ──────────────────────────────────── */
+.fp-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.fp-group {
+  border: 1px solid var(--fp-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.fp-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--fp-hair);
+  background: var(--fp-soft);
+  color: var(--fp-ink2);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-style: normal;
+}
+.fp-group-title .ti { color: var(--fp-mut); font-size: 14px; }
+.fp-group-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.fp-fig { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 9px 12px 10px; }
+.fp-fig + .fp-fig { border-left: 1px solid var(--fp-hair); }
+.fp-fig dt { color: var(--fp-mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-fig dd { margin: 0; }
+.fp-fig-val {
+  color: var(--fp-ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-fig-val [title] { color: var(--fp-mut); font-weight: 400; }
+.fp-fig-sub { color: var(--fp-mut); font-size: 10.5px; line-height: 1.3; }
+.fp-fig--alert .fp-fig-val { color: var(--fp-crit); }
+.fp-fig--warn .fp-fig-val { color: var(--fp-down); }
+
+/* ── Tank: a dashboard fuel gauge, the reading beside it ──────────────────── */
+.fp-tank {
+  --fp-band: var(--fp-none);
+  --fp-band-soft: var(--fp-none-soft);
+  border: 1px solid var(--fp-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.fp-tank--good    { --fp-band: var(--fp-good);    --fp-band-soft: var(--fp-good-soft); }
+.fp-tank--reserve { --fp-band: var(--fp-reserve); --fp-band-soft: var(--fp-reserve-soft); }
+.fp-tank--low     { --fp-band: var(--fp-low);     --fp-band-soft: var(--fp-low-soft); }
+
+.fp-tank-main {
+  display: grid;
+  grid-template-columns: minmax(120px, 150px) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.fp-dial svg { display: block; width: 100%; height: auto; }
+.fp-dial-rim { fill: var(--fp-dial-rim); }
+.fp-dial-face { fill: var(--fp-dial-face); }
+.fp-tick { stroke-width: 2.2; stroke-linecap: round; opacity: 0.28; }
+.fp-tick--major { stroke-width: 3; }
+.fp-tick--lit { opacity: 1; }
+.fp-tick--low { stroke: var(--fp-low-tick); }
+.fp-tick--reserve { stroke: var(--fp-reserve-tick); }
+.fp-tick--good { stroke: var(--fp-good-tick); }
+.fp-dial-ef { fill: var(--fp-dial-ink); font-size: 15px; font-weight: 700; }
+.fp-dial-pump rect, .fp-dial-pump path { fill: var(--fp-dial-mut); stroke: var(--fp-dial-mut); stroke-width: 0; }
+.fp-dial-pump path { fill: none; stroke-width: 1.6; }
+.fp-dial-pump .fp-dial-pump-win { fill: var(--fp-dial-face); }
+
+.fp-needle {
+  fill: var(--fp-needle);
+  transform-box: view-box;
+  transform-origin: 80px 80px;
+  transition: transform 500ms var(--fp-ease);
+}
+.fp-tank--none .fp-needle { fill: var(--fp-dial-mut); }
+.fp-hub { fill: var(--fp-dial-face); stroke: var(--fp-band); stroke-width: 4; }
+.fp-hub-dot { fill: var(--fp-needle); }
+
+.fp-tank-read { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.fp-tank-num {
+  color: var(--fp-band);
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.fp-tank--good .fp-tank-num, .fp-tank--none .fp-tank-num { color: var(--fp-ink); }
+.fp-tank-l { color: var(--fp-mut); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.fp-tank-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--fp-band);
+  font-size: 12px;
+  font-weight: 600;
+}
+.fp-tank-band-dot { width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+
+.fp-probe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  margin-top: 4px;
+  padding: 0 9px 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fp-probe-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.fp-probe--ok    { background: var(--fp-ok-soft);   color: var(--fp-ok); }
+.fp-probe--alert { background: var(--fp-crit-soft); color: var(--fp-crit); }
+.fp-probe--warn  { background: var(--fp-warn-soft); color: var(--fp-warn); }
+.fp-probe--none  { background: var(--fp-none-soft); color: var(--fp-none); }
+
+.fp-tank-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--fp-hair);
+  background: var(--fp-soft);
+}
+.fp-tank-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 9px 14px 10px; }
+.fp-tank-facts > div + div { border-left: 1px solid var(--fp-hair); }
+.fp-tank-facts dt { color: var(--fp-mut); font-size: 11px; }
+.fp-tank-facts dd { margin: 0; color: var(--fp-ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 340px) {
+  .fp-read, .fp-fig, .fp-tank-facts > div { padding-left: 8px; padding-right: 8px; }
+  .fp-read-val { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fp-needle { transition: none; }
+}

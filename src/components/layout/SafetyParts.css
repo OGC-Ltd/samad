@@ -1,0 +1,338 @@
+/* Hallmark · redesign: vehicle panel Safety tab · genre: modern-minimal · theme: the app's own (vdp-* panel tokens)
+ * states: gauge — moving · over (red arc past the limit, card tinted) · standing · offline (grey fill); chip — engine on / off / unknown;
+ *         today — figure plain · alert (red value + context line) · no readings (dash); strip moving / over / now / hours to come (hatched);
+ *         events — row default · hover · worst of the day (excess pill filled); bar ok / over / limit tick; loading: "Loading…" meta as before; empty: EmptyNote
+ * contrast: speed #12181f 17:1; over #b91c1c 6.5:1; meta #6b757f 4.8:1; engine-on #15803d on #f0fdf4 4.9:1
+ * motion: gauge fill 300ms (state, not decoration); off under reduced motion */
+
+.sf-now,
+.sf-day,
+.sf-ev,
+.sf-ev-head,
+.sf-hd {
+  --sf-ink: var(--vdp-ink, #12181f);
+  --sf-ink2: var(--vdp-ink2, #4a545e);
+  --sf-mut: var(--vdp-mut, #6b757f);
+  --sf-border: var(--vdp-border, #dfe4ea);
+  --sf-track: #eef1f5;
+  --sf-hair: var(--vdp-hair, #eceff3);
+  --sf-hover: #f8fafc;
+  --sf-bar-ok: #cbd5e1;
+  --sf-zone: #fbe4e4;
+  --sf-move: #60a5fa;
+  --sf-future: #e2e8f0;
+  --sf-strip-bg: #fafbfc;
+  --sf-off: #94a3b8;
+  --sf-go: #2563eb;
+  --sf-crit: #b91c1c;  --sf-crit-soft: #fef2f2;
+  --sf-ok: #15803d;    --sf-ok-soft: #f0fdf4;
+  --sf-warn: #b45309;  --sf-warn-soft: #fffbeb;
+  --sf-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ── Right now: a speedometer, the facts beside it ────────────────────────── */
+.sf-now {
+  display: grid;
+  grid-template-columns: minmax(132px, 168px) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px 12px 10px;
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  background: #fff;
+}
+.sf-now--over { border-color: color-mix(in srgb, var(--sf-crit) 35%, transparent); background: color-mix(in srgb, var(--sf-crit-soft) 60%, #fff); }
+
+.sf-gauge { position: relative; min-width: 0; }
+.sf-gauge svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sf-gauge path { fill: none; stroke-width: 12; stroke-linecap: butt; }
+.sf-gauge-track { stroke: var(--sf-track); }
+.sf-gauge-zone { stroke: var(--sf-zone); }
+.sf-gauge-fill { stroke: var(--sf-go); transition: stroke-dasharray 300ms var(--sf-ease); }
+.sf-gauge-over { stroke: var(--sf-crit); }
+.sf-now--offline .sf-gauge-fill { stroke: var(--sf-off); }
+.sf-gauge-limit { stroke: var(--sf-ink); stroke-width: 2.5; stroke-linecap: round; }
+.sf-gauge-lbl { fill: var(--sf-ink); font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sf-gauge-end { fill: var(--sf-mut); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+
+/* The reading, sat in the bowl of the arc */
+.sf-gauge-read {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+.sf-now-num {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-ink);
+}
+.sf-now--over .sf-now-num { color: var(--sf-crit); }
+.sf-now--offline .sf-now-num { color: var(--sf-mut); }
+.sf-now-unit { margin-top: 3px; font-size: 11px; font-weight: 500; color: var(--sf-mut); }
+
+/* Now · Limit · Engine, label over value */
+.sf-now-facts { display: flex; flex-direction: column; gap: 9px; min-width: 0; margin: 0; }
+.sf-now-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sf-now-facts dt { font-size: 11px; color: var(--sf-mut); }
+.sf-now-facts dd { margin: 0; font-size: 12.5px; color: var(--sf-ink); }
+.sf-now-facts strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sf-now-word { font-weight: 600; white-space: nowrap; }
+.sf-now--over .sf-now-word { color: var(--sf-crit); }
+.sf-now-assumed { color: var(--sf-mut); }
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sf-track);
+  color: var(--sf-ink2);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sf-chip i { font-size: 14px; }
+.sf-chip--on { background: var(--sf-ok-soft); color: var(--sf-ok); }
+
+/* Narrow panels: the gauge above, the facts in a row under it */
+@media (max-width: 340px) {
+  .sf-now { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .sf-gauge { width: 180px; }
+  .sf-now-facts { flex-direction: row; flex-wrap: wrap; justify-content: space-between; width: 100%; }
+}
+
+/* ── Today: three figures over the day strip, in one card ─────────────────── */
+.sf-day {
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.sf-day-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+.sf-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 12px 11px;
+}
+.sf-stat + .sf-stat { border-left: 1px solid var(--sf-hair); }
+.sf-stat dt { color: var(--sf-mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-stat dd { margin: 0; }
+.sf-stat-val {
+  color: var(--sf-ink);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sf-stat-val small { font-size: 11.5px; font-weight: 500; color: var(--sf-mut); letter-spacing: 0; }
+.sf-stat-val [title] { color: var(--sf-mut); font-weight: 400; }
+.sf-stat-sub { color: var(--sf-mut); font-size: 11px; line-height: 1.3; }
+.sf-stat--alert .sf-stat-val { color: var(--sf-crit); }
+.sf-stat--alert .sf-stat-sub { color: var(--sf-crit); }
+
+/* The day as a 24-hour track */
+.sf-strip { padding: 12px 12px 11px; border-top: 1px solid var(--sf-hair); background: var(--sf-strip-bg); }
+.sf-strip-track {
+  position: relative;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--sf-track);
+  overflow: hidden;
+}
+.sf-strip-future {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: repeating-linear-gradient(135deg, var(--sf-track) 0 4px, var(--sf-future) 4px 6px);
+}
+.sf-strip-hour { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--sf-strip-bg); opacity: 0.9; }
+.sf-strip-move { position: absolute; top: 0; bottom: 0; background: var(--sf-move); }
+.sf-strip-run { position: absolute; top: 0; bottom: 0; background: var(--sf-crit); }
+.sf-strip-now { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--sf-ink); }
+.sf-strip-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-mut);
+}
+.sf-strip-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  color: var(--sf-ink2);
+  font-size: 11px;
+}
+.sf-strip-key span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sf-key { display: inline-block; width: 10px; height: 8px; border-radius: 2px; }
+.sf-key--move { background: var(--sf-move); }
+.sf-key--run { background: var(--sf-crit); }
+.sf-key--now { width: 2px; height: 10px; border-radius: 1px; background: var(--sf-ink); }
+
+@media (max-width: 340px) {
+  .sf-stat { padding: 10px 8px; }
+  .sf-stat-val { font-size: 17px; }
+}
+
+/* ── Overspeed events: when · peak on a limit bar · excess ────────────────── */
+.sf-ev-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 16px;
+}
+.sf-ev-head .vdp-sub-title { margin: 0 0 6px; }
+.sf-ev-count { color: var(--sf-mut); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+.sf-ev {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--sf-border);
+}
+.sf-ev-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  padding: 11px 4px 12px;
+  border-bottom: 1px solid var(--sf-hair);
+  border-radius: 6px;
+  transition: background-color 120ms var(--sf-ease);
+}
+.sf-ev-row:hover { background: var(--sf-hover); }
+
+.sf-ev-when { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.sf-ev-when time { color: var(--sf-ink); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.sf-ev-to { color: var(--sf-mut); font-size: 11px; white-space: nowrap; }
+
+.sf-ev-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sf-ev-peak { color: var(--sf-ink2); font-size: 12px; line-height: 1.2; }
+.sf-ev-peak strong { color: var(--sf-ink); font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.sf-ev-sum { color: var(--sf-mut); font-size: 11.5px; }
+
+.sf-ev-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--sf-track);
+}
+.sf-ev-bar-ok { position: absolute; inset: 0 auto 0 0; border-radius: 999px 0 0 999px; background: var(--sf-bar-ok); }
+.sf-ev-bar-over { position: absolute; top: 0; bottom: 0; border-radius: 0 999px 999px 0; background: var(--sf-crit); }
+.sf-ev-bar-limit {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--sf-ink);
+}
+
+.sf-ev-excess {
+  align-self: center;
+  min-width: 40px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--sf-crit-soft);
+  color: var(--sf-crit);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* The day's worst run, said once */
+.sf-ev-row--worst .sf-ev-excess { background: var(--sf-crit); color: #fff; }
+
+/* Harsh driving: a warning's amber, one row an event (operator, 2026-10-21).
+ * contrast: kind #b45309 on #fffbeb 4.9:1; place line #6b757f 4.8:1 */
+/* Hallmark · component: Safety › Harsh driving heading + quiet-day line
+ * states: events (amber badge, count) · clear (grey badge, one line) · loading (meta) · error (LoadError)
+ * contrast: title #12181f 17:1; count/none #6b757f 4.8:1; badge #b45309 on #fffbeb 4.9:1
+ * pre-emit critique: P5 H5 E5 S4 R5 V4 */
+.sf-hd { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sf-hair); }
+.sf-hd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sf-hd .sf-hd-title { margin: 0; min-width: 0; }
+.sf-hd-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--sf-warn-soft);
+  color: var(--sf-warn);
+  font-size: 14px;
+  flex: none;
+}
+.sf-hd--clear .sf-hd-badge { background: var(--sf-track); color: var(--sf-mut); }
+.sf-hd .sf-ev { margin-top: 0; }
+.sf-hd-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sf-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.sf-hd-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--sf-warn-soft);
+  color: var(--sf-warn);
+  font-size: 13px;
+  flex: none;
+}
+.sf-hd-where { color: var(--sf-mut); font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.sf-hd-force {
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--sf-warn-soft);
+  color: var(--sf-warn);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sf-hd-none {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--sf-mut);
+  font-size: 12px;
+}
+.sf-hd-none .ti { color: var(--sf-ok); font-size: 14px; flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-gauge-fill, .sf-ev-row { transition: none; }
+}

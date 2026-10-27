@@ -1,0 +1,101 @@
+/* Maintenance card styles. */
+
+
+
+.fleet-maint-card {
+  background: var(--color-card, rgba(10, 10, 11, 0.97));
+  border: 1px solid #2a2d35;
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+  font-family: var(--font-body);
+  flex-shrink: 0;
+}
+
+.fmc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.fmc-title { font-size: 12px; font-weight: 700; color: #f0f4f8; }
+.fmc-scope { font-size: 10px; color: var(--text-sec-adaptive, #7c8899); }
+
+.fmc-loading { font-size: 11px; color: var(--text-sec-adaptive, #7c8899); padding: 8px 0; }
+
+.fmc-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.fmc-count-cell {
+  background: rgba(18, 18, 19, 1);
+  border: 1px solid #2a2d35;
+  border-radius: 9px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.fmc-count-value { display: block; font-size: 15px; font-weight: 800; line-height: 1.1; }
+.fmc-count-label { font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-sec-adaptive, #7c8899); }
+
+.fmc-urgent-list { display: flex; flex-direction: column; gap: 7px; }
+/* The identity can be arbitrarily long.
+ *
+ * `id` is `plate ?? vehicleId`, and West Kenya's untracked units have no plate
+ * — their identity arrives as the whole provider string, "West Sugar -
+ * 864022086612164 · wialon:30416630". The vehicle span was `flex-shrink: 0`,
+ * so it refused to give up any width: the row grew past the card and the text
+ * ran out over the map behind it. The task span next to it already truncated,
+ * which is why the overflow looked like it came from the wrong element.
+ *
+ * `min-width: 0` on the row and on both children is the part that is easy to
+ * miss — a flex item's default `min-width: auto` refuses to shrink below its
+ * content, so `text-overflow` never gets a chance to fire however the flex
+ * factors are set. */
+.fmc-urgent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11px;
+}
+.fmc-urgent-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.fmc-urgent-dot--overdue  { background: #ef4444; }
+.fmc-urgent-dot--due-soon { background: #f59e0b; }
+
+/* The identity yields first. `flex: 1 1 0` gives it the leftover space rather
+   than its content width, so it is the side that ellipsises. */
+.fmc-urgent-vehicle {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #f0f4f8;
+}
+
+/* The status keeps its natural width — "never reported" is the whole point of
+   the row and must not be the half that gets cut. Capped so a long one
+   ("silent 12 d ago · 145,231 km") cannot squeeze the identity to nothing, and
+   it truncates too once it hits the cap. */
+.fmc-urgent-task {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+
+.app--light .fleet-maint-card   { background: rgba(255,255,255,0.98); border-color: #dde1e7; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.app--light .fmc-title          { color: #0f172a; }
+.app--light .fmc-scope          { color: #64748b; }
+.app--light .fmc-loading        { color: #64748b; }
+.app--light .fmc-count-cell     { background: #f8fafc; border-color: #dde1e7; }
+.app--light .fmc-count-label    { color: #64748b; }
+.app--light .fmc-urgent-vehicle { color: #0f172a; }
+.app--light .fmc-urgent-task    { color: #64748b; }

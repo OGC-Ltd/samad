@@ -1,0 +1,188 @@
+/* MobileLiveFeedSheet */
+
+.mlf-backdrop {
+  display: none;
+}
+
+.mlf-sheet {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mlf-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 400;
+  }
+
+  .mlf-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: 0;
+    /* Edge to edge: an inset sheet on a 375px phone wastes 24px of a width
+       the feed rows need, and reads as a floating card rather than a sheet. */
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 80vh;
+    max-height: 80dvh;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    z-index: 450;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    margin-bottom: 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+  }
+
+  .mlf-sheet--open {
+    transform: translateY(0);
+  }
+
+  .mlf-handle {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e2e8f0;
+    align-self: center;
+    margin: 10px 0 4px;
+    flex-shrink: 0;
+  }
+
+  .mlf-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    flex-shrink: 0;
+  }
+
+  .mlf-header-left,
+  .mlf-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* The alert count and the close button on ONE line. Without this the
+     block-level button (display:flex) dropped under the count. */
+  .mlf-header-right { gap: 10px; flex-shrink: 0; }
+
+  .mlf-unread {
+    font-size: 11px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fef2f2;
+    border-radius: 999px;
+    padding: 3px 9px;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
+  .mlf-title {
+    font-size: 13px;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: 0.06em;
+  }
+
+  .mlf-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+  }
+
+  .mlf-close {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    border: none;
+    font-size: 18px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .mlf-list {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 16px env(safe-area-inset-bottom, 0px);
+  }
+
+  .mlf-empty {
+    padding: 32px 0;
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  .mlf-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .mlf-row--action { cursor: pointer; }
+  .mlf-row--action:active { background: #f8fafc; }
+
+  .mlf-time-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    width: 44px;
+  }
+
+  .mlf-date {
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .mlf-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+  }
+
+  .mlf-kind-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .mlf-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mlf-plate {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .mlf-msg {
+    display: block;
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+}

@@ -1,0 +1,126 @@
+
+/* Vehicle class under the plate — a LABEL, not a chip.
+   As a pill it had two whitespace problems: the pill's own padding around a
+   short word like "Saloon", and — because .vt-header-left is a column flex
+   container that stretches its children — a pill that ran the full width of
+   the header with the word stranded at the left end. Plain letter-spaced type
+   labels the vehicle without either. */
+.vt-type-badge {
+  align-self: flex-start;
+  margin-top: 1px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  /* See .vt-tile-lbl in FleetMap.css — the default is what the hover card has
+     always used; only the incident window overrides it. */
+  letter-spacing: var(--vt-ls-label, 0.06em);
+  text-transform: uppercase;
+  color: var(--color-text-sec, #8b949e);
+}
+.app--light .vt-type-badge { color: #64748b; }
+
+/* ── Header right: connection above state ────────────────────────────────────
+   Two chips, because they answer two independent questions. Connection is
+   ALWAYS rendered; the state badge only when there is an alert or activity to
+   report, so a healthy resting vehicle shows one chip, not two. */
+.vt-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+/* Connection chip — quieter than the state badge on purpose. It is present on
+   every card, so it must not compete with a Speeding or Fuel Theft badge that
+   appears only when something is wrong. */
+.vt-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.06em);
+  white-space: nowrap;
+}
+
+.vt-conn-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+
+.vt-conn--on  { color: #22c55e; }
+/* Offline is grey, not red: a tracker that is not connected is a data-quality
+   fact, not an incident. Red is reserved for the theft alert. */
+.vt-conn--off { color: #94a3b8; }
+.vt-conn--off .vt-conn-dot { box-shadow: inset 0 0 0 1px currentColor; background: transparent; }
+
+.app--light .vt-conn--on  { color: #15803d; }
+.app--light .vt-conn--off { color: #64748b; }
+
+/* ── Current run: how long moving / resting, and since when ──────────────────
+   Two variants because the two states raise different questions — hours on the
+   road is a driver-hours concern, hours at rest is a utilisation one. The
+   duration is the emphasised element; the start time rides alongside it. */
+.vt-run-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Same step as the activity chip and location line directly above it, which
+     is the company this row actually keeps: all three are sentences about where
+     the vehicle is and what it is doing.
+
+     It used to sit at --vt-fs-title, the VITALS TILE step, on the reasoning that
+     it reports current state and so belonged with them. But the tiles are
+     single values (4,833 km) at a size chosen so a number reads at a glance; a
+     sentence set at that size is simply the largest text on the card, and "On
+     the road for 28m · since 07:15" dwarfed the fields around it. */
+  font-size: var(--vt-fs-label, 9px);
+  line-height: 1.4;
+  padding: 4px 8px;
+  margin-top: 5px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.vt-run-text b { font-weight: 700; }
+
+/* Muted — resting is the resting state, it should not shout. */
+/* Text in BOTH states is the theme's primary colour — white on dark, near-black
+   on light — matching the vitals tiles. It used to be a muted grey when resting
+   and sky blue in transit, which read as two different kinds of information and
+   left the transit variant at poor contrast on a light card. The state is
+   carried by the tinted background and border instead, so the reading itself
+   stays as legible as every other value in the card. */
+.vt-run-row--rest,
+.vt-run-row--idle,
+.vt-run-row--transit { color: var(--text-primary); }
+.vt-run-row--rest b,
+.vt-run-row--idle b,
+.vt-run-row--transit b { color: var(--text-primary); }
+
+.vt-run-row--rest {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+/* Idling — engine burning fuel while stationary. Cyan, matching the map
+   marker (amber is 'speeding'). Only ever shown when a real ignition line
+   reports it. */
+.vt-run-row--idle {
+  /* Derived from --accent-idling so the run row tracks the theme with every
+     other idling surface, instead of staying dark-theme cyan on a light card. */
+  background: color-mix(in srgb, var(--accent-idling) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent-idling) 38%, transparent);
+}
+
+/* In transit is the active state and the one worth spotting at a glance. */
+.vt-run-row--transit {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.34);
+}
+
+.vt-run-since { opacity: 0.72; }

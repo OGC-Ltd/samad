@@ -1,0 +1,199 @@
+/* MobileCompanyProfile — slide-up sheet */
+
+.mcp-backdrop { display: none; }
+.mcp-sheet    { display: none; }
+
+@media (max-width: 767px) {
+
+  .mcp-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 460;
+  }
+
+  .mcp-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 85vh;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    z-index: 470;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.1);
+  }
+
+  .mcp-sheet--open {
+    transform: translateY(0);
+  }
+
+  .mcp-handle {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e2e8f0;
+    align-self: center;
+    margin: 10px 0 0;
+    flex-shrink: 0;
+  }
+
+  /* Header */
+  .mcp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    flex-shrink: 0;
+  }
+
+  .mcp-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    font-family: 'Inter', 'Roboto', sans-serif;
+  }
+
+  .mcp-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    border: none;
+    font-size: 18px;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* Scrollable body */
+  .mcp-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 18px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-family: 'Inter', 'Roboto', sans-serif;
+  }
+
+  /* Org name */
+  .mcp-org { margin-bottom: 16px; }
+
+  .mcp-org-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+
+  .mcp-org-meta {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 3px;
+    font-weight: 400;
+  }
+
+  .mcp-org-weather { color: #64748b; }
+
+  /* Divider */
+  .mcp-divider {
+    height: 1px;
+    background: #f1f5f9;
+    margin: 14px 0;
+  }
+
+  /* Stats — plain numbers in a row */
+  .mcp-stats {
+    display: flex;
+    gap: 0;
+  }
+
+  .mcp-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .mcp-stat + .mcp-stat {
+    border-left: 1px solid #f1f5f9;
+  }
+
+  .mcp-stat-num {
+    font-size: 26px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .mcp-stat-num--green { color: #059669; }
+  .mcp-stat-num--amber { color: #d97706; }
+  .mcp-stat-num--red   { color: #dc2626; }
+  .mcp-stat-num--grey  { color: #64748b; }
+
+  .mcp-stat-lbl {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 4px;
+    font-weight: 400;
+  }
+
+  /* Fleet composition */
+  .mcp-section-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 12px;
+  }
+
+  .mcp-comp-row {
+    margin-bottom: 14px;
+  }
+
+  .mcp-comp-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .mcp-comp-label {
+    font-size: 13px;
+    color: #334155;
+    font-weight: 400;
+  }
+
+  .mcp-comp-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .mcp-comp-track {
+    height: 5px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .mcp-comp-fill {
+    height: 100%;
+    background: #0f172a;
+    border-radius: 3px;
+  }
+}

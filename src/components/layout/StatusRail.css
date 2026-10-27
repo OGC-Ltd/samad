@@ -1,0 +1,216 @@
+/* Hallmark · component: segmented status bar · genre: modern-minimal · theme: app tokens (index.css)
+ * states: default · hover · focus · active · disabled · loading · zero · alert · selected
+ * contrast: counts at status colour mixed 72% with black, labels #475569, zero #5f6e83 (all ≥ 4.5:1 on white and the selected tint)
+ */
+
+/* StatusRail — horizontal status filters for tablet and phone.
+
+   Hidden at 1024px and up, where the sidebar's stat grid is showing. The two
+   are the same six controls at two sizes and must never both be on screen
+   competing to be the filter.
+
+   Redesigned 2026-10-15: six loose white pills, each its own shadow, became
+   ONE bar built like the Map/Satellite toggle beside it (white, 1px slate
+   edge, 7px corners, the same shadow, hairlines between segments), so the
+   row reads as one control strip. On a phone each segment stacks the number
+   over its word: narrower segments, so five or six fit where four pills did,
+   and the number, the thing being read, is first. */
+
+.status-rail { display: none; }
+
+@media (max-width: 1023px) {
+  .status-rail {
+    /* The --color-* names: they hold their light values on every ancestor,
+       where --text-primary is the dark theme's #f0f4f8 outside .app--light.
+       The bar is always white, so its ink must be too. */
+    --rail-ink:     var(--color-text-primary, #0f172a);
+    --rail-label:   var(--color-text-sec, #475569);
+    --rail-muted:   var(--color-text-muted, #5f6e83);
+    --rail-edge:    var(--color-border, #e2e8f0);
+    --rail-surface: var(--color-surface, #ffffff);
+    --rail-hover:   var(--color-bg, #f8fafc);
+    --rail-focus:   var(--color-text-primary, #0f172a);
+
+    display: flex;
+    align-items: center;
+    position: absolute;
+    /* Inline with the Map/Satellite base-map toggle, on its row rather than
+       below it (put back there 2026-10-10, operator: "the map selector on top
+       where it was originally along the stats buttons").
+       `left` clears that toggle: its width is published as --map-type-w from
+       FleetMap.css, beside the padding rules that decide it, so the two cannot
+       drift apart when the button is restyled. The 8px is the gap between them. */
+    top: 12px;
+    left: calc(12px + var(--map-type-w, 126px) + 8px);
+    right: 12px;
+    /* The map's other floating controls (.map-type-toggle, .map-cam-controls)
+       use 10 inside this same container; below that the tiles paint over it. */
+    z-index: 10;
+    /* Whatever of this box is not the bar must not swallow map drags. */
+    pointer-events: none;
+  }
+
+  /* No toggle to clear (no Google key built in): the bar starts at the edge. */
+  .status-rail.status-rail--alone { left: 12px; }
+
+  /* The bar: as wide as its segments, never wider than the row. */
+  .status-rail__bar {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    height: var(--map-type-h, 28px);
+    background: var(--rail-surface);
+    border: 1px solid var(--rail-edge);
+    border-radius: 7px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    pointer-events: auto;
+  }
+
+  .status-rail__scroller {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .status-rail__scroller::-webkit-scrollbar { display: none; }
+
+  /* Segments hidden past an end: that end fades, so the cut reads as "more",
+     not as a broken label. */
+  .status-rail__scroller[data-more="right"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  }
+  .status-rail__scroller[data-more="left"] {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 22px), transparent);
+            mask-image: linear-gradient(to left, #000 calc(100% - 22px), transparent);
+  }
+  .status-rail__scroller[data-more="left right"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+            mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  }
+
+  /* ── One segment ─────────────────────────────────────────────────────── */
+  /* Tablet: one line, word then number, at the toggle's 28px. */
+  .status-rail__chip {
+    --chip-ink:  color-mix(in srgb, var(--chip-color) 72%, #000);
+    --chip-tint: color-mix(in srgb, var(--chip-color) 10%, #fff);
+
+    position: relative;
+    display: inline-flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    height: 100%;
+    padding: 0 11px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: var(--font-body, inherit);
+    color: var(--rail-label);
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .status-rail__chip + .status-rail__chip { border-left: 1px solid var(--rail-edge); }
+
+  .status-rail__label {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .status-rail__count {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--chip-ink);
+  }
+  /* ALL counts the fleet, not a state: ink, not blue. */
+  .status-rail__chip:first-child .status-rail__count { color: var(--rail-ink); }
+
+  /* Hover — pointer devices only, so a tap does not leave a stuck wash. */
+  @media (hover: hover) {
+    .status-rail__chip:hover { background: var(--rail-hover); }
+  }
+
+  /* Pressed. */
+  .status-rail__chip:active { background: color-mix(in srgb, var(--chip-color) 16%, #fff); }
+
+  /* Selected: a tint of the status and a 2px status underline. The text stays
+     dark on a light ground, where the old full fill needed white text and
+     a third of black mixed in to reach 4.5:1. */
+  .status-rail__chip--active,
+  .status-rail__chip--active:hover { background: var(--chip-tint); }
+  .status-rail__chip--active { color: var(--rail-ink); }
+  .status-rail__chip--active::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--chip-ink);
+  }
+  .status-rail__chip--active .status-rail__label { font-weight: 600; }
+
+  /* Zero: nothing to see there, so it steps back: no colour, lighter weight,
+     the muted ink (still 4.8:1, it is still a figure someone may read). */
+  .status-rail__chip[data-zero] .status-rail__count,
+  .status-rail__chip[data-zero]:first-child .status-rail__count { color: var(--rail-muted); font-weight: 500; }
+  .status-rail__chip[data-zero]:not(.status-rail__chip--active) .status-rail__label { color: var(--rail-muted); }
+
+  /* Alert: a critical or warning unit on the map. The number sits on its own
+     tint so it is seen from across the bar, selected or not. */
+  .status-rail__chip[data-alert]:not(.status-rail__chip--active) .status-rail__count {
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--chip-color) 13%, #fff);
+  }
+
+  /* Loading: the dash, muted, until the first frame lands. */
+  .status-rail[aria-busy="true"] .status-rail__count { color: var(--rail-muted); }
+
+  /* Disabled is never set today; if it is, it must look it. */
+  .status-rail__chip:disabled { cursor: default; opacity: 0.45; background: transparent; }
+
+  /* Keyboard focus: drawn inside the segment, because the bar clips anything
+     outside it, and shown at once (never transitioned). */
+  .status-rail__chip:focus-visible {
+    outline: 2px solid var(--rail-focus);
+    outline-offset: -3px;
+    border-radius: 5px;
+  }
+}
+
+/* Phone: the number over the word, in the toggle's 36px. */
+@media (max-width: 767px) {
+  .status-rail__chip {
+    flex-direction: column;
+    gap: 3px;
+    min-width: 44px;
+    padding: 0 9px;
+  }
+  .status-rail__count { font-size: 13px; }
+  .status-rail__label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .status-rail__chip--active::after { left: 8px; right: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-rail__chip { transition: none; }
+  .status-rail__scroller { scroll-behavior: auto; }
+}

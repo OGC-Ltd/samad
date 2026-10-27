@@ -1,0 +1,525 @@
+/* AppHeader — light top bar */
+
+.app-header {
+  height: 52px;
+  background: #fff;
+  border-bottom: 1px solid #edf0f4;
+  display: flex;
+  align-items: center;
+  /* Left padding matches the side panel's body padding (10px) so the logo's
+     left edge sits on the same line as the stat cards and nav below it. */
+  padding: 0 20px 0 10px;
+  gap: 14px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 200;
+}
+
+.app-header__logo {
+  height: 38px;
+  width: 38px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.app-header__divider {
+  width: 1px;
+  height: 20px;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+/* Org switcher */
+.app-header__org-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.app-header__org-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 400;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.app-header__org-btn:hover {
+  background: #f8fafc;
+}
+
+.app-header__org-chevron {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.app-header__org-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 240px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  z-index: 500;
+}
+
+.app-header__org-menu-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 4px 8px 8px;
+}
+
+.app-header__org-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.app-header__org-item:hover {
+  background: #f8fafc;
+}
+
+.app-header__org-item--active {
+  background: #f0f7ff;
+}
+
+.app-header__org-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.app-header__org-name {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 400;
+  flex: 1;
+  text-align: left;
+}
+
+.app-header__org-item--active .app-header__org-name {
+  font-weight: 500;
+  color: #1d4ed8;
+}
+
+.app-header__org-check {
+  font-size: 12px;
+  color: #2563eb;
+}
+
+
+
+
+
+
+
+
+
+
+/* Live KPI carousel — fills the middle of the top bar */
+.app-header__carousel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Clip the sides so chips fade cleanly at the edges */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+
+/* On narrow screens, hide the carousel rather than squeeze it */
+@media (max-width: 900px) {
+  .app-header__carousel { display: none; }
+}
+
+/* Bell */
+/* Hallmark · component: header bell + badge · genre: modern-minimal · theme: the app's own header
+ * states: default · hover · focus · active (pressed) · news (unread: darker icon, notched, + badge) · open (feed showing: filled blue bell) · arriving (one swing, badge pop)
+ * contrast: icon #64748b 4.8:1, with news #1e293b 14:1; unread dot #dc2626 on the disc
+ * motion: swing 600ms once per rise in the count; badge pop 180ms; none under reduced motion
+ * redesign 2026-10-08: the badge's 2px white ring is gone; the bell is notched instead (see .app-header__bell-glyph)
+ * aligned 2026-10-08: the bell is a 26px disc built like the avatar face, so the pair share top, bottom and centre lines
+ * pre-emit critique: P4 H5 E5 S4 R5 V4 */
+.app-header__bell {
+  /* Badge geometry, measured from the button's centre so a 40px tablet target
+     keeps it on the same shoulder. The notch reads these too. */
+  --bell-badge: #dc2626;
+  --bell-badge-size: 8px;  /* a dot, no figure (operator 2026-10-19) */
+  --bell-badge-dx: 9px;    /* dot centre, right of the button centre */
+  --bell-badge-dy: -9px;   /* dot centre, above the button centre */
+  --bell-notch: 1.5px;     /* clear gap between the badge and the bell */
+  /* The bell is built like the avatar beside it (operator, 2026-10-08): a 26px
+     disc in a 34px target, so the two share a top line, a bottom line and a
+     centre. The badge sits on the disc's top-right corner, the way a status
+     badge sits on an avatar, clear of the glyph. */
+  --bell-disc: #f1f5f9;
+  --bell-disc-edge: #e2e8f0;
+  --bell-disc-open: #dbeafe;
+  --bell-disc-open-edge: #bfdbfe;
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  position: relative;
+  flex-shrink: 0;
+  /* 16px inside the 26px disc, the same proportion as the avatar's initials. */
+  font-size: 16px;
+  margin-left: auto; /* pushes bell + avatar to the right edge when carousel is absent */
+  transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1), color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.app-header__bell:hover { background: #f8fafc; color: #1e293b; }
+.app-header__bell:active { background: #f1f5f9; }
+.app-header__bell:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.app-header__bell--news { color: #1e293b; }
+.app-header__bell--active,
+.app-header__bell--active:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* The bell's disc: the avatar face's twin (26px, round, tint + 1px inner
+   edge). With unread news it is cut by a circle 1.5px wider than the badge,
+   so the badge sits in a notch of whatever the button's background is
+   (hover, pressed, open) instead of wearing a white ring that seamed against
+   every one of them. The icon swings inside the still disc. */
+.app-header__bell-glyph {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bell-disc);
+  box-shadow: inset 0 0 0 1px var(--bell-disc-edge);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.app-header__bell--active .app-header__bell-glyph {
+  background: var(--bell-disc-open);
+  box-shadow: inset 0 0 0 1px var(--bell-disc-open-edge);
+}
+.app-header__bell--news .app-header__bell-glyph {
+  --notch-at: calc(13px + var(--bell-badge-dx)) calc(13px + var(--bell-badge-dy));
+  --notch-r: calc(var(--bell-badge-size) / 2 + var(--bell-notch));
+  -webkit-mask: radial-gradient(circle at var(--notch-at), transparent calc(var(--notch-r) - 0.5px), #000 var(--notch-r));
+          mask: radial-gradient(circle at var(--notch-at), transparent calc(var(--notch-r) - 0.5px), #000 var(--notch-r));
+}
+
+/* One swing when news arrives, from the bell's crown */
+.app-header__bell-icon--swing {
+  transform-origin: 50% 2px;
+  animation: app-bell-swing 600ms cubic-bezier(0.36, 0, 0.3, 1) 1;
+}
+@keyframes app-bell-swing {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  45% { transform: rotate(-10deg); }
+  70% { transform: rotate(5deg); }
+  85% { transform: rotate(-2deg); }
+}
+
+/* Avatar + user menu */
+.app-header__user-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Hallmark · component: header avatar · genre: modern-minimal · theme: the app's own header
+ * states: default · hover · focus · active · open (menu showing, as the bell's active) · signed out (icon)
+ * contrast: initials on their 14% tint >= 4.6:1 (lib/avatar hues are all 600-700 weights)
+ * The target matches the bell (34px, 7px radius); the face inside is 26px, so
+ * the avatar carries the weight of an icon, not of a filled 30px disc. */
+.app-header__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #64748b;
+  font-size: 20px;
+  transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.app-header__avatar:hover { background: #f8fafc; }
+.app-header__avatar:active { background: #f1f5f9; }
+.app-header__avatar:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.app-header__avatar--open { background: #eff6ff; }
+.app-header__avatar-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ua, #64748b) 14%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ua, #64748b) 30%, transparent);
+  color: var(--ua, #64748b);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-header__avatar { transition: none; }
+}
+
+.app-header__user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  z-index: 500;
+}
+
+.app-header__user-info {
+  padding: 8px 10px 10px;
+}
+
+/* The menu is a fixed 220px box. Neither line had any wrap control, so a real
+   full name — "Christopher Wanjala Simiyu" is an ordinary one on this fleet —
+   pushed straight through the rounded corner and out over the page beneath.
+   One line, clipped with an ellipsis; the full string is on the title
+   attribute for anyone who needs it.
+
+   min-width: 0 on the wrapper because these are block children of a padded
+   box: without it the intrinsic width of an unbreakable string wins over the
+   container and the ellipsis never gets a chance to apply. */
+.app-header__user-info { min-width: 0; }
+
+.app-header__user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header__user-email {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  /* An address has no spaces to break on, so the same treatment: it is a
+     label here, not something anyone retypes from this menu. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header__user-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 2px 0;
+}
+
+.app-header__user-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #475569;
+  border-radius: 6px;
+  font-family: inherit;
+  text-align: left;
+}
+
+.app-header__user-item:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.app-header__user-item i {
+  font-size: 15px;
+  color: #64748b;
+}
+
+/* Company logos in the organisation switcher */
+
+.app-header__co-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.app-header__co-mark--md { width: 30px; height: 30px; padding: 2px; }
+.app-header__co-mark--sm { width: 26px; height: 26px; padding: 2px; }
+.app-header__co-mark img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.app-header__co-letter {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 3px;
+}
+
+/*
+ * Unread dot on the bell (operator 2026-10-19): no figure, just red while any
+ * feed line is unread, gone once everything is read.
+ *
+ * It sits on the disc's top-right shoulder, in a notch cut from the bell
+ * (.app-header__bell-glyph), placed by --bell-badge-dx/-dy from the button's
+ * centre so it stays put when the target grows to 40px on a tablet.
+ */
+.app-header__bell-count {
+  position: absolute;
+  top: calc(50% + var(--bell-badge-dy) - var(--bell-badge-size) / 2);
+  left: calc(50% + var(--bell-badge-dx) - var(--bell-badge-size) / 2);
+  width: var(--bell-badge-size);
+  height: var(--bell-badge-size);
+  border-radius: 50%;
+  background: var(--bell-badge);
+  pointer-events: none;
+  animation: app-bell-pop 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes app-bell-pop { from { transform: scale(0.6); opacity: 0; } }
+
+/* The figure badge (technicians): the unread count in a 16px pill. */
+.app-header__bell--figure { --bell-badge-size: 16px; --bell-badge-dx: 10px; --bell-badge-dy: -10px; }
+.app-header__bell-count--figure {
+  display: grid;
+  place-items: center;
+  min-width: var(--bell-badge-size);
+  width: auto;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header__bell { transition: none; }
+  .app-header__bell-icon--swing, .app-header__bell-count { animation: none; }
+}
+/* ── Responsive ────────────────────────────────────────────────────────────
+
+   The header was built at one width. Its search box is absolutely centred on
+   the viewport, which is fine on a desktop and collides with the organisation
+   name on anything narrower — "MENENGAI SUGAR COMPANY LIMITED" runs straight
+   under a box that is painted over it, with no stacking rule deciding which
+   wins. Below 1100px the search rejoins the flow and the row simply shares
+   itself out. */
+@media (max-width: 1100px) {
+
+  /* The dropdown is positioned against this wrapper, which is no longer
+     absolute — so the wrapper has to become the containing block itself or
+     the results list jumps to the header's left edge.
+
+     `top` and `left` MUST be cleared with it. The rule above drops `position`
+     and `transform` but left the 50%/50% offsets behind, and `relative` honours
+     them just as happily as `absolute` did — except that a relative offset
+     moves the paint and not the layout. Measured at 768px the search box was
+     shifted 373px right and 25.5px down from where the flex row had put it: it
+     hung 15px BELOW the 52px header, over the breadcrumbs, with its right end
+     under the notification bell, while the row it had left went on reserving
+     its empty seat. Every width from 768 to 1100 had this. */
+  .app-header__org-wrap {
+    position: relative;
+    top: auto;
+    left: auto;
+  }
+
+  .app-header__org-btn {
+    max-width: 30vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Tablet — the organisation name stays, shortened. It used to be hidden here
+   (font-size 0), leaving a lone "▾" beside the logo: on a 768px screen the
+   header then gave no clue which of four organisations was on screen. It is
+   capped and ellipsed instead. */
+@media (max-width: 1023px) {
+  .app-header {
+    padding-right: 12px;
+    gap: 10px;
+  }
+
+  .app-header__org-btn {
+    display: block;
+    max-width: 22vw;
+    min-height: 36px;
+    padding: 8px 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  .app-header__org-chevron { font-size: 11px; margin-left: 4px; }
+
+  .app-header__divider { display: none; }
+
+  /* Comfortable targets for a touchscreen. */
+  .app-header__bell,
+  .app-header__avatar {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* The org menu was sized against a desktop header; on a tablet it should
+     not run off the right edge. */
+  .app-header__org-menu { max-width: min(320px, 86vw); }
+}
+

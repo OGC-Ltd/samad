@@ -1,0 +1,391 @@
+/* Hallmark · component: map window · genre: modern-minimal · theme: in-project
+ * (the app's light surface, the same values the Units window resolves to)
+ * states: default · hover · focus-visible · empty · dragging
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Light-first, no dark half. App.jsx renders `.app--light` unconditionally, so
+ * a second theory of every colour here would be one nobody could see break —
+ * the same conclusion UserAdminPanel.css reached and stated.
+ *
+ * The geometry is the Units window's, deliberately: the two open from the same
+ * rail, at the same corner, and two windows that are nearly the same size read
+ * as a mistake where two that are exactly the same read as a set.
+ */
+
+.stranded-win {
+  position: fixed;
+  left: calc(var(--side-panel-w, 320px) + 12px);
+  top: calc(var(--app-header-h, 52px) + 12px);
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  /* Wide enough for four columns: unit, stopped at, location, stationary.
+     --sw-cols is the one template the header row and every data row share,
+     which is what keeps the column heads over their columns. */
+  --sw-cols: minmax(0, 150px) 82px minmax(0, 1fr) 60px;
+  width: 500px;
+  /* The free column between MapOverlay's rails, published by
+     useFloatingWindow — a window wider than the room it has is a window with
+     its close button off the screen. */
+  max-width: var(--safe-w, calc(calc(var(--vw) * 100) - 24px));
+  /* Raised once, with the third line on each row, and no further. MEASURED,
+     not guessed: the tightened row is 55px, so a full page of ten plus the
+     head and the pager is 649 — hence 650, the number at which ten rows are
+     ten rows. It was tempting to go on raising it (the row wanted 724 before
+     it was tightened), but a window much taller than this stops being a window
+     over the map and becomes a page in front of it.
+
+     70vh still wins below a ~930px viewport, where a full page scrolls. That
+     is the right trade rather than a defeat: paging is for not losing your
+     place among three hundred units, not for banning scroll bars among ten. */
+  max-height: min(70vh, 650px);
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+  font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+  /* The rail it is mounted inside is `pointer-events: none` so the map can be
+     dragged through it. A window is not the rail. */
+  pointer-events: auto;
+}
+
+/* ── The head is the handle ─────────────────────────────────────────────── */
+
+.stranded-win__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stranded-win.is-dragging,
+.stranded-win.is-dragging .stranded-win__head { cursor: grabbing; }
+
+.stranded-win__lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.stranded-win__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+/* How many, in the red this state is said in everywhere else. */
+.stranded-win__n {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Track all / Untrack all. Quiet: it acts on the whole list, which is the
+   bigger gesture, but it is not what the window is FOR. */
+.stranded-win__all {
+  padding: 3px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .13s, border-color .13s, color .13s;
+}
+.stranded-win__all:hover { border-color: #94a3b8; color: #0f172a; background: #f8fafc; }
+.stranded-win__all:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+.stranded-win__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  /* No `margin-left: auto` here: Track all carries it, and two of them in one
+     row would put a gap between the two buttons instead of before them. The
+     count is what stays beside the title. */
+  margin-left: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  transition: background .13s, color .13s, border-color .13s;
+}
+.stranded-win__close:hover { background: #f1f5f9; color: #0f172a; }
+.stranded-win__close:focus-visible { outline: 2px solid #0369a1; outline-offset: 1px; }
+
+/* ── The list ───────────────────────────────────────────────────────────── */
+
+.stranded-win__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* The Units panel's bar, which is `thin` and nothing else — no track, no
+     thumb colour, no hidden bar. Two windows that open from the same rail and
+     scroll the same kind of list must not scroll differently: this one was on
+     the platform default, which is roughly twice the width beside it. Left as
+     the platform's THIN bar rather than a drawn one, because that is what the
+     panel next to it does and matching it is the whole point. */
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  /* The rail sets `user-select: none` for the sake of its drag handles; a
+     plate is something an operator copies into a radio call. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* TWO controls, side by side: the tick that says which units the map is about,
+   and the rest of the row, which takes the camera to one. */
+.stranded-win__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border-radius: 7px;
+  transition: background .13s;
+}
+/* A hairline between rows rather than a gap: the rows are read across as
+   table lines, and a rule does that job in 1px where whitespace needs 6. */
+.stranded-win__row + .stranded-win__row { box-shadow: inset 0 1px 0 #f1f5f9; }
+.stranded-win__row:hover { background: #fef2f2; }
+/* Ticked: the map is narrowed to this one, so it is marked as a STATE rather
+   than as a hover — the blue the tick itself is drawn in, not the red the
+   row's alarm is in. Red on red would be the alarm getting louder for a
+   reason that has nothing to do with the alarm. */
+.stranded-win__row--on { background: #eff6ff; }
+.stranded-win__row--on:hover { background: #e0edff; }
+
+/* ── The tick ───────────────────────────────────────────────────────────── */
+/* The units panel's control, in the sidebar's drawing of it: one box in three
+   places means one thing in three places. 34px of hit area around a 15px box,
+   which is what a box this small needs on a touch screen. */
+.stranded-win__tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  align-self: stretch;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px 0 0 7px;
+  background: none;
+  cursor: pointer;
+}
+.stranded-win__tick:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+
+.stranded-win__box {
+  position: relative;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  transition: background .13s, border-color .13s;
+}
+.stranded-win__tick:hover .stranded-win__box { border-color: #94a3b8; }
+.stranded-win__row--on .stranded-win__box {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.stranded-win__row--on .stranded-win__box::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Column heads — small caps over the columns, spaced by the rows' own
+   template so they cannot drift from what they label. */
+.stranded-win__cols {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  border-bottom: 1px solid #f1f5f9;
+}
+.stranded-win__colhead {
+  display: grid;
+  grid-template-columns: var(--sw-cols);
+  gap: 16px;
+  padding: 0 10px 6px 0;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.stranded-win__colhead--num { text-align: right; }
+
+.stranded-win__go {
+  display: grid;
+  grid-template-columns: var(--sw-cols);
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 8px 10px 8px 0;
+  border: 0;
+  border-radius: 0 7px 7px 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.stranded-win__go:focus-visible { outline: 2px solid #b91c1c; outline-offset: -2px; }
+
+/* Plate over engine state: the plate is what the row is found by. */
+.stranded-win__unit {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1px 7px;
+  min-width: 0;
+}
+
+.stranded-win__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b91c1c;
+}
+
+.stranded-win__plate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.stranded-win__meta {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: #64748b;
+}
+
+/* Time over date, like plate over engine state: the line you scan first on
+   top, the one that qualifies it beneath in the quieter grey. */
+.stranded-win__at {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.stranded-win__time {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  color: #334155;
+}
+.stranded-win__date {
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: #64748b;
+}
+
+/* WHERE it stopped — the one column you cannot get by looking at the map.
+   Two lines before it is cut, since place names run long. */
+.stranded-win__where {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #334155;
+}
+
+/* Tabular and right-aligned, because the column is read down: 8m over 14m
+   over 1h 20m. */
+.stranded-win__for {
+  text-align: right;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #b91c1c;
+  white-space: nowrap;
+}
+
+.stranded-win__empty {
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+/* ── The pager ────────────────────────────────────────── */
+/* The app's one pager (TablePager: Prev · Page n of N · Next, operator
+   2026-10-12), at a window's scale: a hairline above it like the list's
+   rows, smaller buttons, and the "1–10 of 34" range left out, as on a
+   phone, so it fits 300px without wrapping. */
+.stranded-win .sp4-tpager {
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 0 0;
+  border-top: 1px solid #f1f5f9;
+}
+.stranded-win .sp4-tpager__btn { min-width: 0; padding: 3px 10px; font-size: 11.5px; }
+.stranded-win .sp4-tpager__info { font-size: 11.5px; }
+.stranded-win .sp4-tpager__range { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stranded-win__row,
+  .stranded-win__box,
+  .stranded-win__all,
+  .stranded-win__close { transition: none; }
+}
+
+/* A phone has no sidebar to open beside, and 320px is most of a 360px screen.
+   The width gives way rather than the position: `right` cannot help here,
+   because useFloatingWindow places every window with an inline left/top and an
+   inline `right: auto`, so a stylesheet's right edge would never apply. */
+@media (max-width: 767px) {
+  .stranded-win {
+    --sw-cols: minmax(0, 1fr) 80px minmax(0, 1fr) 54px;
+    width: min(500px, calc(calc(var(--vw, 1vw) * 100) - 24px));
+  }
+}

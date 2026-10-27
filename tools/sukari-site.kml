@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document id="document">
+	<name>Sukari</name>
+	<visibility>0</visibility>
+	<gx:CascadingStyle kml:id="__managed_style_07652BFE2D41D23AAFCC_highlight">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.9</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=f57c00&amp;id=2137&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>6</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_0F6EFC533141D23AE6AF_normal">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.75</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=ef5350&amp;id=2000&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>4</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<StyleMap id="__managed_style_07652BFE2D41D23AAFCC">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#__managed_style_07652BFE2D41D23AAFCC_normal</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#__managed_style_07652BFE2D41D23AAFCC_highlight</styleUrl>
+		</Pair>
+	</StyleMap>
+	<StyleMap id="__managed_style_0E1791587841D23B4604">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#__managed_style_0E1791587841D23B4604_normal</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#__managed_style_0E1791587841D23B4604_highlight</styleUrl>
+		</Pair>
+	</StyleMap>
+	<gx:CascadingStyle kml:id="__managed_style_0F6EFC533141D23AE6AF_highlight">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.9</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=ef5350&amp;id=2000&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>6</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_0E1791587841D23B4604_highlight">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.9</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=42a5f5&amp;id=2244&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>6</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<StyleMap id="__managed_style_0F6EFC533141D23AE6AF">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#__managed_style_0F6EFC533141D23AE6AF_normal</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#__managed_style_0F6EFC533141D23AE6AF_highlight</styleUrl>
+		</Pair>
+	</StyleMap>
+	<gx:CascadingStyle kml:id="__managed_style_07652BFE2D41D23AAFCC_normal">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.75</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=f57c00&amp;id=2137&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>4</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_0A42D116F141D2363D6E_highlight">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>1.2</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=1976d2&amp;id=2000&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>6</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_0E1791587841D23B4604_normal">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<scale>0.75</scale>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=42a5f5&amp;id=2244&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+				<scale>0.75</scale>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>4</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<gx:CascadingStyle kml:id="__managed_style_0A42D116F141D2363D6E_normal">
+		<styleUrl>https://earth.google.com/balloon_components/base/1.1.0.0/card_template.kml#main</styleUrl>
+		<Style>
+			<IconStyle>
+				<Icon>
+					<href>https://earth.google.com/earth/document/icon?color=1976d2&amp;id=2000&amp;scale=4</href>
+				</Icon>
+				<hotSpot x="64" y="128" xunits="pixels" yunits="insetPixels"/>
+			</IconStyle>
+			<LabelStyle>
+			</LabelStyle>
+			<LineStyle>
+				<color>ff2dc0fb</color>
+				<width>4</width>
+			</LineStyle>
+			<PolyStyle>
+				<color>40ffffff</color>
+			</PolyStyle>
+			<BalloonStyle>
+			</BalloonStyle>
+		</Style>
+	</gx:CascadingStyle>
+	<StyleMap id="__managed_style_0A42D116F141D2363D6E">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#__managed_style_0A42D116F141D2363D6E_normal</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#__managed_style_0A42D116F141D2363D6E_highlight</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Placemark id="01D816F0EB41D2363D44">
+		<name>Sukari</name>
+		<LookAt>
+			<longitude>34.39491608447308</longitude>
+			<latitude>-0.8209877202565716</latitude>
+			<altitude>1258.831405765441</altitude>
+			<heading>36.87195737642188</heading>
+			<tilt>0.2754356246586232</tilt>
+			<gx:fovy>35</gx:fovy>
+			<range>5310.596193530364</range>
+			<altitudeMode>absolute</altitudeMode>
+		</LookAt>
+		<styleUrl>#__managed_style_0A42D116F141D2363D6E</styleUrl>
+		<Polygon>
+			<outerBoundaryIs>
+				<LinearRing>
+					<coordinates>
+						34.38827118319624,-0.8245258777209468,0 34.38795613412579,-0.823923946535036,0 34.38760528995446,-0.8234262127137482,0 34.38766082078339,-0.8230338924501873,0 34.38787857173938,-0.8227682485775207,0 34.38832729902099,-0.8224715405470659,0 34.38839412309137,-0.8221817333659238,0 34.38822679002602,-0.8218541109268508,0 34.38794926777714,-0.8214345724130871,0 34.38772022848879,-0.8211862052627528,0 34.38744795087043,-0.8205002994183574,0 34.38757252024279,-0.8199742525675061,0 34.38762267755861,-0.8198676559526152,0 34.38767496094395,-0.8195492866362784,0 34.38764038381031,-0.8195048673207513,0 34.38764845772346,-0.8194033125000354,0 34.38768803621981,-0.8191568049634949,0 34.38758243309736,-0.8189176719178817,0 34.38751938626579,-0.818780896237553,0 34.38741112486034,-0.8187858440422666,0 34.38730490768405,-0.818767639935546,0 34.38720507559024,-0.8187081403403215,0 34.38698380171248,-0.8185606771423592,0 34.38688758437051,-0.8184916586957957,0 34.38691605149127,-0.8184052846949268,0 34.38676158313464,-0.8182006456741164,0 34.38664186401846,-0.8181878339362311,0 34.38648668254989,-0.8181854311886633,0 34.38513494424524,-0.8181449961800182,0 34.38503741843913,-0.8180289044459687,0 34.38509588459345,-0.8171003875851024,0 34.38481342329911,-0.8169431992431628,0 34.38272538801728,-0.8169327063988144,0 34.38304838942781,-0.8153549958688724,0 34.38203079469886,-0.8144205327875782,0 34.38133405228227,-0.8144821220742001,0 34.38095254674485,-0.8160818568901279,0 34.38083417634653,-0.8160697799069819,0 34.37921337277373,-0.8154354606464312,0 34.37896934205396,-0.8154775505649663,0 34.37903522786649,-0.8165539097489828,0 34.37917615063884,-0.8184057919443192,0 34.37931714492296,-0.8196579547155383,0 34.37955934881545,-0.8200700626707536,0 34.379927066263,-0.8203477340263364,0 34.38032729659741,-0.8206047517127236,0 34.38111702000644,-0.8213449551899509,0 34.38171583097881,-0.8218062168343503,0 34.38184009622033,-0.8218046528631217,0 34.38197267172011,-0.8219323834535174,0 34.38196988411272,-0.8220577852644585,0 34.38207382713289,-0.8221649516293734,0 34.38243259523112,-0.8224529993976437,0 34.38295019724269,-0.822902920840758,0 34.38362020519283,-0.8234740544356883,0 34.38388716024408,-0.82370776319331,0 34.38441869198742,-0.8242340996302032,0 34.38466866325966,-0.8244209786747797,0 34.38501486555629,-0.8246939254503435,0 34.38536394597982,-0.8249317820980632,0 34.38552152509675,-0.8250013473706734,0 34.38573187952559,-0.8250889807963129,0 34.38608488851185,-0.8252148484791029,0 34.38654949147627,-0.8253619705268608,0 34.38719186076439,-0.8255727454254055,0 34.38768161339345,-0.825742871490873,0 34.38813105442505,-0.8259341024871664,0 34.38837928071054,-0.8260401303260485,0 34.38857618516492,-0.8261518400722387,0 34.38870614364142,-0.8261721817790336,0 34.38896240319318,-0.8261178257718471,0 34.38912599605494,-0.8259348280747703,0 34.38827118319624,-0.8245258777209468,0 
+					</coordinates>
+				</LinearRing>
+			</outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+	<Placemark id="0DA7AF4A6641D236DAF0">
+		<name>Main Gate</name>
+		<LookAt>
+			<longitude>34.38348569890988</longitude>
+			<latitude>-0.8180843613215343</latitude>
+			<altitude>1258.824451505281</altitude>
+			<heading>36.87212608873935</heading>
+			<tilt>0.2752863121755604</tilt>
+			<gx:fovy>35</gx:fovy>
+			<range>1853.397845328727</range>
+			<altitudeMode>absolute</altitudeMode>
+		</LookAt>
+		<styleUrl>#__managed_style_0F6EFC533141D23AE6AF</styleUrl>
+		<Point>
+			<coordinates>34.3818583300929,-0.8219160252454735,1268.095635536253</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark id="08497EF0DC41D23806C3">
+		<name>Tractor Parking</name>
+		<LookAt>
+			<longitude>34.38261068601908</longitude>
+			<latitude>-0.8164032686231806</latitude>
+			<altitude>1260.991812539408</altitude>
+			<heading>36.87212578819153</heading>
+			<tilt>0.2752248274447967</tilt>
+			<gx:fovy>35</gx:fovy>
+			<range>429.7941382142745</range>
+			<altitudeMode>absolute</altitudeMode>
+		</LookAt>
+		<styleUrl>#__managed_style_0E1791587841D23B4604</styleUrl>
+		<Point>
+			<coordinates>34.38251512978145,-0.8159144024308751,1263.54464762427</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark id="0CA77C787F41D239F554">
+		<name>Fuel Station</name>
+		<LookAt>
+			<longitude>34.38477194724818</longitude>
+			<latitude>-0.8222774106376258</latitude>
+			<altitude>1261.260660129904</altitude>
+			<heading>36.87213209177429</heading>
+			<tilt>0.2752304043769604</tilt>
+			<gx:fovy>35</gx:fovy>
+			<range>559.067708550574</range>
+			<altitudeMode>absolute</altitudeMode>
+		</LookAt>
+		<styleUrl>#__managed_style_07652BFE2D41D23AAFCC</styleUrl>
+		<Point>
+			<coordinates>34.38518635361858,-0.822998599088591,1262.028457810804</coordinates>
+		</Point>
+	</Placemark>
+</Document>
+</kml>

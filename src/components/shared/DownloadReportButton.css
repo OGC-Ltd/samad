@@ -1,0 +1,103 @@
+/* PDF export button styles. */
+
+.download-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+
+  background: var(
+    --color-card,
+    rgba(10, 10, 11, 0.97)
+  );
+
+  border: 1px solid var(
+    --color-border,
+    #2a2d35
+  );
+
+  border-radius: 8px;
+
+  color: var(
+    --color-text-primary,
+    #f0f4f8
+  );
+
+  font-family: var(--font-body);
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease;
+
+  flex-shrink: 0;
+}
+
+.download-report-btn:hover:not(
+    :disabled
+  ) {
+  background: rgba(
+    34,
+    197,
+    94,
+    0.1
+  );
+
+  border-color: rgba(
+    34,
+    197,
+    94,
+    0.4
+  );
+
+  color: #22c55e;
+}
+
+/* The one state this button never had. Every other control on the Analytics
+   filter bar rings on focus; this one was reachable by keyboard and invisible
+   when you got there. Never transitioned — a ring that fades in is a ring that
+   is absent at the moment it is needed. */
+.download-report-btn:focus-visible {
+  outline: 2px solid var(--color-text-sec, #7c8899);
+  outline-offset: 2px;
+}
+.download-report-btn:not(:disabled):active { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  .download-report-btn:not(:disabled):active { transform: none; }
+}
+.download-report-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.download-report-btn--generating {
+  cursor: wait;
+}
+
+.download-report-btn__spinner {
+  width: 14px;
+  height: 14px;
+
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+
+  border-radius: 50%;
+
+  animation:
+    download-report-spin
+    0.7s linear infinite;
+
+  flex-shrink: 0;
+}
+
+@keyframes download-report-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

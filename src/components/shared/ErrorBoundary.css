@@ -1,0 +1,96 @@
+/* Error fallback UI styles. */
+
+
+
+.error-boundary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  color: #f87171;
+  font-family: var(--font-body);
+}
+
+.error-boundary--compact {
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+
+.error-boundary--full {
+  min-height: 200px;
+  padding: 32px;
+  flex-direction: column;
+  text-align: center;
+  justify-content: center;
+}
+
+.error-boundary__icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.error-boundary--full .error-boundary__icon {
+  font-size: 36px;
+  margin-bottom: 4px;
+}
+
+.error-boundary__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.error-boundary__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f87171;
+}
+
+.error-boundary__subtitle {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: rgba(248, 113, 113, 0.75);
+}
+
+.error-boundary__retry {
+  flex-shrink: 0;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.error-boundary__retry:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.error-boundary--full .error-boundary__retry {
+  margin-top: 10px;
+}
+
+.app--light .error-boundary {
+  background: rgba(220, 38, 38, 0.06);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+.app--light .error-boundary__title,
+.app--light .error-boundary__icon {
+  color: #dc2626;
+}
+.app--light .error-boundary__subtitle {
+  color: rgba(220, 38, 38, 0.7);
+}
+.app--light .error-boundary__retry {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+.app--light .error-boundary__retry:hover {
+  background: rgba(220, 38, 38, 0.15);
+}

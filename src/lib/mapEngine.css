@@ -1,0 +1,75 @@
+/* ── Map engine (lib/mapEngine) ──────────────────────────────────────────────
+ * The Leaflet pieces that stand in for Google's own chrome. */
+
+/* Our overlay panes move with Leaflet's zoom animation, as its own markers do. */
+.leaflet-zoom-anim .gpane > div {
+  transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+
+.leaflet-container {
+  background: #eef0ed;
+  font: inherit;
+  outline: none;
+  /* Leaflet's panes and controls carry z-index 400–1000. Without a stacking
+     context of its own the map competes with the whole page at those values
+     and paints over the live feed drawer (150) and anything else fixed above
+     it; isolated, it stacks as one ordinary block where it sits. */
+  isolation: isolate;
+}
+.leaflet-container a { color: inherit; }
+
+/* Google-style markers: a zero-size anchor, the body offset by its anchor. */
+.gmk { background: none; border: 0; }
+.gmk__body { position: absolute; }
+.gmk__label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* InfoWindow: no frame of its own (the cards inside draw theirs), a tail. */
+.map-iw {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding-bottom: 9px;
+  cursor: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.map-iw__c { position: relative; }
+.map-iw__tc {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 14px;
+  height: 8px;
+  transform: translateX(-50%);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background: var(--bg-panel, #fff);
+}
+.app--light .map-iw__tc { background: #ffffff; }
+
+/* Leaflet's zoom buttons, sized to the panel controls they sit beside. */
+.leaflet-bar a,
+.gfs-btn {
+  width: 26px;
+  height: 26px;
+  line-height: 26px;
+  font-size: 16px;
+}
+.gfs-btn {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  background-clip: padding-box;
+}
+.gfs-btn:hover { background: #f4f4f4; }

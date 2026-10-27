@@ -1,0 +1,25 @@
+/* Continuous, non-interactive marquee — items scroll across in a single
+   line and loop forever, like a news ticker. Ported from fleetdash. */
+
+.filterstrip-viewport {
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.filterstrip-track {
+  display: flex;
+  width: max-content;
+  animation: filterstrip-scroll linear infinite;
+  animation-duration: var(--filterstrip-duration, 20s);
+}
+
+@keyframes filterstrip-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filterstrip-track { animation: none; }
+}

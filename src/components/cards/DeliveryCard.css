@@ -1,0 +1,181 @@
+/* Active Trip — the open dispatch as a round trip out of the yard and back.
+   Was dead code for months (it ran on the simulator's `leg`); now driven by
+   the dispatch, so it renders for every unit that is actually out. */
+
+.dc-card {
+  background: var(--color-card, rgba(10, 10, 11, 0.97));
+  border: 1px solid #2a2d35;
+  border-radius: 12px;
+  padding: 16px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+}
+.dc-title        { font-size: 12px; font-weight: 700; color: #e6edf3; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+.dc-row          { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.dc-dot          { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #3a3f4a; }
+.dc-dot.green    { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
+.dc-dot.amber    { background: #f59e0b; }
+.dc-place        { flex: 1; font-size: 13px; font-weight: 600; color: #f0f4f8; }
+/* The return leg names the same place as the first row, so it is toned down —
+   it is the same stop again, not a third destination. */
+.dc-place--return { font-weight: 500; opacity: 0.72; }
+.dc-time         { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.dc-time.muted   { color: var(--text-sec-adaptive, #7c8899); }
+
+/* Which leg it is on — the categorical truth beside the bar's number. */
+.dc-leg {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+.dc-leg--outbound   { color: #38bdf8; }
+.dc-leg--dest       { color: #22c55e; }
+.dc-leg--returning  { color: #a78bfa; }
+.dc-leg--back       { color: #22c55e; }
+.dc-leg--yard       { color: #f59e0b; }
+.dc-leg--silent     { color: #94a3b8; }
+
+.dc-overdue {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #ef4444;
+}
+
+/* Who took the keys — the driver named on the dispatch, which is the person
+   answerable for THIS run whatever the vehicle's assignment says. */
+.dc-driver {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sec-adaptive, #7c8899);
+  margin: -4px 0 9px;
+}
+
+.dc-driver--pending { margin: 6px 0 0; }
+
+.dc-progress-wrap { margin-top: 6px; }
+.dc-track        { position: relative; height: 5px; background: #2a2d35; border-radius: 99px; overflow: hidden; margin-bottom: 5px; }
+.dc-fill         { height: 100%; background: linear-gradient(90deg,#22c55e,#38bdf8); border-radius: 99px; }
+/* Halfway IS the destination — without the notch the bar reads as one journey
+   and "50%" looks like it is half way to the cane zone. */
+.dc-midpoint {
+  position: absolute;
+  left: 50%;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: var(--color-card, rgba(10,10,11,0.97));
+  opacity: 0.9;
+  z-index: 1;
+}
+.dc-meta         { display: flex; justify-content: space-between; gap: 8px; }
+.dc-cap          { font-size: 10px; color: var(--text-sec-adaptive, #7c8899); }
+.dc-pct          { font-size: 10px; font-weight: 600; color: #22c55e; }
+
+/* Distance still to run, and the clock it implies.
+   Above the driven line and deliberately in the same key, because the two are
+   the same kind of fact pointing opposite ways: one is ground behind, one is
+   ground ahead. The figures are cyan like the driven one; only "stopped" leaves
+   that palette, because it is the one word here that is a STATE rather than a
+   measurement and must not read as another number. */
+.dc-eta {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+.dc-eta-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: #38bdf8;
+}
+.dc-eta-stopped {
+  color: var(--accent-warn, #f59e0b);
+  font-weight: 600;
+}
+
+/* Live-traffic ETA (lib/tomtomTraffic). The cause line is the one coloured
+   thing: red when traffic is holding the unit, amber when it is stopped and
+   traffic does NOT explain it (the delay to chase), orange for a jam ahead. */
+.dc-eta--muted { font-style: italic; }
+.dc-eta-in { color: var(--text-sec-adaptive, #7c8899); }
+.dc-cause {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.dc-cause--traffic-here  { color: var(--accent-crit, #ef4444); }
+.dc-cause--stopped-clear { color: var(--accent-warn, #f59e0b); }
+.dc-cause--traffic-ahead { color: #f07d1a; }
+.dc-cause--clear         { color: var(--accent-ok, #22c55e); }
+.dc-eta-src {
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--text-sec-adaptive, #7c8899);
+  opacity: 0.8;
+}
+
+/* Standing at the gate with the signature outstanding.
+   Amber, like the serial and like the "not yet arrived" dot — this product's
+   colour for "true, and waiting on somebody". Not green: green on this card
+   means a thing has happened, and a trip is completed by the SIGN-IN, which
+   by definition has not, or the run would have left the open set and this card
+   would not be drawn at all. */
+.dc-awaiting {
+  color: var(--accent-warn, #f59e0b);
+  font-weight: 700;
+}
+
+/* The gate's serial, in the slot the due-back clock otherwise holds.
+   Amber, not the due-back's green: green on this card means "measured and on
+   track", and a document number is a reference rather than a verdict. Tabular
+   figures so a column of serials lines up the way a column of times does. */
+.dc-serial {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-warn, #f59e0b);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ground actually driven today — a different quantity from the bar above it,
+   so it gets its own line rather than sharing the bar's caption. */
+.dc-driven {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+.dc-driven-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+/* Stands in for the bar when there is nothing honest to draw. */
+.dc-nobar {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-sec-adaptive, #7c8899);
+  font-style: italic;
+  padding: 3px 0 1px;
+}
+/* Provenance: says when a figure is an estimate rather than a fact. */
+.dc-note {
+  margin-top: 5px;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--text-sec-adaptive, #7c8899);
+  opacity: 0.85;
+}
+
+.app--light .dc-card            { background: rgba(255,255,255,0.98); border-color: #dde1e7; }
+.app--light .dc-title           { color: #0f172a; }
+.app--light .dc-place           { color: #0f172a; }
+.app--light .dc-track           { background: #dde1e7; }
+.app--light .dc-cap             { color: #64748b; }
+.app--light .dc-midpoint        { background: #ffffff; }

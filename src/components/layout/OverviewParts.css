@@ -1,0 +1,206 @@
+/* Hallmark · component: vehicle panel Overview (readings · facts; chart card + day groups from FuelParts) · genre: modern-minimal · theme: the app's own (vdp-* panel tokens)
+ * pre-emit critique: P4 H5 E4 S4 R5 V4
+ * driver — link default · hover · focus · active; assigned (initials on own hue) · unassigned (empty-seat silhouette); summary item — plain · alert · warn
+ * states: reading — plain · alert (red value) · warn (amber value) · not available (dash); fuel level bar — good · reserve · low (tank gauge bands)
+ * contrast: values #12181f 17:1; labels #6b757f 4.8:1; alert #b91c1c 6.5:1; warn #b45309 4.8:1 on white
+ * motion: driver row background 120ms; none under reduced motion */
+
+.ov-read,
+.ov-facts {
+  --ov-ink: var(--vdp-ink, #12181f);
+  --ov-ink2: var(--vdp-ink2, #4a545e);
+  --ov-mut: var(--vdp-mut, #6b757f);
+  --ov-border: var(--vdp-border, #dfe4ea);
+  --ov-hair: var(--vdp-hair, #eceff3);
+  --ov-soft: #fafbfc;
+  --ov-track: #eef1f5;
+  --ov-crit: #b91c1c;
+  --ov-warn: #b45309;
+  --ov-good: #22c55e;
+  --ov-reserve: #f59e0b;
+  --ov-low: #ef4444;
+
+  margin: 0;
+  border: 1px solid var(--ov-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* ── Readings: two by two ─────────────────────────────────────────────────── */
+.ov-read { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+.ov-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 11px 12px 12px; }
+.ov-cell:nth-child(2n) { border-left: 1px solid var(--ov-hair); }
+.ov-cell:nth-child(n + 3) { border-top: 1px solid var(--ov-hair); }
+.ov-cell dt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ov-mut);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ov-cell dt .ti { font-size: 14px; }
+.ov-cell dd { margin: 0; }
+.ov-cell-val {
+  color: var(--ov-ink);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-cell-val [title] { color: var(--ov-mut); font-weight: 400; }
+.ov-cell-sub { color: var(--ov-mut); font-size: 11px; line-height: 1.3; }
+.ov-cell--alert .ov-cell-val, .ov-cell--alert .ov-cell-sub { color: var(--ov-crit); }
+.ov-cell--warn .ov-cell-val, .ov-cell--warn .ov-cell-sub { color: var(--ov-warn); }
+
+/* The fuel level as a short bar, in the tank gauge's bands */
+.ov-level { height: 5px; margin: 2px 0 1px; border-radius: 999px; background: var(--ov-track); overflow: hidden; }
+.ov-level span { display: block; height: 100%; border-radius: 999px; }
+.ov-level--good span { background: var(--ov-good); }
+.ov-level--reserve span { background: var(--ov-reserve); }
+.ov-level--low span { background: var(--ov-low); }
+
+/* ── Facts: one row, label over value ─────────────────────────────────────── */
+.ov-facts { display: grid; grid-template-columns: repeat(var(--ov-cols, 2), minmax(0, 1fr)); }
+.ov-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px 11px; }
+.ov-facts > div + div { border-left: 1px solid var(--ov-hair); }
+.ov-facts dt { color: var(--ov-mut); font-size: 11px; }
+.ov-facts dd {
+  margin: 0;
+  color: var(--ov-ink);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-facts dd [title] { color: var(--ov-mut); font-weight: 400; }
+
+@media (max-width: 340px) {
+  .ov-cell, .ov-facts > div { padding-left: 9px; padding-right: 9px; }
+  .ov-cell-val { font-size: 16px; }
+}
+
+/* ── Driver + summary: one card ───────────────────────────────────────────── */
+.ov-person {
+  --ov-ink: var(--vdp-ink, #12181f);
+  --ov-ink2: var(--vdp-ink2, #4a545e);
+  --ov-mut: var(--vdp-mut, #6b757f);
+  --ov-border: var(--vdp-border, #dfe4ea);
+  --ov-hair: var(--vdp-hair, #eceff3);
+  --ov-soft: #fafbfc;
+  --ov-seat: #eef1f5;       /* the empty-seat avatar's disc */
+  --ov-seat-ink: #b4bcc6;   /* its silhouette — decorative, the name says it */
+  --ov-seat-ring: #9aa4b0;  /* its dotted ring */
+  --ov-hover: #f5f7fa;
+  --ov-press: #eceff3;
+  --ov-focus: #2563eb;
+  --ov-star: #d97706;
+  --ov-crit: #b91c1c;  --ov-crit-soft: #fef2f2;
+  --ov-warn: #b45309;  --ov-warn-soft: #fffbeb;
+  --ov-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  border: 1px solid var(--ov-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.ov-driver {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.ov-driver--link { cursor: pointer; transition: background-color 120ms var(--ov-ease); }
+.ov-driver--link:hover { background: var(--ov-hover); }
+.ov-driver--link:active { background: var(--ov-press); }
+.ov-driver--link:focus-visible { outline: 2px solid var(--ov-focus); outline-offset: -2px; }
+
+.ov-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ov-av) 14%, #fff);
+  color: var(--ov-av);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ov-av) 35%, transparent);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+/* Hallmark · component: driver avatar, empty state · genre: modern-minimal · theme: the panel's own --ov-*
+ * states: assigned (initials) · none (empty seat) — not interactive itself; the row owns hover/focus
+ *
+ * No one assigned. It used to be a dashed ring round a Tabler user-question
+ * glyph, which read as an image that had failed to load: the dashes are the
+ * browser's broken-image language, and the glyph's small "?" sat off the
+ * circle's centre. Now a soft disc with a muted silhouette whose shoulders
+ * run off the bottom, so it reads as a seat with nobody in it, inside a
+ * dotted ring (operator, 2026-10-02) drawn in the SVG as 28 evenly spaced
+ * round dots, never a CSS dashed border, which bunches round a circle. */
+.ov-av--none {
+  overflow: hidden;
+  align-items: flex-end;
+  background: var(--ov-seat);
+  color: var(--ov-seat-ink);
+  box-shadow: none;
+}
+.ov-av--none svg { display: block; width: 100%; height: 100%; }
+.ov-av-seat { fill: currentColor; }
+.ov-av-ring {
+  fill: none;
+  stroke: var(--ov-seat-ring);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.ov-driver-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.ov-driver-name {
+  color: var(--ov-ink);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-av--none + .ov-driver-text .ov-driver-name { color: var(--ov-ink2); font-weight: 500; }
+.ov-driver-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--ov-mut); font-size: 12px; }
+.ov-rating { display: inline-flex; align-items: center; gap: 3px; color: var(--ov-ink2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ov-rating .ti { color: var(--ov-star); font-size: 13px; }
+.ov-chip { padding: 1px 7px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 11px; font-weight: 500; }
+.ov-driver-go { color: var(--ov-mut); font-size: 17px; }
+
+/* The summary, under a hairline */
+.ov-sum { padding: 11px 14px 13px; border-top: 1px solid var(--ov-hair); background: var(--ov-soft); }
+.ov-sum-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ov-sum-title { display: inline-flex; align-items: center; gap: 5px; color: var(--ov-ink2); font-size: 11.5px; font-weight: 600; }
+.ov-sum-title .ti { color: var(--ov-mut); font-size: 14px; }
+.ov-sum-asof { color: var(--ov-mut); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ov-sum-lead { margin: 0; color: var(--ov-ink); font-size: 13px; line-height: 1.5; }
+.ov-sum-list { display: flex; flex-direction: column; gap: 5px; margin: 9px 0 0; padding: 0; list-style: none; }
+.ov-sum-item { display: flex; align-items: flex-start; gap: 7px; color: var(--ov-ink2); font-size: 12.5px; line-height: 1.4; }
+.ov-sum-item .ti { flex-shrink: 0; margin-top: 1px; color: var(--ov-mut); font-size: 15px; }
+.ov-sum-item--alert, .ov-sum-item--warn { margin: 0 -6px; padding: 5px 6px; border-radius: 6px; }
+.ov-sum-item--alert { background: var(--ov-crit-soft); color: var(--ov-crit); }
+.ov-sum-item--alert .ti { color: var(--ov-crit); }
+.ov-sum-item--warn { background: var(--ov-warn-soft); color: var(--ov-warn); }
+.ov-sum-item--warn .ti { color: var(--ov-warn); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-driver--link { transition: none; }
+}

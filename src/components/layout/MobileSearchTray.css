@@ -1,0 +1,111 @@
+/* MobileSearchTray */
+
+.mst-tray { display: none; }
+
+@media (max-width: 767px) {
+  .mst-tray {
+    display: block;
+    background: rgba(255,255,255,0.97);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 8px 14px 10px;
+    flex-shrink: 0;
+  }
+
+  .mst-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    padding: 0 12px;
+    height: 38px;
+  }
+
+  .mst-icon { font-size: 14px; color: #64748b; flex-shrink: 0; }
+
+  .mst-input {
+    flex: 1;
+    align-self: stretch;   /* the whole 38px bar takes the tap, not a 16px line */
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: #0f172a;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .mst-input::placeholder { color: #64748b; }
+
+  /* 36px square around a 14px glyph: the bare glyph was a 14x16 target. */
+  .mst-close {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin: -10px -10px -10px 0;
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .mst-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .mst-pills-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    flex-shrink: 0;
+  }
+
+  .mst-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: #f0fdf4;
+    border: 1px solid #d1fae5;
+    font-size: 12px;
+    font-weight: 700;
+    color: #047857;   /* #059669 was 3.6:1 on the mint fill */
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+
+  .mst-pill--alert {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    color: #e11d48;
+  }
+
+  .mst-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+}
+
+/* The no-match line. A sentence rather than a pill, because it is prose and
+   nothing in it is tappable — a greyed-out pill would invite a press. */
+.mst-empty {
+  flex: 1 1 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+}

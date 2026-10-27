@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Samad Resources</title>
+    <link rel="icon" type="image/svg+xml" href="/samad-logo.svg" />
+    <!-- The sign-in backdrop. Fetched from here so it downloads alongside the
+         app script; requested by the stylesheet alone it would only start once
+         the login had rendered, and the page sat on a flat fill until it
+         arrived. type= makes browsers without WebP skip it (they use the JPEG). -->
+    <link rel="preload" as="image" href="/banner.webp" type="image/webp" fetchpriority="high" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Inter for body text, Roboto for sidebar, JetBrains Mono for figures -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <!-- Tabler icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>

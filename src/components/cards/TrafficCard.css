@@ -1,0 +1,115 @@
+/* Per-vehicle traffic card styles. */
+
+
+
+.traffic-card {
+  background: var(--color-card, rgba(10, 10, 11, 0.97));
+  border: 1px solid #2a2d35;
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+  font-family: var(--font-body);
+  flex-shrink: 0;
+}
+
+.trf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.trf-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0f4f8;
+  flex-shrink: 0;
+}
+.trf-destination {
+  font-size: 10px;
+  color: var(--text-sec-adaptive, #7c8899);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trf-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-sec-adaptive, #7c8899);
+  padding: 8px 0;
+}
+@keyframes tc-spin {
+  to { transform: rotate(360deg); }
+}
+.trf-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #2a2d35;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: tc-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.trf-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.trf-condition {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.trf-condition-icon {
+  font-size: 12px;
+}
+.trf-delay {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+
+.trf-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.trf-highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.trf-highlight-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.trf-highlight-text {
+  font-size: 11px;
+  color: #b6c0cc;
+  line-height: 1.4;
+}
+
+.trf-clear-note {
+  font-size: 11px;
+  color: var(--text-sec-adaptive, #7c8899);
+}
+
+.app--light .traffic-card       { background: rgba(255,255,255,0.98); border-color: #dde1e7; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.app--light .trf-title           { color: #0f172a; }
+.app--light .trf-destination     { color: #64748b; }
+.app--light .trf-loading         { color: #64748b; }
+.app--light .trf-spinner         { border-color: #dde1e7; border-top-color: #3b82f6; }
+.app--light .trf-delay           { color: #64748b; }
+.app--light .trf-highlight-text  { color: #334155; }
+.app--light .trf-clear-note      { color: #64748b; }

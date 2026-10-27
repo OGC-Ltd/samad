@@ -1,0 +1,51 @@
+/* Route covered — a small white card over the map's bottom-left, above the
+   scale strip (operator, 2026-10-04: "make it use a white theme"). */
+.rcov {
+  position: absolute;
+  left: 12px;
+  bottom: 72px;
+  z-index: 445;
+  width: 272px;
+  max-width: calc(100% - 84px);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: #334155;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+@media (max-width: 767px) {
+  .rcov { bottom: 66px; left: 10px; }
+}
+.rcov__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.rcov__title {
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase;
+  color: #64748b;
+}
+.rcov__x { border: 0; background: none; color: #94a3b8; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.rcov__x:hover { color: #0f172a; }
+.rcov__x:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.rcov b { color: #0f172a; font-variant-numeric: tabular-nums; }
+.rcov__span { color: #1e293b; }
+.rcov__split { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
+.rcov__split span { display: inline-flex; align-items: center; gap: 5px; }
+.rcov__dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.rcov__dot--drive { background: #22c55e; }
+.rcov__dot--stop  { background: #f59e0b; }
+.rcov__dot--gap   { background: #94a3b8; }
+.rcov__expect { margin-top: 8px; padding-top: 7px; border-top: 1px solid #e2e8f0; color: #1e293b; }
+.rcov__sub { color: #64748b; font-size: 10.5px; }
+.rcov__verdict { margin-top: 3px; font-weight: 700; }
+.rcov__verdict--ok   { color: #16a34a; }
+.rcov__verdict--slow { color: #ea580c; }
+.rcov__verdict--fast { color: #2563eb; }
+.rcov__muted { margin-top: 4px; color: #64748b; font-style: italic; }
+.rcov__err { margin-top: 6px; color: #dc2626; }
+.rcov__src { margin-top: 5px; font-size: 9.5px; color: #94a3b8; }

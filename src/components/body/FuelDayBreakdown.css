@@ -1,0 +1,109 @@
+/* The day breakdown in the fuel incident window. Type is the window's own:
+   the ledger is `Tile`s (see the component) styled by the window's .vt-tile
+   rules, event figures use .vt-tile-val / .vt-tile-unit, and headings and
+   notes take the label and sub sizes the tiles use. Nothing here sets a font
+   family, and no size here is one the tiles do not already use. */
+
+.fd { display: flex; flex-direction: column; gap: 6px; }
+
+.fd-hdr,
+.fd-events-hdr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fd-events-hdr { margin-top: 6px; }
+/* `.vt-tile-lbl`'s voice, in the primary colour because it heads a block. */
+.fd-title {
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+/* `.vt-tile-sub`'s size and colour, like `.fi-when` beside the title above. */
+.fd-day,
+.fd-note {
+  font-size: var(--vt-fs-label);
+  color: var(--text-muted);
+}
+.fd-note { margin: 0; line-height: 1.45; }
+
+/* What the day shows: the ledger read for the case, where "Not explained"
+   used to stand. The note's size, in the primary ink — it is the finding, not
+   a footnote — and the first line, which says whether anything burned it, a
+   step heavier. */
+.fd-assess {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 7%, transparent);
+}
+.fd-assess-line {
+  margin: 0;
+  font-size: var(--vt-fs-label);
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.fd-assess-line--lead { font-weight: 600; }
+
+/* Tones for figures. Doubled up with `.fd` so they win over .vt-tile-val's own
+   colour whatever order the two stylesheets load in. */
+.fd .fd-val--ok { color: var(--accent-ok); }
+.fd .fd-val--warn { color: var(--accent-warn); }
+.fd .fd-val--muted { color: var(--text-muted); }
+.fd .fd-val--theft { color: var(--accent-crit); }
+
+/* ── The events ─────────────────────────────────────────────────────────── */
+.fd-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fd-ev {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 6px;
+  font-size: var(--vt-fs-label);
+}
+/* Only a theft case is ever "mine" — see FuelDayBreakdown. */
+.fd-ev--mine { background: color-mix(in srgb, var(--accent-crit) 10%, transparent); }
+.fd-ev-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.fd-ev-dot {
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.fd-ev-dot--ok { background: var(--accent-ok); }
+.fd-ev-dot--warn { background: var(--accent-warn); }
+.fd-ev-dot--theft { background: var(--accent-crit); }
+.fd-ev-lbl {
+  min-width: 0;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* `.fi-tag`'s treatment, the chips in the header above. */
+.fd-ev-this {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--accent-crit) 45%, transparent);
+  border-radius: 4px;
+  font-size: var(--vt-fs-micro);
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  text-transform: uppercase;
+  color: var(--accent-crit);
+}
+.fd-ev-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The unit takes the figure's colour, as it does in the tiles. */
+.fd-ev-val .vt-tile-unit { color: inherit; }

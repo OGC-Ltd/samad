@@ -1,0 +1,1716 @@
+/* Hallmark · component: modal (fuel incident) · genre: modern-minimal · theme: in-project
+ * scope: the sheet geometry is phones only (every rule below 720px); the
+ *        palette and type pass below apply to BOTH themes at every width
+ * states: default · hover · focus · active · disabled · loading · error · success
+ *         (this modal has no loading or disabled state — it is rendered only
+ *          once an incident exists; "armed" is its error-guard state)
+ * type: Geist (var(--font-body)) throughout, as everywhere else in the app.
+ *       Scale and tracking are both the Maintenance page's, at every width:
+ *       9.5 / 10.5 / 13.5 px on 0.04em. Was 14 / 12 / 11 / 11 on three px
+ *       trackings, with the phone sheet a further step up on all four.
+ * contrast: pass, 29 text roles across the incident AND the vehicle card,
+ *           both themes — worst 5.11 (Delete, dark) and 4.72 (type badge,
+ *           light). Was 2.05 on three label columns in dark and 2.28 on the
+ *           CONFIRMED chip in light.
+ * chrome: title-bar controls are 22px on the window and MobileVehicleSheet's
+ *         26px on the sheet (were 44); the bar is 40px at both. Shadow is the
+ *         file's own --shadow (0 4px 20px) on the window, none on the sheet —
+ *         was 0 18px 60px, hard-coded twice per theme.
+ * collapsed: on a phone the folded sheet covers the WHOLE footer — the nav's
+ *            box and the round Fleet button that rises 14px (11 under 380) out
+ *            of it. 80px, and 73 under 380. Measured at 414 / 375 / 320: nav
+ *            fully covered, FAB circle cleared by 2px at all three. The
+ *            window's own collapse is untouched: still a 360x38 bar where you
+ *            left it.
+ * severity: 1px across the top of the sheet (was 3px), 3px down the leading
+ *           edge of the window, unchanged.
+ * fit: 320x568 · 375x812 · 414x896 — the incident is whole above the fold at
+ *      all three (274 / 259 / 259px tall), with the vehicle card peeking
+ *      114 / 344 / 417px below it. No horizontal scroll at any width. 768 and
+ *      1280 are the window they were: 680 wide, 244px rail, card first.
+ */
+/* Side panel styles over the map. */
+
+/* The fuel incident window is one of the three that float over the map, and it
+   collapses to the same bar they do. Imported rather than leaned on: FleetMap.css
+   pulls the same file in today, so the tokens happen to be present, but a
+   stylesheet should not depend on another one having been loaded first. */
+@import "../shared/windowChrome.css";
+
+
+
+:root {
+
+  --bg-overlay:   var(--color-surface, rgba(8, 8, 9, 0.96));
+  --bg-card:      var(--color-card, rgba(10, 10, 11, 0.97));
+  --bg-inner:     rgba(18, 18, 19, 1);
+  --border:       #2a2d35;
+  --text-primary: #e6edf3;
+  --text-sec:     #8b949e;
+  --text-muted:   #484f58;
+  --green:        #22c55e;
+  --amber:        #f59e0b;
+  --red:          #ef4444;
+  --blue:         #38bdf8;
+  --grey:         var(--text-sec-adaptive, #7c8899);
+  --radius:       12px;
+  --gap:          8px;
+  --font:         var(--font-body);
+  --mono:         var(--font-mono);
+  --shadow:       0 4px 20px rgba(0,0,0,0.55);
+}
+
+.app--light {
+  --bg-overlay:   rgba(240, 244, 248, 0.97);
+  --bg-card:      rgba(255, 255, 255, 0.98);
+  --bg-inner:     rgba(241, 245, 249, 1);
+  --border:       #dde1e7;
+  --text-primary: #0f172a;
+  --text-sec:     #475569;
+  --text-muted:   #94a3b8;
+  --shadow:       0 4px 20px rgba(0,0,0,0.10);
+}
+
+.overlay-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 336px;
+  height: 100%;
+  /* The global `* { box-sizing: border-box }` reset in index.css is dead code
+     (the `//` line above it is invalid CSS and error-recovery drops the whole
+     rule), so this panel computes as content-box: the 76px footer-clearance
+     padding gets ADDED below the 100% height and the feed spills under the
+     footer. Restore border-box here so the padding is carved out instead. */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap) var(--gap) calc(64px + 12px) var(--gap);
+  z-index: 400;
+  font-family: var(--font);
+  pointer-events: none;
+  overflow: hidden;
+}
+.overlay-left > * { pointer-events: auto; }
+
+/* Six cells (ALL / OK / WARNING / CRITICAL / IDLING / OFFLINE) laid out 3x2.
+   As a single flex row in this ~320px rail each cell got about 43px of content
+   box, but the labels need up to 52px ("ALL UNITS") and 49px ("WARNING") — so
+   the longer ones spilled past their cell and were cut off at the panel edge.
+   A 3-column grid gives each cell ~100px, which fits every label at full size
+   with no truncation and no shrinking of already-small 9.5px type. */
+.status-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  flex-shrink: 0;
+}
+.status-cell {
+  /* `flex` is inert on a grid item; kept only so the cell still behaves if the
+     bar is ever laid out as a row again. */
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  /* Slim side padding — at 10px the label got ~33px of content width and
+     "ALL UNITS"/"CRITICAL" rendered clipped ("squeezed"). */
+  padding: 12px 4px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.2s, transform 0.12s, box-shadow 0.15s;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  user-select: none;
+  min-width: 0;
+}
+/* Hover/active highlight is LAYERED over the opaque card background — a bare
+   `background: rgba(...,0.07)` here used to REPLACE var(--bg-card) entirely,
+   turning the card ~93% transparent on hover so the map bled through it. */
+.status-cell:hover {
+  background: linear-gradient(rgba(255,255,255,0.07), rgba(255,255,255,0.07)), var(--bg-card);
+  border-color: #3a3f4a;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.65);
+}
+.status-cell.active {
+  background: linear-gradient(rgba(255,255,255,0.06), rgba(255,255,255,0.06)), var(--bg-card);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.65);
+}
+/* Light theme: a white overlay is invisible on white cards (and the heavy
+   dark shadow reads as a smudge) — tint with navy and soften instead. */
+.app--light .status-cell:hover {
+  background: linear-gradient(rgba(15,23,42,0.05), rgba(15,23,42,0.05)), var(--bg-card);
+  border-color: #c3cad4;
+  box-shadow: 0 6px 20px rgba(15,23,42,0.14);
+}
+.app--light .status-cell.active {
+  background: linear-gradient(rgba(15,23,42,0.04), rgba(15,23,42,0.04)), var(--bg-card);
+  box-shadow: 0 6px 20px rgba(15,23,42,0.14);
+}
+.status-count {
+  /* Slimmer than the original 28px/900 — a 3-digit count at that weight
+     outgrew the cell and made the five cards render unequal. Tabular digits
+     keep every count the same width per digit. */
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
+}
+/* "ALL UNITS" used to need extra share of a single row. On the 3x2 grid every
+   cell is wide enough for the longest label, so the special case is gone —
+   equal columns also keep the six cells visually aligned. */
+.status-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+  /* Primary text dimmed via opacity, not the muted palette colour — muted
+     (#3d4553 in dark mode) was near-invisible, and opacity tracks both themes. */
+  color: var(--text-primary);
+  opacity: 0.75;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.status-active-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.search-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 13px;
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+}
+.search-icon  { font-size: 15px; color: var(--text-muted); flex-shrink: 0; }
+.search-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font);
+}
+.search-input::placeholder { color: var(--text-muted); }
+
+.feed-card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.feed-heading {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sec);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feed-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green, #22c55e);
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: feedLivePulse 2s ease-out infinite;
+}
+@keyframes feedLivePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+/* Scope bar — shown only while the feed is filtered to one vehicle, so the
+   panel never silently claims to be the whole fleet's activity. */
+.feed-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(56, 189, 248, 0.07);
+  flex-shrink: 0;
+}
+.feed-scope-plate {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--accent-info, var(--blue));
+}
+.feed-scope-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-sec);
+}
+.feed-scope-clear {
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-sec);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.feed-scope-clear:hover,
+.feed-scope-clear:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--accent-info, var(--blue));
+  background: rgba(56, 189, 248, 0.12);
+}
+
+/* A scoped feed is a deliberate, temporary state — tint its edge so it reads
+   as "filtered" at a glance rather than as an unusually quiet fleet. */
+.feed-card--scoped {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.feed-list {
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  scroll-behavior: smooth;
+}
+.feed-item {
+  display: grid;
+  /* First column widened from 36px: it now carries "03 Aug" above the clock. */
+  grid-template-columns: 40px 16px minmax(0, 1fr) 22px;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background 0.12s;
+
+  animation: feedItemArrive 0.4s ease-out, feedItemFlash 1.6s ease-out;
+}
+@keyframes feedItemArrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes feedItemFlash {
+  0%   { background: rgba(56, 189, 248, 0.16); }
+  100% { background: transparent; }
+}
+.feed-share-btn {
+  grid-column: 4;
+  align-self: start;
+  margin-top: 1px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s, transform 0.1s, background 0.15s;
+}
+.feed-share-btn:hover,
+.feed-share-btn:focus-visible {
+  opacity: 1;
+  background: rgba(37, 211, 102, 0.12);
+}
+.feed-share-btn:active { transform: scale(0.92); }
+
+@media (hover: none) {
+  .feed-share-btn { opacity: 0.7; }
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-item:hover      { background: rgba(255,255,255,0.025); }
+/* Date over clock, in the column the clock alone used to occupy. Stacked
+   rather than inlined because the row is 11.5px text over a map and a
+   "03 Aug 01:50" prefix would take a third of the width from the message. */
+.feed-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-sec);
+  padding-top: 1px;
+  white-space: nowrap;
+}
+.feed-date  { font-size: 9px; opacity: 0.62; letter-spacing: 0.2px; }
+.feed-clock { font-size: 10.5px; }
+.feed-icon-cell { font-size: 11px; padding-top: 1px; text-align: center; }
+.fi-info     { color: var(--blue);  }
+.fi-warning  { color: var(--amber); }
+.fi-critical { color: var(--red);   }
+.fi-success  { color: var(--green); font-weight: 700; }
+/* Primary toned down via opacity — the secondary grey read too faint over the
+   map, but full 0.9 was too bright; 0.78 sits between the two. */
+.feed-text   { font-size: 11.5px; color: var(--text-primary); opacity: 0.78; line-height: 1.45; }
+
+/* The severity word, out of the sentence and into a badge — shared by the
+   desktop feed and MobileHomeScreen (see shared/FeedText).
+   
+   It used to be tinted text inline, which read as a SHOUTED FIRST WORD rather
+   than as a label: "CRITICAL: KCC 386Z — 18.4 L" is one sentence wearing two
+   registers. A chip is the same information without the sentence having to
+   carry it, and it holds its shape at the 11.5px the feed runs at, which a
+   bolder weight alone did not. */
+.feed-badge {
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 1.5;
+  /* The chip carries its own colour; the row's 0.78 on .feed-text would take
+     the badge down with the sentence it is meant to stand out from. */
+  opacity: 1;
+  white-space: nowrap;
+}
+/* The wash is mixed FROM the badge's own colour rather than written out as a
+   fifth and sixth hex: --red and the rest are redefined further down for the
+   1024px layout, and a literal rgba() here would have gone on quoting the
+   other palette's values. */
+.feed-badge { background: color-mix(in srgb, currentColor 11%, transparent); }
+.feed-badge--critical { color: var(--red); }
+.feed-badge--warning  { color: var(--amber); }
+.feed-badge--info     { color: var(--blue); }
+.feed-badge--success  { color: var(--green); }
+/* The feeds are white panels now, and the palette above is tuned for the dark
+   map overlay: the amber ALERT chip measured 2.1:1 on white. The same four
+   hues, at the depth that reads on a light surface. */
+.app--light .feed-badge--critical { color: #b91c1c; }
+.app--light .feed-badge--warning  { color: #a14c06; }
+.app--light .feed-badge--info     { color: #1d4ed8; }
+.app--light .feed-badge--success  { color: #15803d; }
+
+.overlay-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100%;
+  box-sizing: border-box;   /* same dead-global-reset issue as .overlay-left */
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap) var(--gap) calc(64px + 12px) var(--gap);
+  z-index: 400;
+  font-family: var(--font);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  pointer-events: none;
+}
+.overlay-right > * { pointer-events: auto; }
+
+.r-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 13px 14px;
+  flex-shrink: 0;
+}
+
+.asset-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.avatar-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,#1b3a24,#22c55e22);
+  border: 2px solid var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.asset-info   { flex: 1; min-width: 0; }
+.asset-name-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.asset-name   { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.badge-normal {
+  font-size: 9px; font-weight: 700;
+  padding: 2px 6px; border-radius: 99px;
+  background: rgba(34,197,94,0.14);
+  color: var(--green);
+  border: 1px solid rgba(34,197,94,0.28);
+  letter-spacing: 0.3px;
+}
+.asset-sub  { font-size: 11px; color: var(--text-sec); margin-bottom: 1px; }
+.asset-farm { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+.stars      { display: flex; align-items: center; gap: 2px; }
+.star       { font-size: 12px; color: var(--text-muted); }
+.star.on    { color: var(--amber); }
+.star-val   { font-size: 10px; color: var(--text-sec); margin-left: 4px; }
+
+.gauges-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 12px 8px;
+}
+.gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.gauge-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+.card-title { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.tag {
+  font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 5px;
+}
+.tag-green { background: rgba(34,197,94,0.12);  color: var(--green); }
+.tag-amber { background: rgba(245,158,11,0.12); color: var(--amber); }
+
+.tele-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.tele-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--bg-inner);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+}
+.tele-ico        { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.tele-ico.amber  { color: var(--amber); }
+.tele-ico.green  { color: var(--green); }
+.tele-ico.blue   { color: var(--blue);  }
+.tele-lbl {
+  font-size: 9px; font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.tele-val       { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.tele-val.hi    { font-weight: 800; color: var(--green); }
+
+.delivery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.d-dot         { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.d-dot.green   { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.d-dot.amber   { background: var(--amber); }
+.d-place       { flex: 1; font-size: 12px; color: var(--text-primary); }
+.d-time        { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.d-time.muted  { color: var(--text-muted); }
+.d-time.green  { color: var(--green); }
+.prog-bar-wrap { margin-top: 6px; }
+.prog-track    {
+  height: 5px; background: var(--border);
+  border-radius: 99px; overflow: hidden; margin-bottom: 5px;
+}
+.prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  border-radius: 99px;
+}
+.prog-meta     { display: flex; justify-content: space-between; }
+.prog-meta span { font-size: 10px; }
+
+.storage-row   { display: flex; align-items: center; gap: 10px; }
+.storage-ico   { font-size: 24px; flex-shrink: 0; }
+.storage-info  { flex: 1; }
+.storage-name  { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.storage-sub   { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+.storage-count { font-size: 24px; font-weight: 800; color: var(--amber); white-space: nowrap; }
+.storage-unit  { font-size: 9px; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
+
+.ai-card {
+  background: linear-gradient(135deg,rgba(56,189,248,0.07),rgba(34,197,94,0.04));
+  border-left: 3px solid var(--blue) !important;
+}
+.ai-head   { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.ai-star   { color: var(--blue); font-size: 13px; }
+.ai-ttl    { font-size: 12px; font-weight: 700; color: var(--blue); }
+.ai-body   { font-size: 11px; color: var(--text-sec); line-height: 1.5; margin-bottom: 9px; }
+.ai-footer { display: flex; gap: 14px; }
+.ai-meta   { font-size: 10px; font-weight: 600; color: var(--text-muted); }
+.ai-meta.g { color: var(--green); }
+
+.maint-row  { display: flex; align-items: center; gap: 10px; }
+.maint-name { font-size: 12px; color: var(--text-primary); white-space: nowrap; flex-shrink: 0; }
+.maint-right { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.maint-track { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.maint-fill  { height: 100%; border-radius: 99px; }
+.maint-fill.good { background: var(--green); }
+.maint-fill.warn { background: var(--amber); }
+.maint-status    { font-size: 9px; font-weight: 700; text-align: right; }
+.maint-status.good { color: var(--green); }
+.maint-status.warn { color: var(--amber); }
+
+.c-green { color: var(--green); }
+.c-amber { color: var(--amber); }
+.c-muted { color: var(--text-muted); }
+
+.search-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.search-card:focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
+}
+.search-card.search-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239,68,68,0.18) !important;
+}
+
+.search-clear {
+  background: none;
+  border: none;
+  color: #484f58;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.search-clear:hover { color: #e6edf3; }
+
+/* Found, but not on the map. Amber rather than red: this is not a failed
+   search, it is a unit the provider has never given a position for — 317 of
+   Sukari's 597. The details below it are perfectly good. */
+.search-no-position {
+  background: rgba(245,158,11,0.09);
+  border: 1px solid rgba(245,158,11,0.22);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--amber, #f59e0b);
+  animation: fade-in 0.15s ease;
+}
+.search-no-position strong { font-family: var(--mono); font-weight: 700; }
+
+.search-no-match {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: #ef4444;
+  font-weight: 500;
+  text-align: center;
+  animation: fade-in 0.15s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+:root {
+  --bg-card:      var(--color-surface, rgba(8, 8, 9, 0.96));
+  --bg-inner:     var(--color-card-inner, rgba(16, 20, 28, 1));
+  --border:       #2a2d35;
+  --green:        #22c55e;
+  --amber:        #f0a500;
+  --red:          #ff3b3b;
+  --blue:         #3b82f6;
+  --text-primary: #f0f4f8;
+  --text-sec:     var(--text-sec-adaptive, #7c8899);
+  --text-muted:   #3d4553;
+  --radius:       14px;
+}
+
+/* Rescaled for the 90% app scale. Authored as 1024 LAYOUT px; above the
+   1024px threshold the app lays out at viewport/0.9, so the viewport that
+   corresponds to it is 1023. Anything at 1024 viewport already has 1138 layout px, so this narrow rule now stops just below the threshold.
+   See --app-zoom in src/index.css. */
+@media (max-width: 1023px) {
+  .overlay-left  { width: 300px; }
+  .overlay-right { width: 300px; }
+  .status-count  { font-size: 13px; }
+  .status-label  { font-size: 8.5px; letter-spacing: 0.2px; }
+  .status-cell   { padding: 10px 4px 9px; }
+}
+
+@media (max-width: 767px) {
+
+  .overlay-left {
+    position: static;
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+    background: rgba(11,14,20,0.98);
+  }
+
+  .overlay-right {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    overflow-x: hidden;
+    border-left: none;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    padding: 10px;
+    gap: 8px;
+    padding-bottom: calc(64px + 16px);
+    background: rgba(11,14,20,0.98);
+  }
+
+  .overlay-right > * {
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: 100% !important;
+    flex-shrink: 0;
+  }
+
+  .status-bar {
+    flex-direction: row;
+    gap: 6px;
+    width: 100%;
+  }
+  .status-cell  { padding: 10px 4px; flex: 1; }
+  .status-count { font-size: 14px; }
+  .status-label { font-size: 7px; letter-spacing: 0.3px; }
+
+  .search-card { width: 100%; box-sizing: border-box; }
+
+  .feed-card {
+    flex: none;
+    height: 240px;
+    max-height: 240px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .feed-card .feed-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+  }
+
+  .view-map-btn {
+    display: flex !important;
+  }
+
+  .gauges-card {
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 12px;
+    padding: 14px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .overlay-left  { padding: 6px 8px; gap: 6px; }
+  .status-count  { font-size: 15px; }
+  .status-label  { font-size: 6.5px; }
+  .status-cell   { padding: 8px 3px; }
+  .search-input  { font-size: 11px; }
+}
+
+.view-map-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(56,130,246,0.18), rgba(34,197,94,0.12));
+  border: 1px solid rgba(56,130,246,0.35);
+  border-radius: var(--radius);
+  color: #3b82f6;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font);
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.15s, transform 0.1s;
+}
+.view-map-btn:hover  { background: rgba(56,130,246,0.22); transform: translateY(-1px); }
+.view-map-btn:active { transform: translateY(0); }
+.view-map-icon { font-size: 16px; }
+
+@media (max-width: 767px) {
+
+  .feed-card {
+    position: relative;
+  }
+
+  .feed-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    /* Fade into the CARD colour, not hardcoded near-black — in light mode the
+       old rgba(8,8,9) gradient rendered as a dark smear over the feed. */
+    background: linear-gradient(to bottom, transparent, var(--bg-card, var(--color-surface, rgba(8, 8, 9, 0.96))));
+    border-radius: 0 0 var(--radius) var(--radius);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .feed-card .feed-list::-webkit-scrollbar {
+    width: 3px;
+  }
+  .feed-card .feed-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .feed-card .feed-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 99px;
+  }
+}
+
+.search-icon-right {
+  font-size: 17px;
+  color: #3d4553;
+  flex-shrink: 0;
+  cursor: default;
+  user-select: none;
+}
+
+/* Search result — hosts the SAME vt-* vitals card as the marker hover tooltip
+   (cards/VehicleStatsCard), so it themes with --bg-card like every panel card
+   and scrolls if the journey section makes it taller than the panel allows. */
+.search-result-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 13px 15px 15px;
+  position: relative;
+  animation: src-in 0.18s ease;
+  pointer-events: auto;
+  max-height: calc(var(--vh) * 48);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  flex-shrink: 0;
+}
+/* Leave room for the close button beside the status badge. */
+.search-result-card .vt-header { padding-right: 24px; }
+
+@keyframes src-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.src-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 2;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--text-sec);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.src-close:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+.app--light .src-close       { background: rgba(15,23,42,0.05); }
+.app--light .src-close:hover { background: rgba(15,23,42,0.10); }
+
+@media (max-width: 767px) {
+  .search-result-card { width: 100%; box-sizing: border-box; }
+}
+
+/* Live feed empty state — shown until the first SSE feed event arrives. */
+.feed-empty {
+  color: var(--text-secondary, var(--text-sec-adaptive, #7c8899));
+  font-size: 11px;
+  padding: 14px 6px;
+  text-align: center;
+}
+
+
+/* ── Fuel incident card ──────────────────────────────────────────────────────
+   The panel's only alarm state. Deliberately louder than the cards below it:
+   it is the answer to "why is this one red", and it is rare — roughly three a
+   day across the whole fleet — so it can afford the weight.
+
+   Two severities. A possible theft (engine provably off, sustained fall) is
+   red; an unexplained drop is amber. The distinction is the server's, carried
+   on the incident, and the colours must not be read as "how much fuel" — they
+   are how far the evidence goes. */
+
+.fi-facts {
+  margin: 10px 0 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 12px;
+  font-size: 12px;
+}
+.fi-facts dt { color: var(--text-muted); }
+.fi-facts dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  /* A place string on this fleet runs long enough to push the grid wide. */
+  overflow-wrap: anywhere;
+}
+
+/* The fall in one line — both ends of the gauge, duration and rate. This is
+   the line an operator checks against the machine, so it is set apart from the
+   prose below it rather than folded into it. */
+.fi-ago { color: var(--text-muted); }
+
+/* An audit key, not prose: monospaced so it can be read out or searched for
+   without ambiguity between l/1 and O/0. */
+.fi-ref {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-sec);
+  overflow-wrap: anywhere;
+}
+
+
+/* ── Fuel incident: banner + modal ───────────────────────────────────────────
+   The incident used to sit inline at the top of the panel, which made it
+   unmissable and also unremovable. It is now a one-line banner that opens a
+   dialog. */
+
+.fi-banner {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--red);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-family: var(--font); font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+.fi-banner:hover { background: linear-gradient(rgba(255,255,255,0.06), rgba(255,255,255,0.06)), var(--bg-card); }
+.app--light .fi-banner:hover { background: linear-gradient(rgba(15,23,42,0.05), rgba(15,23,42,0.05)), var(--bg-card); }
+/* Scoped to the banner: the dialog's severity now reads off its leading edge
+   and the header badge, the way the hover card states status. */
+.fi-banner .fi-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red); flex: none;
+  animation: fi-pulse 2s ease-in-out infinite;
+}
+@keyframes fi-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .fi-banner .fi-dot { animation: none; }
+}
+
+.fi-banner-text { font-weight: 600; }
+.fi-banner-cta {
+  margin-left: auto;
+  color: var(--text-sec);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.fi-overlay {
+  position: fixed; inset: 0; z-index: 4000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  /* The overlay sits above a map that sets pointer-events on its own layers. */
+  pointer-events: auto;
+}
+
+/* PINNED: no backdrop, and the overlay stops catching clicks entirely so the
+   map, the panels and the search underneath stay fully usable. Only the
+   window itself takes the pointer back. */
+.fi-overlay--pinned {
+  background: transparent;
+  pointer-events: none;
+}
+/* OPEN (every desktop window, pinned or not): no backdrop and no click
+   capture, so the alert's route, zones and playback drawn on the map behind it
+   stay usable (operator, 2026-10-15). Only the window takes the mouse. */
+.fi-overlay--open {
+  background: transparent;
+  pointer-events: none;
+}
+.fi-overlay--open .vehicle-tooltip.fi-modal {
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+}
+/* Two classes deep so it outranks `.vehicle-tooltip.fi-modal` below, which
+   sets `position: relative` at equal specificity and later in the file. */
+.fi-overlay--pinned .vehicle-tooltip.fi-modal {
+  pointer-events: auto;
+  position: fixed;
+  /* PINNED is the case with no backdrop — this is what lifts the window off a
+     live map — so it keeps a shadow, but the same one everything else has. */
+  box-shadow: var(--shadow);
+
+  /* THE ONE WINDOW THAT DOES NOT FIT. At 1280 the free column between the two
+     rails is 580px and this window wants 680, so no position exists that keeps
+     it clear of both — clamping alone cannot solve it and the width has to
+     give. Only when PINNED: unpinned it is a centred dialog over a backdrop
+     that covers the rails anyway, and squeezing its two-column body into 580px
+     would undo the reason it is two columns.
+
+     Sized off --safe-w rather than the viewport, so it tracks the rails
+     instead of guessing at them. */
+  width: min(680px, var(--safe-w, calc(calc(var(--vw) * 100) - 40px)));
+  max-height: min(600px, var(--safe-h, calc(calc(var(--vh) * 100) - 40px)));
+}
+/* Collapsed keeps its own narrow width — but still capped, for the screen
+   where even 360px is more than the column has. The extra class is needed
+   because the rule above is one selector heavier than .fi-modal--collapsed
+   and would otherwise re-widen a folded window. */
+.fi-overlay--pinned .vehicle-tooltip.fi-modal.fi-modal--collapsed {
+  width: min(360px, var(--safe-w, calc(calc(var(--vw) * 100) - 40px)));
+}
+
+/* Overrides what .vehicle-tooltip assumes about being pinned to a cursor: it
+   is anchored at the origin with a transform, sized for a tooltip, and
+   pointer-events:none so it never steals the mouse from the map. A window has
+   to sit where it is put, be clickable, and scroll.
+
+   ## It stopped inheriting the tooltip's SIZE, and that was the whole problem
+
+   Inheriting "everything else" was right for the chrome — background, border,
+   radius — and wrong for the two things that decide whether a dialog is
+   readable: its width and its type scale. The hover card is 248px wide (264px
+   rich) with a 8/9/10/12px scale, and both figures are deliberate: it is a
+   card that chases a cursor across a map and must not cover it. A window an
+   operator opens and sits reading is not under that constraint, and pouring a
+   full incident report — a vehicle card, four tiles, a definition list and two
+   confidence bars — into 264px at 8px type is what "cluttered and squished"
+   looks like. So width and the --vt-fs-* scale are set HERE, and because they
+   are set as the same variables the card uses, the VehicleStatsCard nested
+   inside scales with the window instead of drifting from it.
+
+   Two-class selector, not `.fi-modal`: `.vehicle-tooltip--rich` also sets
+   width and max-height at equal specificity, and which one wins would
+   otherwise depend on the order two stylesheets happen to be bundled in. */
+.vehicle-tooltip.fi-modal {
+  /* The global `* { box-sizing: border-box }` in index.css is dead code (see
+     .overlay-left) — so this is content-box unless it says otherwise, and the
+     width below would be the width of the CONTENT, not of the window. */
+  box-sizing: border-box;
+  position: relative;
+  left: auto; top: auto;
+  transform: none;
+  will-change: auto;
+  pointer-events: auto;
+  animation: none;
+
+  width: min(680px, calc(calc(var(--vw) * 100) - 40px));
+  max-width: none;
+  /* The dialogs' 6px, not the tooltips' --radius-lg (operator, 2026-10-08). */
+  border-radius: 6px;
+  max-height: min(600px, calc(calc(var(--vh) * 100) - 40px));
+
+  /* A window's padding belongs to its PARTS — the title bar, the body, the
+     footer — not to the shell, which has to run its dividers edge to edge. */
+  padding: 0;
+  overflow: hidden;               /* the shell clips; only the body scrolls */
+
+  display: flex; flex-direction: column;
+  /* The file's own --shadow (0 4px 20px), not the 0 18px 60px this had. Every
+     other surface in here — the feed, the rails, the search, the panels — is on
+     that token; only this window was casting a 60px shadow, and it is the one
+     window that needs it least, because unpinned it sits on a backdrop that has
+     already separated it from everything. The token also flips with .app--light
+     on its own, which is what lets the two light-mode overrides below go. */
+  box-shadow: var(--shadow);
+
+  /* ## The scale is the Maintenance page's, step for step
+   *
+   * 9.5 / 10.5 / 11.5 / 13.5 — micro label, secondary value, body, figure. Not
+   * chosen here: read off maint-grid, maint-badge, maint-invoice and
+   * maint-section-title, which is the densest labelled surface in the product
+   * and the one this window is read next to.
+   *
+   * It used to be 14 / 12 / 11 / 11 with 15 / 13 / 12 / 12 on a phone, argued
+   * from "this window is sat and read, the hover card is not". That argument
+   * was about the hover card; it was never about the app. Set against the
+   * Maintenance page the window was a size and a half too big everywhere, and
+   * the phone was two.
+   *
+   * The sheet no longer steps up either — one scale for the component, at
+   * every width. Shrinking costs nothing in contrast: every step here is well
+   * under the 18.66px large-text threshold, so all four were already held to
+   * the same 4.5:1 floor and still are (re-measured: 29 roles, both themes,
+   * no failures). */
+  --vt-fs-title: 13.5px;
+  --vt-fs-body:  11.5px;
+  --vt-fs-label: 10.5px;
+  --vt-fs-micro: 9.5px;
+  /* .vt-status-badge is the one label in here that sets its own 10px, and it
+     sits in the same row as .fi-tag at 9.5. Levelled, inside this window only. */
+  --vt-fs-micro-chip: var(--vt-fs-micro);
+  --vt-icon-slot: 16px;
+
+  /* ## ONE tracking value, and it is the Maintenance page's
+   *
+   * Every uppercase micro-label in this window used to set its own: 0.7px on
+   * the tiles, the bar captions and the fact rows, 0.6px on the journey
+   * captions, 0.06em on the type badge and the connection state. Six labels,
+   * three values, none of them the app's — the Maintenance page tracks every
+   * uppercase label it has at 0.04em, and it is the densest labelled surface
+   * in the product.
+   *
+   * em, not px, is half the point. A fixed 0.7px meant whatever the micro step
+   * happened to be that week — 0.064em at 11px, 0.058em at the 12px the sheet
+   * used to set, 0.074em now the step is 9.5. One declaration, three trackings.
+   *
+   * Set once here and read through --vt-ls-label by the label rules in
+   * FleetMap.css and VehicleStatsCard.css, whose defaults are unchanged — so
+   * the hover card the map shows is exactly the card it was. */
+  --vt-ls-label: 0.04em;
+
+  /* ## The window reads the APP's greys, not this file's
+   *
+   * MapOverlay.css declares `:root` TWICE — once at the top and again beside
+   * the narrow-screen rules — and the two disagree. The second wins, so this
+   * window was resolving `--text-muted: #3d4553`, which is the same value
+   * NavItem.css records as "barely legible on the dark bar". Measured on the
+   * window's own card it is 2.05. In light the file hands over #94a3b8, and
+   * App.css carries the note "Was #94a3b8 — 2.56 contrast on white" against
+   * the token it replaced: the app moved off that value and this window kept
+   * it. Three label columns — the timestamp, the fact rows, the confidence
+   * captions — were painted in it. That is the grey.
+   *
+   * So the palette comes from the app's own `--color-text-*` here. Nothing
+   * else in the file changes: the feed and the two rails keep the overlay
+   * palette, and the duplicate `:root` is still there to be dealt with.
+   *
+   * --text-muted deliberately resolves to the SECONDARY grey, not the muted
+   * one. A window this small cannot carry three tiers of grey — the third
+   * tier is not hierarchy, it is the text you cannot read. Two tiers, and
+   * the hierarchy is carried by type instead: labels are small, uppercase
+   * and bold; values are larger and plain. */
+  --text-primary:   var(--color-text-primary);
+  --text-sec:       var(--color-text-sec);
+  --text-secondary: var(--color-text-sec);
+  --text-muted:     var(--color-text-sec);
+}
+.fi-modal > * { animation: none; }
+
+/* TWO COLUMNS: the vehicle card in a left rail, the incident detail beside it.
+   Stacked, the two together ran well past the height of a laptop screen and
+   the window scrolled — so the numbers an operator opened it for were below
+   the fold. Side by side they fit, and each half gets the width its content
+   was designed for. */
+.fi-modal-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: minmax(0, 244px) minmax(0, 1fr);
+  align-items: start;
+}
+.fi-body-card   { box-sizing: border-box; min-width: 0; padding: 14px 4px 16px 16px; }
+.fi-body-detail { box-sizing: border-box; min-width: 0; padding: 14px 18px 16px; }
+/* The rule between the halves. Horizontal when they stack, vertical when they
+   sit side by side — one separator either way, drawn by the layout rather than
+   by a <div> in the markup that can only ever be horizontal. */
+.fi-modal-body:not(.fi-modal-body--solo) .fi-body-detail {
+  border-left: 1px solid var(--border);
+}
+.fi-modal-body--solo { grid-template-columns: minmax(0, 1fr); }
+
+/* No width to split. The window is already viewport-width here, so the rail
+   would be a 244px column next to a 100px one.
+
+   And the halves swap: FuelIncidentModal renders the incident FIRST below this
+   width (see the note there), so the vehicle card is the one that follows and
+   the rule between them travels with it. The card also grows a bottom padding
+   it did not need while it was the half on top. */
+@media (max-width: 720px) {
+  .fi-modal-body { grid-template-columns: minmax(0, 1fr); }
+  .fi-body-card  { padding: 14px 16px 16px; }
+  .fi-modal-body:not(.fi-modal-body--solo) .fi-body-detail { border-left: none; }
+  .fi-modal-body:not(.fi-modal-body--solo) .fi-body-card {
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* The incident block, in the card's own idiom. */
+.fi-section-hdr {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 7px;
+}
+.fi-when { margin-left: auto; font-size: var(--vt-fs-label); color: var(--text-muted); }
+
+/* Collapsed is the title bar and nothing else — a window folded away, not a
+   window closed. Nothing is lost and one click brings it back. Two classes to
+   beat `.vehicle-tooltip.fi-modal`'s max-height, and the width shrinks to the
+   title: a 680px bar floating over the map is not "folded away". */
+.fi-modal.fi-modal--collapsed {
+  max-height: none;
+  width: min(360px, calc(calc(var(--vw) * 100) - 40px));
+}
+
+/* The drag handle. `cursor: move` and `touch-action: none` are both load
+   bearing: without the latter a touch drag scrolls the page instead of moving
+   the window. */
+.fi-bar {
+  display: flex; align-items: center; gap: 4px; flex: none;
+  padding: 9px 10px 9px 16px;
+  border-bottom: 1px solid var(--border);
+  /* Reads as chrome rather than as the first row of content — which matters
+     more now the body below it is two columns wide. */
+  background: rgba(127,127,127,0.06);
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+/* COLLAPSED, the bar takes the shared window padding instead of its own
+   9px/16px — so this window folds to exactly the height the vehicle card and
+   the playback transport fold to. Three windows collapsed on one screen at
+   three different heights read as three different apps, which is the whole
+   reason windowChrome.css exists.
+
+   Height is `--win-btn + 2 × --win-pad-y + 2px` of border: the title's 13px
+   text is shorter than the 22px controls, so the buttons set it. */
+.fi-modal--collapsed .fi-bar {
+  border-bottom: none;
+  padding: var(--win-pad-y) var(--win-pad-x);
+}
+.fi-bar-title {
+  flex: 1; min-width: 0;
+  /* The window's own figure step — the same size .maint-section-title uses. */
+  font-size: var(--vt-fs-title); font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Sized from the shared metric, not from a local 26px. These are title-bar
+   controls like the card's and the transport's, and when the window collapses
+   they are what decides its height. */
+.fi-icon {
+  width: var(--win-btn); height: var(--win-btn); flex: none;
+  display: grid; place-items: center;
+  border: none; border-radius: 6px;
+  background: transparent; color: var(--text-sec);
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.fi-icon:hover { background: rgba(127,127,127,0.18); color: var(--text-primary); }
+/* Not scoped to the sheet, unlike everything else added for phones. These
+   controls had no focus style at all on any screen, and a keyboard is a
+   desktop thing — giving the ring to the phone and withholding it from the
+   machine that actually tabs would be backwards. The house outline, from
+   MapLayersMenu. Never animated: it has to be there the instant focus lands. */
+.fi-icon:focus-visible,
+.fi-btn:focus-visible {
+  outline: 2px solid var(--accent-info, #38bdf8);
+  outline-offset: 1px;
+}
+/* Pinned is a state the window is IN, so it stays lit: the Units window's
+   pinned look (cyan, a hairline ring), not a colour of its own. */
+.fi-icon--on {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.45);
+}
+/* The dialog is tinted by severity down its leading edge, the one cue the
+   hover card has no equivalent for. */
+.fi-modal { border-left: 3px solid var(--red); }
+.fi-modal--unexplained { border-left-color: var(--amber); }
+
+
+.fi-actions {
+  display: flex; gap: 8px; justify-content: flex-end; flex: none;
+  padding: 11px 18px;
+  border-top: 1px solid var(--border);
+  background: rgba(127,127,127,0.04);
+}
+/* A delete the server refused. Sits at the start of the button row, where
+   the eye already is after pressing Delete. */
+.fi-delete-error {
+  margin-right: auto; align-self: center;
+  font-size: 12px; color: #b91c1c;
+}
+.fi-btn:disabled { opacity: 0.6; cursor: progress; }
+.fi-btn {
+  padding: 7px 15px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-inner); color: var(--text-primary);
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.fi-btn:hover { border-color: var(--text-muted); }
+/* Delete is the only irreversible exit here, so it is LABELLED and never an
+   icon — the three gestures on the title bar are all recoverable, and a
+   destructive one sitting among them would be a click away from a mistake. */
+/* --accent-crit, not --red: `--red` is #ff3b3b in BOTH themes and measures
+   3.53 on the white card, so the one destructive label in the window was the
+   hardest thing in it to read in light mode. --accent-crit is the token that
+   darkens to #b91c1c there — 6.47 light, 5.26 dark. */
+.fi-btn--danger { background: transparent; color: var(--accent-crit); border-color: transparent; }
+.fi-btn--danger:hover {
+  border-color: var(--accent-crit);
+  background: color-mix(in srgb, var(--accent-crit) 10%, transparent);
+}
+
+/* Incident detail beside the vehicle card. Uses the tooltip's own type scale
+   so it cannot drift from the card next to it — that scale is enlarged for the
+   window as a whole, above, rather than opted out of here. */
+.fi-tag {
+  font-size: var(--vt-fs-micro);
+  letter-spacing: var(--vt-ls-label, 0.06em);
+  /* --accent-ok, not --green. `--green` is #22c55e in BOTH themes and
+     measures 2.28 on a white card; --accent-ok darkens to #15803d in light.
+     The wash is mixed FROM the token for the same reason — a literal
+     rgba(34,197,94,…) cannot follow the theme its text just learned to. */
+  color: var(--accent-ok);
+  /* Outlined, not filled. On the white card the fill was the whole problem:
+     green text on a green wash measured 3.82, and walking the wash down only
+     reached 4.59 at 4% — a 0.09 margin on a card that is rgba(255,255,255,
+     0.99) over a live map, which is no margin at all. With no fill the chip
+     is read against the card itself: 5.02 light, 8.69 dark, and the outline
+     still says "chip". The severity chips beside it keep their tint, and
+     that now means something — filled is graded, outlined is a plain state. */
+  border: 1px solid color-mix(in srgb, var(--accent-ok) 45%, transparent);
+  background: transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+/* One row per line, label in a column of its own. The gaps were 2px/10px,
+   which set four labelled facts as a single grey block; a row that has to be
+   read one line at a time needs the lines to be distinguishable. */
+.fi-rows {
+  margin: 6px 0 0;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px;
+  font-size: var(--vt-fs-label);
+  line-height: 1.4;
+}
+.fi-rows dt {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  /* ONE label voice in the window. There were three: the tiles shouted in
+     uppercase 700, the fact rows whispered in sentence-case 400 grey, and the
+     confidence captions did a third thing — uppercase, but 400 and letter-
+     spaced. Three treatments for three label columns stacked one above the
+     other is what "inconsistent with the rest of the application" looks like
+     from the inside. This is `.vt-tile-lbl`'s voice, declaration for
+     declaration, because that one is shared with the vehicle card and is
+     therefore the app's, not this window's. */
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  text-transform: uppercase;
+}
+.fi-rows dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+/* Audit keys: monospaced so they can be read aloud or searched without
+   confusing l/1 and O/0 — and SELECTABLE, which is the point of printing an
+   id at all. `.vt-info` used to sit above this with `user-select: none`. */
+.fi-slug {
+  font-family: var(--mono); font-size: var(--vt-fs-micro); color: var(--text-sec);
+  user-select: text; cursor: text;
+}
+
+/* The two confidence bars that sat here are gone with their captions — see
+   FuelIncidentBody. .fi-confs / .fi-conf-row / .fi-conf-lbl / .fi-conf-val
+   went with them; nothing else referenced them. */
+
+/* ── On a phone it is a SHEET, not a window ──────────────────────────────────
+ *
+ * Everything that makes this a window is desktop apparatus. You drag it
+ * because there is somewhere else to put it; you pin it because you can work
+ * beside it; it remembers a position because the screen is big enough for a
+ * position to mean anything. None of that is true at 375px, where the window
+ * is already as wide as it can get and there is nowhere else for it to go.
+ *
+ * Measured before this block, at 375x812: the window was 335x551 centred, with
+ * 130.5px of dead backdrop above it and 130.6px below — a third of the screen
+ * spent on nothing. Delete — the one irreversible exit — sat 8px from Close in
+ * the bottom-right, exactly where the thumb rests.
+ *
+ * So it is anchored to the bottom, full width, and Delete is armed rather than
+ * instant. The title-bar controls take MobileVehicleSheet's 26px and the
+ * footer's two labelled buttons take 44px — see each rule for why they differ.
+ * Nothing above 720px changes: that is the query the body columns already
+ * collapse at, reused rather than joined by a second breakpoint for the same
+ * component.
+ *
+ * `dvh` rather than this app's `--vh`: --app-zoom is 1 below the laptop query
+ * in index.css, so the two agree here, and dvh is the one that follows mobile
+ * browser chrome as it retracts.
+ */
+@media (max-width: 720px) {
+  .fi-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  /* A window PINNED on a desktop session leaves `pinned: true` in
+     localStorage, and it is read back on a phone. The sheet is always a modal
+     below this width — FuelIncidentModal stops applying the stored position
+     and the pin control here — so the pinned backdrop rules are undone too,
+     or the sheet would arrive with nothing behind it and no way out but the
+     title bar. */
+  .fi-overlay--pinned {
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+  }
+
+  /* One selector heavier than both `.vehicle-tooltip.fi-modal` and
+     `.fi-overlay--pinned .vehicle-tooltip.fi-modal`, so the window's width,
+     max-height and position are all overridden from one place. */
+  .fi-overlay .vehicle-tooltip.fi-modal {
+    position: relative;
+    left: auto; top: auto;
+    width: 100%;
+    max-width: none;
+    /* Not 100: the strip of backdrop left showing is what says "there is a
+       map behind this, and tapping it puts you back". */
+    max-height: 64dvh;
+
+    /* The sheet radius the app's own sheets use (MobileVehicleSheet). */
+    border-radius: 20px 20px 0 0; /* the Live Feed sheet's */
+
+    /* Severity moves from the leading edge to the top one. A 3px left border
+       is a legible cue on a window floating clear of everything; on a sheet
+       flush to the screen edge it is 3px of colour in the corner of the eye.
+       Across the top, under the thumb's line of travel, it is the first thing
+       read.
+
+       1px, not the window's 3. A border carried the whole width of the screen
+       is already an order of magnitude more of that colour than a 3px stripe
+       down the side of a 680px window, and at 3px it also has to turn the
+       sheet's 16px corner — where a thick stroke on a tight radius reads as a
+       heavy painted curve rather than as an edge. */
+    border-left: none;
+    /* Severity is carried by the header's dot and chip now, as in the Live
+       Feed sheet; a coloured edge under a handle read as a rendering seam. */
+    border-top: none;
+
+    animation: fi-sheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* No shadow on a sheet. MobileVehicleSheet casts none either: the thing is
+       flush to the bottom edge with a 0.55 scrim behind it, so there is nothing
+       for a shadow to separate it from and nothing of it to see. */
+    box-shadow: none;
+
+    /* No type scale here. The sheet used to step every size up one — the
+       claim was that a phone is held at arm's length — and the result was a
+       window already a size too big for the app, plus one. The Maintenance
+       page does not resize itself on a phone and neither does this. */
+  }
+  .fi-overlay .vehicle-tooltip.fi-modal.fi-modal--unexplained {
+    border-top-color: var(--amber);
+  }
+
+  /* There WAS a 94dvh rule here for screens under 640 tall. It existed because
+     at 568 the incident was 380px against a 376px body window: it fitted to the
+     pixel, nothing of the vehicle card showed, and the sheet therefore read as
+     complete. Both numbers have since moved — the incident is 274px on the
+     app's type scale, and the chrome lost 12px when the title-bar controls came
+     down to the app's own 26px — so 88dvh now leaves a clear peek at 568 and
+     the rule was buying nothing but 34px off the backdrop. Removed rather than
+     left as a rule whose reason is gone. */
+  /* Folded away, a sheet is still a sheet: full width, still at the bottom.
+     The window's 360px collapse would leave a floating bar mid-screen.
+
+     ## It has to COVER the footer nav, not sit on part of it
+
+     `.footer-nav` is fixed to the bottom at 64px (60 under 380) and the
+     collapsed bar is 40 — and the overlay's 4000 paints over the nav's 1000.
+     So folding the sheet away used to leave the bar over the TOP 40px of the
+     nav with the bottom 24 still showing beneath it: half a row of tab icons
+     under a bar, which reads as a rendering fault rather than as a window
+     folded down. Matching the nav's height covers it outright.
+
+     The nav's height is not the whole of it. `.nav-fab` — the round Fleet
+     button in the middle — carries `margin-top: -22px` (-18 under 380), so it
+     RISES OUT of the bar: measured, its circle starts 14px above the nav's top
+     edge at 414 and 11px above it at 320. A sheet matched to the nav alone
+     therefore covered everything except the one green disc in the middle,
+     which went on floating over the folded window.
+
+     So the height is the nav's, plus that overhang, plus 2 for the green glow
+     the active FAB casts (0 4px 20px) — 64 + 14 + 2, and 60 + 11 + 2 below
+     380. Written as the sum it is, so the next person can see which number to
+     change if the nav moves.
+
+     min-height, not height: the bar is what it is, and this only ever raises
+     it. .fi-bar takes flex: 1 so the title stays centred in the taller box. */
+  .fi-overlay .vehicle-tooltip.fi-modal.fi-modal--collapsed {
+    width: 100%;
+    max-height: none;
+    min-height: calc(64px + 14px + 2px);
+  }
+  .fi-overlay .fi-modal--collapsed .fi-bar { flex: 1; }
+  /* The nav's own step down, mirrored — and the FAB steps with it. */
+  @media (max-width: 380px) {
+    .fi-overlay .vehicle-tooltip.fi-modal.fi-modal--collapsed {
+      min-height: calc(60px + 11px + 2px);
+    }
+  }
+
+  @keyframes fi-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  /* Spatial motion collapses to a crossfade, not to nothing — the sheet still
+     needs to read as having arrived. */
+  @media (prefers-reduced-motion: reduce) {
+    .fi-overlay .vehicle-tooltip.fi-modal { animation: fi-sheet-in 140ms linear; }
+    @keyframes fi-sheet-in { from { opacity: 0; } to { opacity: 1; } }
+  }
+
+  /* The bar stops being a drag handle. `touch-action: none` there was load
+     bearing for dragging and is nothing but a swallowed scroll gesture once
+     the drag is gone — see the pointer handlers, which return early here. */
+  .fi-bar {
+    cursor: default;
+    touch-action: auto;
+    /* 7px, so 26 + 14 lands the sheet's bar at the 40px the window's bar is
+       (22 + 18). One title-bar height for the component. */
+    padding: 7px 8px 7px 16px;
+  }
+  /* The title bar and the footer buttons keep the window's sizes too; only
+     their HIT AREAS grow on a phone (44px, below). A bigger label was never
+     what made them tappable. */
+
+  /* 26px — MobileVehicleSheet's `.mvs__close`, which is the control the app
+     already puts on a bottom sheet on a phone.
+
+     It was 44 with a 15px glyph, reached for as "the touch floor". 44 is
+     WCAG 2.5.5, which is AAA; the AA requirement (2.5.8) is 24, and these
+     clear it. What 44 actually bought was a 52px title bar with two enormous
+     marks in it, on a sheet whose title beside them is 13.5px — and it was
+     this window inventing a house style for phones that the house already
+     had. The footer's Close and Delete keep their 44px: those are the
+     deliberate targets, sat under the thumb, and they are labelled. */
+  .fi-icon {
+    width: 26px; height: 26px;
+    font-size: 11px;
+    border-radius: 7px;
+  }
+
+  /* `margin-left: auto` pushed the window onto its own right-aligned line the
+     moment the badges filled the row — measured 183px of margin and a 113px
+     orphan hanging off the right edge. In a wrapped row it just follows the
+     badges. */
+  .fi-when { margin-left: 0; }
+
+  .fi-actions {
+    gap: 12px;
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+  }
+  .fi-btn {
+    min-height: var(--m-action);
+    padding: 0 14px;
+  }
+  /* Close is the common exit and takes the width; Delete keeps its label and
+     stays narrow. DOM order is left alone deliberately — reordering these
+     visually would put the tab order and the reading order out of step for
+     the sake of two buttons. What protects Delete here is the arm step in
+     FuelIncidentModal, not its position. */
+  .fi-btn:not(.fi-btn--danger) { flex: 1; }
+
+  /* Delete's colour is no longer set here — it is on the base rule, for both
+     widths, since the light-mode failure was never phone-specific. */
+  .fi-btn--danger[data-armed="true"] {
+    color: var(--accent-crit);
+    border-color: var(--accent-crit);
+    /* Mixed FROM the token, not a literal rgba(239,68,68,.14): --accent-crit
+       darkens to #b91c1c in light, and a fixed bright-red wash under it is a
+       colour that cannot follow the theme its text just learned to.
+       8%, not the 14% the literal used. Once the wash follows the token it
+       DARKENS the white card instead of tinting it, and 14% put the armed
+       label at 4.46 in light — under the floor, in the one state where the
+       button is asking for a second tap. Measured: 14% 4.46 - 12% 4.68 -
+       10% 4.90 - 8% 5.14, against 5.15 dark. The full-strength border is the
+       louder half of the cue anyway. */
+    background: color-mix(in srgb, var(--accent-crit) 8%, transparent);
+  }
+}
+
+/* ── The window in LIGHT mode ────────────────────────────────────────────────
+   It is portalled to <body>, which puts it OUTSIDE the `.app--light` wrapper
+   every other light-mode rule in this file hangs off — so the window kept the
+   dark `:root` palette and painted a black card over a white app. `<html>`
+   carries `data-theme`, mirrored there by AppContext for exactly this kind of
+   reach, so the window reads the theme from the one element a portal cannot
+   escape.
+
+   Redeclaring the tokens is not enough on its own: `.vehicle-tooltip` paints
+   from `--color-card`, and the tiles and bar tracks are hardcoded white
+   washes that vanish on a white ground. Those need naming. */
+html[data-theme="light"] .fi-overlay { background: rgba(15, 23, 42, 0.38); }
+html[data-theme="light"] .fi-modal {
+  --bg-card:        rgba(255,255,255,0.99);
+  --bg-inner:       #f1f5f9;
+  --border:         #dde1e7;
+  /* The three text tiers are NOT re-stated here any more. They are declared
+     once, on `.vehicle-tooltip.fi-modal` above, in terms of the app's own
+     `--color-text-*` — which already flip with `.app--light`. Re-stating them
+     here is what let the literal #94a3b8 survive after App.css had replaced
+     it for being 2.56 on white. One declaration, both themes. */
+  background: rgba(255,255,255,0.99);
+  /* box-shadow is not re-stated here either — --shadow already carries the
+     light value (0 4px 20px rgba(0,0,0,0.10)) off .app--light. */
+}
+html[data-theme="light"] .fi-modal .vt-tile {
+  background: rgba(15,23,42,0.035);
+  border-color: rgba(15,23,42,0.09);
+}
+html[data-theme="light"] .fi-modal .vt-bar-track { background: rgba(15,23,42,0.09); }
+html[data-theme="light"] .fi-modal .vt-divider   { background: #dde1e7; }
+html[data-theme="light"] .fi-icon:hover          { background: rgba(15,23,42,0.07); }
+
+/* Foot of a scoped history: which of the three states the bottom of the list is
+   in — fetching, the end of the record, or a page away. A list that simply
+   stops gives an operator no way to tell "that is all of it" from "it has not
+   loaded yet".
+
+   (A date picker sat here for one commit. It made the operator guess which day
+   something happened on, which is work rather than an answer; the whole history
+   as one scroll is the shape the question actually has.) */
+.feed-more {
+  padding: 10px 14px 14px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.feed-more-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-sec);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.feed-more-btn:hover { border-color: var(--accent-info, var(--blue)); color: var(--text-primary); }
+
+/* ── Phone sheet header — the Live Feed sheet's (MobileLiveFeedSheet.css) ──
+   Rendered only below 720px, so these need no media query of their own. */
+.fi-handle {
+  width: 40px; height: 4px; border-radius: 2px;
+  background: #e2e8f0;
+  align-self: center;
+  margin: 10px auto 4px;
+  flex: none;
+}
+.fi-sheet-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  flex: none;
+}
+.fi-sheet-head-left,
+.fi-sheet-head-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fi-sheet-head-right { gap: 10px; flex: none; }
+.fi-sheet-title {
+  font-size: 13px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #0f172a;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fi-sheet-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex: none; }
+.fi-sheet-dot--amber { background: #f59e0b; }
+.fi-sheet-chip {
+  font-size: 11px; font-weight: 700; line-height: 1.3; white-space: nowrap;
+  color: #b91c1c; background: #fef2f2;
+  border-radius: 999px; padding: 3px 9px;
+}
+.fi-sheet-chip--amber { color: #b45309; background: #fffbeb; }
+.fi-sheet-close {
+  flex: none;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: #f1f5f9; color: #64748b;
+  font-size: 18px; line-height: 1; cursor: pointer;
+  /* Buttons do not inherit the font: this ✕ drew in the browser's Arial, the
+     one glyph in the window not in the app's family. */
+  font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+}
+.fi-sheet-close:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+
+
+/* No tint behind a desktop window in either theme (operator, 2026-10-15).
+   The light-theme backdrop above is two selectors heavier than
+   `.fi-overlay--open`, so it kept a 38% slate wash over the map. */
+html[data-theme] .fi-overlay.fi-overlay--open,
+.fi-overlay.fi-overlay--open { background: transparent; }
