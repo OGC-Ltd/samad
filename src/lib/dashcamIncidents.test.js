@@ -21,6 +21,6 @@ describe('dashcam inbox helpers', () => {
   })
 
   it('the six chips', () => {
-    expect(CATEGORIES.map((c) => c.key)).toEqual(['braking', 'speeding', 'driver', 'collision', 'geofence', 'other'])
+    expect(CATEGORIES.map((c) => c.key)).toEqual(['braking', 'speeding', 'driver', 'lane', 'collision', 'other'])
   })
 })

@@ -85,6 +85,10 @@ func routes(s *Server, a *Auth) http.Handler {
 	in.HandleFunc("/alerts/read", s.markRead).Methods("POST")
 	in.HandleFunc("/alerts/read-all", s.markAllRead).Methods("POST")
 
+	in.HandleFunc("/vss/cameras", s.vssCameras).Methods("GET")
+	in.HandleFunc("/vss/alarms", s.vssAlarms).Methods("GET")
+	in.HandleFunc("/vss/file", s.vssFile).Methods("GET")
+
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
 	org.Use(ourOrg)
 	org.HandleFunc("/vehicles/snapshot", s.snapshot).Methods("GET")

@@ -88,7 +88,7 @@ describe('app slice', () => {
     const src = readFileSync(new URL('../components/layout/SidePanel.jsx', import.meta.url), 'utf8');
     const block = src.slice(src.indexOf('export const NAV_ITEMS'), src.indexOf('];', src.indexOf('export const NAV_ITEMS')));
     const keys = [...block.matchAll(/key:\s*'([a-zA-Z]+)'/g)].map((m) => m[1]);
-    expect(keys).toEqual(['fleet', 'alerts', 'drivers']);
+    expect(keys).toEqual(['fleet', 'alerts', 'drivers', 'dashcam']);
     expect(keys.filter((k) => !DESKTOP_TABS.includes(k))).toEqual([]);
 
     local.set('ft-desktop-tab', 'drivers');

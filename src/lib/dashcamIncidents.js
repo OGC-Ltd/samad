@@ -7,8 +7,8 @@ export const CATEGORIES = [
   { key: 'braking',   label: 'Braking'   },
   { key: 'speeding',  label: 'Speeding'  },
   { key: 'driver',    label: 'Driver'    },
+  { key: 'lane',      label: 'Lane'      },
   { key: 'collision', label: 'Collision' },
-  { key: 'geofence',  label: 'Geofence'  },
   { key: 'other',     label: 'Other'     },   // shown only when it has something
 ]
 

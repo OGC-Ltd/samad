@@ -24,6 +24,9 @@ export const NAV_ITEMS = [
   // grant opens it: the page shows each kind only where it is held.
   { key: 'alerts',       label: 'Alerts',       icon: 'bell-ringing', permission: ['alerts:read', 'fuel_theft:read', 'analytics:read'] },
   { key: 'drivers',      label: 'Drivers',      icon: 'users',     permission: 'driver:read'      },
+  // Dashcam alarms with their clips; usePermissions grants 'vss:alarms' once
+  // the server reports a unit with a camera.
+  { key: 'dashcam',      label: 'Camera',       icon: 'video',     permission: 'vss:alarms'       },
 ];
 
 function weatherDesc(code) {
