@@ -70,4 +70,7 @@ repairs, weighbridges, routing) answer an empty list.
   so trips and distance are worked out from positions.
 - The partner does not say what speed limit its `over_speeding` uses; set
   `SPEED_LIMIT_KMH` to match (default 65).
-- One sign-in account, from `.env`.
+- Accounts and roles (`users.go`, `roles.go`) are a JSON file in `DATA_DIR`,
+  not yet the database; roles are code, with no role editor.
+- No email: invitations hand the set-password link to the administrator.
+- No dispatches: the road ahead runs only to a point picked on the map.

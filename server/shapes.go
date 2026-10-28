@@ -25,6 +25,9 @@ func driverName(v PVehicle) string {
 }
 
 func vehicleName(v PVehicle) string {
+	if v.Trailer != "" {
+		return v.Registration + " · " + v.Trailer
+	}
 	return strings.TrimSpace(fmt.Sprintf("%s %s %s", v.Make, v.Model, v.Registration))
 }
 

@@ -1,12 +1,15 @@
 package main
 
-// Sign-in. One account, from the environment (ADMIN_EMAIL and a bcrypt
-// ADMIN_PASSWORD_HASH; `go run . hash-password` prints one).
+// Sign-in, sessions and permission checks. Accounts and their roles live in
+// users.go and roles.go; the account in server/.env (ADMIN_EMAIL and a bcrypt
+// ADMIN_PASSWORD_HASH; `go run . hash-password` prints one) is the default
+// super admin.
 //
 // Same flow as fleet-server, so the UI is unchanged: POST /auth/login answers
 // a short-lived access token and sets a refresh cookie; POST /auth/refresh
 // trades the cookie for a new access token after a reload. Tokens are
-// HMAC-SHA256 signed with JWT_SECRET.
+// HMAC-SHA256 signed with JWT_SECRET and name the account and its session
+// version, so suspending someone or changing a password ends their sessions.
 
 import (
 	"context"
@@ -29,7 +32,8 @@ const (
 )
 
 type tokenClaims struct {
-	Sub string `json:"sub"`
+	Sub string `json:"sub"` // the account's id
+	Ver int    `json:"ver"` // its SessionVersion when issued
 	Typ string `json:"typ"`
 	Exp int64  `json:"exp"`
 }
@@ -37,9 +41,18 @@ type tokenClaims struct {
 type Auth struct {
 	cfg    Config
 	secret []byte
+	users  *Users
+	// Compared against for an unknown address, so the two cannot be told
+	// apart by timing.
+	dummyHash []byte
 }
 
-func NewAuth(cfg Config) *Auth { return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret)} }
+func NewAuth(cfg Config) *Auth {
+	users := NewUsers(cfg.DataDir)
+	users.Bootstrap(cfg.AdminEmail, cfg.AdminName, cfg.AdminPasswordHash)
+	dummy, _ := bcrypt.GenerateFromPassword([]byte("not a password anyone has"), bcrypt.DefaultCost)
+	return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret), users: users, dummyHash: dummy}
+}
 
 func (a *Auth) sign(c tokenClaims) string {
 	body, _ := json.Marshal(c)
@@ -72,20 +85,41 @@ func (a *Auth) verify(token, typ string) (tokenClaims, error) {
 	return c, nil
 }
 
-func (a *Auth) issue(w http.ResponseWriter, r *http.Request, email string) string {
+// session resolves a token to a live account: one that still exists, is
+// active, and has not had its sessions ended since the token was issued.
+func (a *Auth) session(token, typ string) (User, bool) {
+	c, err := a.verify(token, typ)
+	if err != nil {
+		return User{}, false
+	}
+	u, ok := a.users.Get(c.Sub)
+	if !ok || u.Status != statusActive || u.SessionVersion != c.Ver || u.PasswordHash == "" {
+		return User{}, false
+	}
+	return u, true
+}
+
+func (a *Auth) issue(w http.ResponseWriter, r *http.Request, u User) string {
 	now := time.Now()
 	// Secure follows the request: always on behind Traefik (HTTPS), off for
 	// the plain-HTTP dev server, where a Secure cookie would never be sent.
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is isHTTPS(r), see above
 		Name:     refreshCookie,
-		Value:    a.sign(tokenClaims{Sub: email, Typ: "refresh", Exp: now.Add(refreshTTL).Unix()}),
+		Value:    a.sign(tokenClaims{Sub: u.ID, Ver: u.SessionVersion, Typ: "refresh", Exp: now.Add(refreshTTL).Unix()}),
 		Path:     "/api/v1",
 		Expires:  now.Add(refreshTTL),
 		HttpOnly: true,
 		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 	})
-	return a.sign(tokenClaims{Sub: email, Typ: "access", Exp: now.Add(accessTTL).Unix()})
+	return a.sign(tokenClaims{Sub: u.ID, Ver: u.SessionVersion, Typ: "access", Exp: now.Add(accessTTL).Unix()})
+}
+
+func clearSession(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is isHTTPS(r), as in issue
+		Name: refreshCookie, Value: "", Path: "/api/v1", MaxAge: -1,
+		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func isHTTPS(r *http.Request) bool {
@@ -101,15 +135,26 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	email := strings.ToLower(strings.TrimSpace(body.Email))
-	// Compare the password even for an unknown email, so the two cannot be
-	// told apart by timing.
-	hashErr := bcrypt.CompareHashAndPassword([]byte(a.cfg.AdminPasswordHash), []byte(body.Password))
-	if email != a.cfg.AdminEmail || hashErr != nil {
+	u, found := a.users.GetByEmail(strings.TrimSpace(body.Email))
+	hash := a.dummyHash
+	if found && u.PasswordHash != "" {
+		hash = []byte(u.PasswordHash)
+	}
+	hashErr := bcrypt.CompareHashAndPassword(hash, []byte(body.Password))
+	if !found || u.PasswordHash == "" || hashErr != nil {
 		writeError(w, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
-	writeData(w, map[string]any{"accessToken": a.issue(w, r, email)})
+	if u.Status != statusActive {
+		writeError(w, http.StatusForbidden, "This account is suspended")
+		return
+	}
+	u, _ = a.users.Update(u.ID, func(u *User) error {
+		now := time.Now().UTC()
+		u.LastLoginAt = &now
+		return nil
+	})
+	writeData(w, map[string]any{"accessToken": a.issue(w, r, u)})
 }
 
 func (a *Auth) Refresh(w http.ResponseWriter, r *http.Request) {
@@ -118,68 +163,100 @@ func (a *Auth) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "no session")
 		return
 	}
-	claims, err := a.verify(c.Value, "refresh")
-	if err != nil || claims.Sub != a.cfg.AdminEmail {
+	u, ok := a.session(c.Value, "refresh")
+	if !ok {
+		clearSession(w, r)
 		writeError(w, http.StatusUnauthorized, "session expired")
 		return
 	}
-	writeData(w, map[string]any{"accessToken": a.issue(w, r, claims.Sub)})
+	writeData(w, map[string]any{"accessToken": a.issue(w, r, u)})
 }
 
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is isHTTPS(r), as in issue
-		Name: refreshCookie, Value: "", Path: "/api/v1", MaxAge: -1,
-		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
-	})
+	clearSession(w, r)
 	writeData(w, map[string]any{"ok": true})
 }
 
-// The screens this account opens, as the UI's permission slugs.
-var permissions = []string{
-	"map:read", "map:playback", "telemetry:read", "dashboard:read",
-	"alerts:read", "driver:read",
+// orgAccess is one organisation as /auth/me and the account page show it.
+func orgAccess(u User) map[string]any {
+	perms := u.Permissions()
+	var vehicleIDs any // nil: the whole fleet
+	if restrictedToFlagged(perms) {
+		vehicleIDs = []int{} // units with an open repair job: Samad has none
+	}
+	return map[string]any{
+		"id": OrgID, "code": OrgCode, "name": OrgName,
+		"permissions": perms, "vehicleIds": vehicleIDs,
+		"roles": []any{roleView(u.Role)},
+	}
 }
 
 func (a *Auth) Me(w http.ResponseWriter, r *http.Request) {
-	email := userOf(r.Context())
+	u := currentUser(r.Context())
 	writeData(w, map[string]any{
 		"user": map[string]any{
-			"id": email, "email": email, "fullName": a.cfg.AdminName, "name": a.cfg.AdminName,
+			"id": u.ID, "email": u.Email, "fullName": u.FullName, "name": u.FullName,
+			"tourSeenVersion": u.TourSeen,
 		},
-		"isPlatform": false,
-		"organisations": []any{map[string]any{
-			"id": OrgID, "code": OrgCode, "name": OrgName,
-			"permissions": permissions, "vehicleIds": nil,
-		}},
+		"isPlatform":    u.IsPlatform(),
+		"organisations": []any{orgAccess(u)},
 	})
 }
 
 type ctxKey struct{}
 
-func userOf(ctx context.Context) string {
-	s, _ := ctx.Value(ctxKey{}).(string)
-	return s
+func currentUser(ctx context.Context) User {
+	u, _ := ctx.Value(ctxKey{}).(User)
+	return u
 }
+
+// userOf is the key alert read marks and decisions are kept under.
+func userOf(ctx context.Context) string { return currentUser(ctx).Email }
 
 // Require accepts a Bearer access token, or the refresh cookie: EventSource
 // cannot send headers, and the live stream is same-origin, so it rides on
 // the cookie.
 func (a *Auth) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var email string
+		var u User
+		ok := false
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			if c, err := a.verify(strings.TrimPrefix(h, "Bearer "), "access"); err == nil {
-				email = c.Sub
-			}
+			u, ok = a.session(strings.TrimPrefix(h, "Bearer "), "access")
 		} else if ck, err := r.Cookie(refreshCookie); err == nil {
-			if c, err := a.verify(ck.Value, "refresh"); err == nil {
-				email = c.Sub
-			}
+			u, ok = a.session(ck.Value, "refresh")
 		}
-		if email == "" || email != a.cfg.AdminEmail {
+		if !ok {
 			writeError(w, http.StatusUnauthorized, "unauthorised")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, email)))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
 	})
 }
+
+// need lets a request through when the account holds any of perms.
+func need(perms ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !holds(currentUser(r.Context()).Permissions(), perms...) {
+				writeError(w, http.StatusForbidden, "Your role does not allow this")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// unitsVisible refuses a role restricted to units with an open repair job
+// (technicians): Samad has no repair jobs, so no unit is theirs to see.
+func unitsVisible(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if restrictedToFlagged(currentUser(r.Context()).Permissions()) {
+			writeError(w, http.StatusForbidden, "No units are open to your role")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// needFunc is need for one handler.
+func needFunc(h http.HandlerFunc, perms ...string) http.Handler { return need(perms...)(h) }

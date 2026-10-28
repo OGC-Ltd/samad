@@ -20,6 +20,8 @@ type Server struct {
 	store  *Store
 	hub    *Hub
 	ai     *Insighter // nil without OPENAI_API_KEY
+	// Google routing and weather; its client is nil without a key.
+	routing *Routing
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -69,6 +71,9 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 // GET /organisations/{org}/vehicles/snapshot
 func (s *Server) snapshot(w http.ResponseWriter, r *http.Request) {
 	list := s.store.Vehicles()
+	if restrictedToFlagged(currentUser(r.Context()).Permissions()) {
+		list = nil // only units with an open repair job, and Samad has none
+	}
 	rows := make([]map[string]any, 0, len(list))
 	for _, v := range list {
 		rows = append(rows, snapshotRow(v))
@@ -327,6 +332,9 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 				trips int
 				km    float64
 			}{}}
+			if e, ok := s.store.rosterFor(v.Registration); ok {
+				d.row["idNumber"], d.row["phone"], d.row["trailer"] = e.IDNumber, e.Phone, e.Trailer
+			}
 			drivers[id] = d
 			order = append(order, id)
 		} else if !strings.Contains(d.row["vehicle"].(string), v.Registration) {
@@ -355,6 +363,21 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 				d.row["overspeedingCases"] = d.row["overspeedingCases"].(int) + 1
 			}
 		}
+	}
+	// Roster drivers whose truck the partner does not report: listed, with
+	// nothing tallied.
+	for _, e := range s.store.RosterMissing() {
+		id := "d-" + e.IDNumber
+		if drivers[id] != nil {
+			continue
+		}
+		drivers[id] = &driver{row: map[string]any{
+			"id": id, "fullName": e.Driver, "employeeId": nil, "licenceNumber": nil,
+			"idNumber": e.IDNumber, "phone": e.Phone, "trailer": e.Trailer,
+			"status": "ACTIVE", "rating": nil, "vehicle": e.Truck, "vehicleFrom": nil,
+			"trips": 0, "mileageKm": 0.0, "tonnes": 0, "overspeedingCases": 0, "fuelTheftCases": 0,
+		}}
+		order = append(order, id)
 	}
 	rows := []map[string]any{}
 	details := map[string]any{}

@@ -77,6 +77,7 @@ type Store struct {
 	fixes     map[int]lastFix
 	p         persisted
 	byID      map[string]bool
+	roster    map[string]rosterEntry
 }
 
 // How long received alerts are kept.
@@ -88,6 +89,7 @@ func NewStore(dir string) *Store {
 		vehicles: map[int]PVehicle{},
 		fixes:    map[int]lastFix{},
 		byID:     map[string]bool{},
+		roster:   loadRoster(dir),
 		p: persisted{
 			Reads: map[string]map[string]bool{}, ReadAllAt: map[string]string{},
 			Decisions: map[string][]Decision{}, Days: map[string]map[int]*DayStats{},
@@ -162,6 +164,7 @@ func (s *Store) SetVehicles(list []PVehicle) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, v := range list {
+		v = dress(v, s.roster)
 		cur, ok := s.vehicles[v.VehicleID]
 		if ok {
 			v.Position = cur.Position
@@ -184,6 +187,7 @@ func (s *Store) ApplyPositions(list []PVehicle) []PVehicle {
 	defer s.mu.Unlock()
 	var changed []PVehicle
 	for _, v := range list {
+		v = dress(v, s.roster)
 		prev, had := s.vehicles[v.VehicleID]
 		s.vehicles[v.VehicleID] = v
 		if v.Position == nil {

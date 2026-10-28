@@ -28,6 +28,8 @@ type harness struct {
 	t     *testing.T
 	h     http.Handler
 	store *Store
+	cfg   Config
+	auth  *Auth
 }
 
 func newHarness(t *testing.T) *harness {
@@ -53,8 +55,9 @@ func newHarness(t *testing.T) *harness {
 		DataDir: t.TempDir(),
 	}
 	store := NewStore(cfg.DataDir)
-	srv := &Server{cfg: cfg, store: store, hub: NewHub()}
-	return &harness{t: t, h: routes(srv, NewAuth(cfg)), store: store}
+	srv := &Server{cfg: cfg, store: store, hub: NewHub(), routing: NewRouting(nil, store)}
+	auth := NewAuth(cfg)
+	return &harness{t: t, h: routes(srv, auth), store: store, cfg: cfg, auth: auth}
 }
 
 func mustWrite(t *testing.T, p, s string) {
@@ -178,19 +181,33 @@ func TestTokens(t *testing.T) {
 		t.Fatalf("refresh: %d", rec.Code)
 	}
 
+	// The real account and session, so only the one thing named is wrong.
+	me, _ := h.auth.users.GetByEmail(testEmail)
+	claims := tokenClaims{Sub: me.ID, Ver: me.SessionVersion, Typ: "access", Exp: time.Now().Add(time.Hour).Unix()}
+	if rec := h.do("GET", "/api/v1/auth/me", h.auth.sign(claims), nil); rec.Code != http.StatusOK {
+		t.Fatalf("well-formed token: %d", rec.Code)
+	}
+
 	t.Run("expired token", func(t *testing.T) {
-		a := NewAuth(Config{JWTSecret: "test-secret-test-secret-test-secret", AdminEmail: testEmail})
-		old := a.sign(tokenClaims{Sub: testEmail, Typ: "access", Exp: time.Now().Add(-time.Minute).Unix()})
-		if rec := h.do("GET", "/api/v1/auth/me", old, nil); rec.Code != http.StatusUnauthorized {
+		old := claims
+		old.Exp = time.Now().Add(-time.Minute).Unix()
+		if rec := h.do("GET", "/api/v1/auth/me", h.auth.sign(old), nil); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("expired: %d", rec.Code)
 		}
 	})
 
 	t.Run("signed with another secret", func(t *testing.T) {
-		a := NewAuth(Config{JWTSecret: "some-other-secret", AdminEmail: testEmail})
-		forged := a.sign(tokenClaims{Sub: testEmail, Typ: "access", Exp: time.Now().Add(time.Hour).Unix()})
-		if rec := h.do("GET", "/api/v1/auth/me", forged, nil); rec.Code != http.StatusUnauthorized {
+		a := NewAuth(Config{JWTSecret: "some-other-secret", AdminEmail: testEmail, DataDir: t.TempDir()})
+		if rec := h.do("GET", "/api/v1/auth/me", a.sign(claims), nil); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("forged: %d", rec.Code)
+		}
+	})
+
+	t.Run("ended session", func(t *testing.T) {
+		stale := claims
+		stale.Ver--
+		if rec := h.do("GET", "/api/v1/auth/me", h.auth.sign(stale), nil); rec.Code != http.StatusUnauthorized {
+			t.Fatalf("token from an ended session: %d", rec.Code)
 		}
 	})
 }

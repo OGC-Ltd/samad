@@ -74,6 +74,17 @@ const EMPTY_FORM = { fullName: "", email: "", phone: "", employeeId: "" };
  * `always` marks the column the Columns menu may not hide. A roster with the
  * name column switched off is a table of facts about nobody.
  */
+/**
+ * The notice for a set-password link the server handed back instead of
+ * mailing it. The link is also put on the clipboard, best effort: the notice
+ * stays up (warn toasts have no clock) so it can be selected by hand too.
+ */
+function shareLinkNotice(lead, invite) {
+  navigator.clipboard?.writeText(invite.link).catch(() => {});
+  const until = invite.expiresAt ? ` It works once, until ${new Date(invite.expiresAt).toLocaleString()}.` : "";
+  return `${lead} No email is sent from this server: give them this link to set their password (copied):  ${invite.link}${until}`;
+}
+
 const COLUMNS = [
   { key: "name",     label: "Full name",  always: true },
   /* Email and phone are COLUMNS now, not a second line under the name. They
@@ -1492,6 +1503,10 @@ export default function UserAdminPanel() {
 
       if (result?.created === false) {
         say(`That address already has an account. They have been added to ${where}.`, null, "created");
+      } else if (result?.invite?.link) {
+        // samad-server sends no email: it hands back the set-password link,
+        // and the administrator passes it on.
+        flag(shareLinkNotice(`Account created for ${form.email.trim()}.`, result.invite));
       } else if (result?.invite?.sent) {
         say(`Invitation sent to ${form.email.trim()} · added to ${where}.`, null, "created");
       } else if (result?.invite?.reason === "queued") {
@@ -1555,7 +1570,9 @@ export default function UserAdminPanel() {
     setRowBusy(rowKey(user)); setError("");
     try {
       const invite = await resendInvite(user.scopeOrgId, user.id);
-      if (invite?.sent) {
+      if (invite?.link) {
+        flag(shareLinkNotice(`New link for ${user.email}; the previous one no longer works.`, invite));
+      } else if (invite?.sent) {
         say(`New invitation sent to ${user.email}.`, null, "created");
       } else if (invite?.reason === "queued") {
         say(`New invitation to ${user.email} is queued for delivery.`, null, "created");

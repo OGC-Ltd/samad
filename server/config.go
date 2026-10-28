@@ -21,7 +21,8 @@ type Config struct {
 	// Signs access and refresh tokens.
 	JWTSecret string
 
-	// The one sign-in this server knows (see auth.go).
+	// The default super admin (users.go): created on first start, and kept a
+	// super admin with this password on every start.
 	AdminEmail        string
 	AdminName         string
 	AdminPasswordHash string
@@ -40,6 +41,10 @@ type Config struct {
 	OpenAIKey     string
 	OpenAIModel   string
 	OpenAIBaseURL string
+
+	// Google Routes and Weather from the server (google.go). No key, no
+	// road routes, arrivals or weather layer.
+	GoogleRoutingAPIKey string
 
 	// The browser origin allowed to call the API cross-origin (the vite dev
 	// server proxies, so this is only for a separately hosted UI).
@@ -94,6 +99,8 @@ func loadConfig() (Config, error) {
 		OpenAIKey:         os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel:       env("OPENAI_MODEL", "gpt-5.4-nano"),
 		OpenAIBaseURL:     env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+
+		GoogleRoutingAPIKey: os.Getenv("GOOGLE_ROUTING_API_KEY"),
 	}
 	var err error
 	if c.PositionsEvery, err = time.ParseDuration(env("POSITIONS_EVERY", "30s")); err != nil {

@@ -843,6 +843,8 @@ function DriverIdCard({ driver, tier, st, row, w, liveVehicle }) {
           <div className="dr-profile__meta">
             {driver.employeeId ? `#${driver.employeeId}` : "Driver"}
             {driver.licenceNumber ? ` · Lic ${driver.licenceNumber}` : ""}
+            {driver.idNumber ? ` · ID ${driver.idNumber}` : ""}
+            {driver.phone ? <> · <a href={`tel:${driver.phone}`}>{driver.phone}</a></> : ""}
           </div>
           <StarRating value={driver.rating} />
         </div>
@@ -1025,6 +1027,8 @@ function AllDriversSection({
     d.fullName.toLowerCase().includes(q) ||
     String(d.employeeId ?? "").toLowerCase().includes(q) ||
     String(d.licenceNumber ?? "").toLowerCase().includes(q) ||
+    String(d.idNumber ?? "").includes(q) ||
+    String(d.phone ?? "").includes(q) ||
     String(d.vehicle ?? "").toLowerCase().includes(q)
   );
 

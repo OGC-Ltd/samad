@@ -159,6 +159,9 @@ type PVehicle struct {
 	Driver       *PPerson   `json:"driver"`
 	Owner        *POwner    `json:"owner"`
 	Position     *PPosition `json:"position"`
+
+	// From the roster (roster.go), not the partner.
+	Trailer string `json:"-"`
 }
 
 type PHistoryPoint struct {

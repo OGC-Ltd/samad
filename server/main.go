@@ -49,9 +49,13 @@ func main() {
 	hub := NewHub()
 	store := NewStore(cfg.DataDir)
 	client := NewPartnerClient(cfg.PartnerBaseURL, cfg.PartnerAPIKey)
-	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg)}
+	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg),
+		routing: NewRouting(NewGoogle(cfg.GoogleRoutingAPIKey), store)}
 	if srv.ai == nil {
 		log.Printf("no OPENAI_API_KEY: the Fleet summary shows facts, not an AI brief")
+	}
+	if !srv.routing.enabled() {
+		log.Printf("no GOOGLE_ROUTING_API_KEY: no road routes, arrivals or weather layer")
 	}
 	auth := NewAuth(cfg)
 
@@ -103,31 +107,67 @@ func routes(s *Server, a *Auth) http.Handler {
 	api.HandleFunc("/auth/refresh", a.Refresh).Methods("POST")
 	api.HandleFunc("/auth/logout", a.Logout).Methods("POST")
 
+	// Set-password links work signed out.
+	api.HandleFunc("/account/setup/{token}", a.inspectSetup).Methods("GET")
+	api.HandleFunc("/account/setup", a.completeSetup).Methods("POST")
+	api.HandleFunc("/account/forgot-password", a.forgotPassword).Methods("POST")
+
 	in := api.NewRoute().Subrouter()
 	in.Use(a.Require)
 	in.HandleFunc("/auth/me", a.Me).Methods("GET")
 	in.HandleFunc("/bootstrap", s.bootstrap).Methods("GET")
+	in.HandleFunc("/account/profile", a.profile).Methods("GET")
+	in.HandleFunc("/account/profile", a.updateProfile).Methods("PATCH")
+	in.HandleFunc("/account/password", a.changePassword).Methods("PATCH")
+	in.HandleFunc("/account/sessions/revoke-all", a.revokeAllSessions).Methods("POST")
+	in.HandleFunc("/account/tour", a.recordTour).Methods("POST")
 
-	in.HandleFunc("/alerts", s.listAlerts).Methods("GET")
-	in.HandleFunc("/alerts/summary", s.alertSummary).Methods("GET")
-	in.HandleFunc("/alerts/history", s.alertHistory).Methods("GET")
-	in.HandleFunc("/alerts/read", s.markRead).Methods("POST")
-	in.HandleFunc("/alerts/read-all", s.markAllRead).Methods("POST")
+	// Each screen's routes need the permission the screen is drawn for
+	// (roles.go); the dashboard hides what a role lacks, this refuses it.
+	alerts := []string{"alerts:read", "fuel_theft:read", "analytics:read"}
+	in.Handle("/alerts", needFunc(s.listAlerts, alerts...)).Methods("GET")
+	in.Handle("/alerts/summary", needFunc(s.alertSummary, alerts...)).Methods("GET")
+	in.Handle("/alerts/history", needFunc(s.alertHistory, alerts...)).Methods("GET")
+	in.Handle("/alerts/read", needFunc(s.markRead, alerts...)).Methods("POST")
+	in.Handle("/alerts/read-all", needFunc(s.markAllRead, alerts...)).Methods("POST")
 
-	in.HandleFunc("/vss/cameras", s.vssCameras).Methods("GET")
-	in.HandleFunc("/vss/alarms", s.vssAlarms).Methods("GET")
-	in.HandleFunc("/vss/file", s.vssFile).Methods("GET")
+	in.Handle("/vss/cameras", needFunc(s.vssCameras, "telemetry:read")).Methods("GET")
+	in.Handle("/vss/alarms", needFunc(s.vssAlarms, "telemetry:read")).Methods("GET")
+	in.Handle("/vss/file", needFunc(s.vssFile, "telemetry:read")).Methods("GET")
 
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
 	org.Use(ourOrg)
-	org.HandleFunc("/vehicles/snapshot", s.snapshot).Methods("GET")
-	org.HandleFunc("/live", s.live).Methods("GET")
-	org.HandleFunc("/vehicles/{vehicleId}/track", s.track).Methods("GET")
-	org.HandleFunc("/vehicles/{vehicleId}/playback", s.playback).Methods("GET")
-	org.HandleFunc("/geofences/geojson", s.geofencesGeoJSON).Methods("GET")
-	org.HandleFunc("/analytics/drivers/overview", s.driversOverview).Methods("GET")
-	org.HandleFunc("/dashboard/ai-insight", s.fleetInsight).Methods("GET")
-	org.HandleFunc("/incidents/{kind:speeding|camera}/{id}/review", s.reviewAlert).Methods("POST")
+	org.Handle("/vehicles/snapshot", needFunc(s.snapshot, "telemetry:read")).Methods("GET")
+	org.Handle("/live", unitsVisible(needFunc(s.live, "notification:read", "telemetry:read"))).Methods("GET")
+	org.Handle("/vehicles/{vehicleId}/track", unitsVisible(needFunc(s.track, "map:read", "map:playback"))).Methods("GET")
+	org.Handle("/vehicles/{vehicleId}/playback", unitsVisible(needFunc(s.playback, "map:playback"))).Methods("GET")
+	org.Handle("/geofences/geojson", needFunc(s.geofencesGeoJSON, "geofence:read", "map:read")).Methods("GET")
+	org.Handle("/analytics/drivers/overview", needFunc(s.driversOverview, "driver:read")).Methods("GET")
+	org.Handle("/dashboard/ai-insight", needFunc(s.fleetInsight, "dashboard:read")).Methods("GET")
+	org.Handle("/incidents/{kind:speeding|camera}/{id}/review", needFunc(s.reviewAlert, alerts...)).Methods("POST")
+
+	// Weather and routing (routing.go).
+	rt := s.routing
+	org.Handle("/routing/status", needFunc(rt.status, "vehicle:read")).Methods("GET")
+	org.Handle("/routing/hubs", needFunc(rt.listHubs, "vehicle:read")).Methods("GET")
+	org.Handle("/routing/hubs/{hubKey}/inbound", unitsVisible(needFunc(rt.inbound, "vehicle:read"))).Methods("GET")
+	org.Handle("/routing/point/inbound", unitsVisible(needFunc(rt.inboundAt, "vehicle:read"))).Methods("GET")
+	org.Handle("/weather/grid", needFunc(rt.weatherGrid, "vehicle:read")).Methods("GET")
+	org.Handle("/vehicles/{vehicleId}/route-ahead", unitsVisible(needFunc(rt.routeAhead(s), "vehicle:read"))).Methods("GET")
+
+	users := org.PathPrefix("/users").Subrouter()
+	users.Handle("", needFunc(a.listUsers, "user:read")).Methods("GET")
+	users.Handle("/assignable-roles", needFunc(a.assignableRoles, "user:assign_role")).Methods("GET")
+	users.Handle("/provision", needFunc(a.provision, "user:create")).Methods("POST")
+	users.Handle("/{userId}", needFunc(a.getUser, "user:read")).Methods("GET")
+	users.Handle("/{userId}", needFunc(a.updateUser, "user:update")).Methods("PATCH")
+	users.Handle("/{userId}/resend-invite", needFunc(a.resendInvite, "user:create")).Methods("POST")
+	users.Handle("/{userId}/status", needFunc(a.setStatus, "user:update")).Methods("PATCH")
+	users.Handle("/{userId}/role", needFunc(a.setRole, "user:assign_role")).Methods("PATCH")
+	users.Handle("/{userId}/memberships", needFunc(a.listMemberships, "user:read")).Methods("GET")
+	users.Handle("/{userId}/memberships", needFunc(a.setRole, "user:assign_role")).Methods("PUT")
+	users.Handle("/{userId}/memberships", needFunc(a.removeMembership, "user:assign_role")).Methods("DELETE")
+	users.Handle("/{userId}/permanent", needFunc(a.purge, "user:delete")).Methods("DELETE")
 
 	// Everything else the UI may ask for, signed in: an empty answer.
 	in.PathPrefix("/").HandlerFunc(emptyRoute)

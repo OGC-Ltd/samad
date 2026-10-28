@@ -98,8 +98,15 @@ ssh -i keys/samad.pem admin@ec2-13-247-156-214.af-south-1.compute.amazonaws.com
 - To give someone access: add their public key to `/home/admin/.ssh/authorized_keys`
   (or create them a user the same way as `admin`, [§3.5](#35-the-admin-user)).
 - To revoke CI: delete the line in `/home/deploy/.ssh/authorized_keys`.
-- The dashboard sign-in (one account) is `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` in
-  the stack's `server/.env` ([§8](#8-secrets-and-configuration)).
+- The dashboard's default super admin is `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` in
+  the stack's `server/.env` ([§8](#8-secrets-and-configuration)). Every start
+  keeps that account a Platform Administrator with that password, and the user
+  screens refuse to change it. Everyone else is invited from the dashboard:
+  avatar menu → Users → Invite, with one role each (the same roles as
+  fleet-server, `server/roles.go`). No email is sent: the screen shows the
+  set-password link (valid 72 h, single use) for you to pass on.
+- Accounts live in `users.json` in the `samad-data` volume (0600, bcrypt
+  hashes; set-password links stored only as hashes).
 
 ---
 
@@ -394,7 +401,9 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 | --- | --- | --- |
 | Partner API key | `server/.env` → `PARTNER_API_KEY` | the app, server side |
 | Token signing secret | `server/.env` → `JWT_SECRET` (different per stack) | the app |
-| Dashboard sign-in | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
+| Default super admin | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
+| Google Routes + Weather | `server/.env` → `GOOGLE_ROUTING_API_KEY` (optional; a server key, IP-restricted) | road routes, arrivals, weather layer |
+| Driver roster | `drivers.json` in the `samad-data` volume (not git: ID and phone numbers) | drivers per truck, units labelled Truck |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
 | Database password | `secrets/postgres_password` | `db`, `migrate` |
 | Google Maps key | GitHub secret `GOOGLE_MAPS_API_KEY`; local `.env.local` | baked into the dashboard at build |
@@ -623,8 +632,9 @@ ls /opt/samad/releases/                       # what can be rolled back to
 - **Off the box**: the dumps live on the same disk as the database. Copy them
   elsewhere (S3, or `scp` to a workstation) on a schedule; a lost instance
   loses its dumps too ([§18](#18-open-items)).
-- **The app's state file** (`state.json`, alerts, read marks, decisions) is in
-  the `samad-data` volume:
+- **The app's files** (`state.json`: alerts, read marks, decisions;
+  `users.json`: accounts; `drivers.json`: the truck roster) are in the
+  `samad-data` volume:
   ```bash
   docker run --rm -v samad-data:/d -v "$PWD":/b busybox tar -czf /b/samad-data.tgz -C /d .
   ```
