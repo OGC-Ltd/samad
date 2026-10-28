@@ -8,7 +8,7 @@
 #
 # Secrets (per environment or repository):
 #   SAMAD_DEPLOY_KEY          the CI private key (keys/samad-deploy)
-#   SAMAD_DEPLOY_KNOWN_HOSTS  the box's host key line, so the first connect is not trust-on-first-use
+#   SAMAD_DEPLOY_KNOWN_HOSTS  optional: the box's host key line (default below)
 # Variables:
 #   SAMAD_DEPLOY_HOST         optional override of the box (default below)
 #   SAMAD_URL                 the stack's https URL (shown on the deploy)
@@ -79,7 +79,10 @@ jobs:
       - name: SSH key and pinned host key
         env:
           KEY: ${{ secrets.SAMAD_DEPLOY_KEY }}
-          KNOWN_HOSTS: ${{ secrets.SAMAD_DEPLOY_KNOWN_HOSTS }}
+          # The box's public host key (not a secret: it only lets CI refuse
+          # any other machine). A SAMAD_DEPLOY_KNOWN_HOSTS secret or variable
+          # overrides it, e.g. after a rebuild.
+          KNOWN_HOSTS: ${{ secrets.SAMAD_DEPLOY_KNOWN_HOSTS || vars.SAMAD_DEPLOY_KNOWN_HOSTS || 'ec2-13-247-156-214.af-south-1.compute.amazonaws.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ9qmJoJoDKmts/QBydcsXZyJhPrt+C/N0yZ3fni9Nsc' }}
         run: |
           [ -n "$KEY" ] && [ -n "$KNOWN_HOSTS" ] || { echo "::error::set SAMAD_DEPLOY_KEY and SAMAD_DEPLOY_KNOWN_HOSTS"; exit 1; }
           install -d -m 700 ~/.ssh
