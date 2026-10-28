@@ -56,7 +56,9 @@ jobs:
       ACTION: ${{ inputs.action || 'deploy' }}
       TARGET: ${{ inputs.target }}
       IMAGE_REF: ${{ inputs.image }}
-      HOST: ${{ vars.SAMAD_DEPLOY_HOST }}
+      # A variable is the right place (the host is not secret), but a secret
+      # of the same name works too.
+      HOST: ${{ vars.SAMAD_DEPLOY_HOST || secrets.SAMAD_DEPLOY_HOST }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,7 +67,10 @@ jobs:
       - name: Check the request
         run: |
           case "$TARGET" in dev|prod) ;; *) echo "::error::target must be dev or prod"; exit 1 ;; esac
-          [ -n "$HOST" ] || { echo "::error::set the SAMAD_DEPLOY_HOST variable"; exit 1; }
+          if [ -z "$HOST" ]; then
+            echo "::error::SAMAD_DEPLOY_HOST is empty. Add it under Settings → Secrets and variables → Actions → Variables (repository), or in the '${{ inputs.environment || 'development / production' }}' environment's variables. The name must match exactly."
+            exit 1
+          fi
           if [ "$ACTION" = deploy ] && ! [[ "$IMAGE_REF" =~ ^ghcr\.io/ogc-ltd/samad@sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::image must be ghcr.io/ogc-ltd/samad@sha256:<digest>, got '$IMAGE_REF'"; exit 1
           fi
