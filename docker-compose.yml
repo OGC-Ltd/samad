@@ -1,12 +1,10 @@
 # The Samad dashboard behind Traefik (/opt/traefik on the box).
 #
-# One file, two stacks on the same box: STACK names everything (containers,
-# volumes, the database network, Traefik's routers), so production
-# (STACK=samad) and dev (STACK=samad-dev) never touch each other. Each stack
-# lives in its own folder with its own .env:
+# STACK names everything (containers, volumes, the database network,
+# Traefik's routers), so a second stack on the same box would never touch
+# production's. Production lives in /opt/samad with its own .env:
 #
 #   /opt/samad/.env       STACK=samad      SAMAD_DOMAIN=…  SAMAD_IMAGE=ghcr.io/ogc-ltd/samad@sha256:…
-#   /opt/samad-dev/.env   STACK=samad-dev  SAMAD_DOMAIN=…  SAMAD_IMAGE=…  DB_MEM_LIMIT=384m
 #
 # CI builds the image and deploy/deploy.sh starts it; on a workstation,
 # `docker compose up -d --build` builds it here instead.
@@ -19,7 +17,7 @@
 #
 # Secrets come from server/.env (see server/.env.example) and
 # secrets/postgres_password; the settings under `environment` win over
-# server/.env, so a dev .env cannot move the paths.
+# server/.env, so server/.env cannot move the paths.
 
 name: ${STACK:-samad}
 

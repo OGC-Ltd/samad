@@ -1,12 +1,12 @@
 # Samad: one pipeline from a pull request to production.
 #
 #   pull request ─┐
-#   push develop ─┼─▶ web · go · migrations · security ─▶ image ─┬─▶ deploy dev   (develop)
-#   push main ────┘   (all must pass)              build, scan, └─▶ deploy prod  (main, approval)
-#                                                  push to GHCR
+#   push main ────┴─▶ web · go · migrations · security ─▶ image ─▶ deploy prod (main, approval)
+#                     (all must pass)                  build, scan,
+#                                                      push to GHCR
 #
 # Pull requests run every check and build the image without pushing it.
-# develop deploys to dev on its own; main waits for an approval on the
+# main waits for an approval on the
 # "production" environment, then deploys the image it just built and
 # scanned, pinned by digest. The box runs deploy/deploy.sh, which backs up
 # the production database, migrates, waits for health and rolls back on
@@ -20,7 +20,7 @@ name: pipeline
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -293,21 +293,7 @@ jobs:
         if: github.event_name == 'push'
         run: echo "ref=${IMAGE}@${{ steps.push.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
-  # ── deploys ───────────────────────────────────────────────────────────────
-  deploy-dev:
-    name: deploy · dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: image
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: development
-      target: dev
-      image: ${{ needs.image.outputs.ref }}
-    permissions:
-      contents: read
-      packages: read
-    secrets: inherit
-
+  # ── deploy ────────────────────────────────────────────────────────────────
   deploy-prod:
     name: deploy · production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

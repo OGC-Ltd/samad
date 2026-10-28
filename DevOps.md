@@ -12,7 +12,7 @@ this file; it says where each one lives.
 3. [Preparing the server](#3-preparing-the-server)
 4. [Traefik: the front door](#4-traefik-the-front-door)
 5. [The application image](#5-the-application-image)
-6. [The stacks: production and dev](#6-the-stacks-production-and-dev)
+6. [The production stack](#6-the-production-stack)
 7. [The database and migrations](#7-the-database-and-migrations)
 8. [Secrets and configuration](#8-secrets-and-configuration)
 9. [The CI/CD pipeline](#9-the-cicd-pipeline)
@@ -35,17 +35,17 @@ this file; it says where each one lives.
                            │  80 → redirect, 443 (Let's Encrypt)
                  ┌─────────▼─────────┐
                  │      Traefik      │  /opt/traefik      network: proxy
-                 └───┬───────────┬───┘
-        Host: 13-247-…sslip.io   Host: dev.13-247-…sslip.io
-       ┌─────────────▼──┐     ┌──▼─────────────┐
-       │ samad          │     │ samad-dev      │   the Go API + built React app
-       │ (production)   │     │ (dev)          │   (one distroless image)
-       └──────┬─────────┘     └──────┬─────────┘
-   samad-db (internal)        samad-dev-db (internal)
-       ┌──────▼─────────┐     ┌──────▼─────────┐
-       │ samad-db       │     │ samad-dev-db   │   PostgreSQL 18 + PostGIS 3.6
-       │ vol samad-pgdata│    │ vol samad-dev-pgdata
-       └────────────────┘     └────────────────┘
+                 └─────────┬─────────┘
+                           │  Host: 13-247-…sslip.io
+                 ┌─────────▼─────────┐
+                 │ samad             │   the Go API + built React app
+                 │ (production)      │   (one distroless image)
+                 └─────────┬─────────┘
+                           │  samad-db (internal network)
+                 ┌─────────▼─────────┐
+                 │ samad-db          │   PostgreSQL 18 + PostGIS 3.6
+                 │ vol samad-pgdata  │
+                 └───────────────────┘
 ```
 
 | Piece | What it is |
@@ -53,7 +53,6 @@ this file; it says where each one lives.
 | Server | AWS EC2, `af-south-1`, Ubuntu 26.04, 2 vCPU, 1.9 GB RAM + 2 GB swap, 15 GB disk |
 | Host | `ec2-13-247-156-214.af-south-1.compute.amazonaws.com` (`13.247.156.214`) |
 | Production | `https://13-247-156-214.sslip.io` (until the real domain, [§14](#14-moving-to-the-real-domain)) |
-| Dev | `https://dev.13-247-156-214.sslip.io` |
 | App | Go server (`server/`, gorilla/mux) serving the API under `/api/v1` and the React app (`src/`) |
 | Data source | IntelliFleet360 Partner API (positions, events, geofences, dashcam clips) |
 | Database | PostGIS, schema managed by golang-migrate (`server/migrations/`) |
@@ -100,7 +99,7 @@ ssh -i keys/samad.pem admin@ec2-13-247-156-214.af-south-1.compute.amazonaws.com
   (or create them a user the same way as `admin`, [§3.5](#35-the-admin-user)).
 - To revoke CI: delete the line in `/home/deploy/.ssh/authorized_keys`.
 - The dashboard sign-in (one account) is `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` in
-  each stack's `server/.env` ([§8](#8-secrets-and-configuration)).
+  the stack's `server/.env` ([§8](#8-secrets-and-configuration)).
 
 ---
 
@@ -246,22 +245,23 @@ asking for `/.env` or `/secrets.json` get nothing.
 
 ---
 
-## 6. The stacks: production and dev
+## 6. The production stack
 
-`docker-compose.yml` (repo root) describes one stack; the `STACK` variable
-names everything in it, so two stacks share the box without touching each
-other.
+`docker-compose.yml` (repo root) describes the stack; the `STACK` variable
+names everything in it. There is one stack, production. (A dev stack ran
+beside it until 28 Oct 2026 and was removed; the `STACK` naming would let a
+second one share the box again without touching production.)
 
-| | Production | Dev |
-| --- | --- | --- |
-| Folder | `/opt/samad` | `/opt/samad-dev` |
-| `STACK` | `samad` | `samad-dev` |
-| Containers | `samad`, `samad-db`, `samad-migrate` | `samad-dev`, `samad-dev-db`, `samad-dev-migrate` |
-| Volumes | `samad-data`, `samad-pgdata` | `samad-dev-data`, `samad-dev-pgdata` |
-| DB network | `samad-db` (internal) | `samad-dev-db` (internal) |
-| Traefik routers | `samad`, `samad-auth` | `samad-dev`, `samad-dev-auth` |
-| Limits | app 512 MB, db 768 MB | app 384 MB, db 384 MB (64 MB shared buffers) |
-| Deployed from | `main`, after approval | `develop`, automatically |
+| | Production |
+| --- | --- |
+| Folder | `/opt/samad` |
+| `STACK` | `samad` |
+| Containers | `samad`, `samad-db`, `samad-migrate` |
+| Volumes | `samad-data`, `samad-pgdata` |
+| DB network | `samad-db` (internal) |
+| Traefik routers | `samad`, `samad-auth` |
+| Limits | app 512 MB, db 768 MB |
+| Deployed from | `main`, after approval |
 
 ### 6.1 Services
 
@@ -279,9 +279,9 @@ Order on `docker compose up`: `db` healthy → `migrate` completes → `samad` s
 - The app is on `proxy` (so Traefik reaches it, and it reaches the Partner API,
   the video host and OpenAI) and on its stack's internal DB network.
 - The DB network is `internal: true`: no gateway, no internet, no port on the
-  host. Dev cannot resolve production's database, and the reverse.
+  host.
 
-### 6.3 Setting up a stack folder
+### 6.3 Setting up the stack folder
 
 Each folder holds only configuration; the code arrives as an image.
 
@@ -296,28 +296,27 @@ Each folder holds only configuration; the code arrives as an image.
 └── backups/                  pre-deploy database dumps (production)
 ```
 
-To create one (dev shown; production is the same with its own values):
+To create it (only needed on a new box):
 
 ```bash
-sudo install -d -m 750 -o deploy -g deploy /opt/samad-dev /opt/samad-dev/server /opt/samad-dev/secrets
+sudo install -d -m 750 -o deploy -g deploy /opt/samad /opt/samad/server /opt/samad/secrets
 # app secrets: start from server/.env.example and fill in (see §8); quote the bcrypt hash
-sudo -u deploy cp server/.env.example /opt/samad-dev/server/.env && sudo -u deploy nano /opt/samad-dev/server/.env
+sudo -u deploy cp server/.env.example /opt/samad/server/.env && sudo -u deploy nano /opt/samad/server/.env
 # database password
-openssl rand -base64 32 | tr -d '\n/+=' | sudo -u deploy tee /opt/samad-dev/secrets/postgres_password >/dev/null
-sudo chmod 644 /opt/samad-dev/secrets/postgres_password
+openssl rand -base64 32 | tr -d '\n/+=' | sudo -u deploy tee /opt/samad/secrets/postgres_password >/dev/null
+sudo chmod 644 /opt/samad/secrets/postgres_password
 # the stack's own settings
-printf 'STACK=samad-dev\nSAMAD_DOMAIN=dev.13-247-156-214.sslip.io\nDB_MEM_LIMIT=384m\nDB_SHARED_BUFFERS=64MB\nAPP_MEM_LIMIT=384m\n' \
-  | sudo -u deploy tee /opt/samad-dev/.env
-sudo chmod 640 /opt/samad-dev/.env /opt/samad-dev/server/.env
+printf 'STACK=samad\nSAMAD_DOMAIN=13-247-156-214.sslip.io\n' | sudo -u deploy tee /opt/samad/.env
+sudo chmod 640 /opt/samad/.env /opt/samad/server/.env
 ```
 
 The first CI deploy then writes `docker-compose.yml`, `server/migrations/` and
 `SAMAD_IMAGE`.
 
-### 6.4 Everyday commands (on the box, in a stack folder)
+### 6.4 Everyday commands (on the box, in the stack folder)
 
 ```bash
-cd /opt/samad                                 # or /opt/samad-dev
+cd /opt/samad
 sudo -u deploy docker compose ps              # what runs, health
 sudo -u deploy docker compose logs -f samad   # the app's log
 sudo -u deploy docker compose restart samad   # restart the app only
@@ -393,11 +392,11 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 
 | Secret | Where it lives | Used by |
 | --- | --- | --- |
-| Partner API key | `server/.env` → `PARTNER_API_KEY` (each stack) | the app, server side |
+| Partner API key | `server/.env` → `PARTNER_API_KEY` | the app, server side |
 | Token signing secret | `server/.env` → `JWT_SECRET` (different per stack) | the app |
 | Dashboard sign-in | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
-| Database password | `secrets/postgres_password` (each stack) | `db`, `migrate` |
+| Database password | `secrets/postgres_password` | `db`, `migrate` |
 | Google Maps key | GitHub secret `GOOGLE_MAPS_API_KEY`; local `.env.local` | baked into the dashboard at build |
 | CI deploy key | GitHub secret `SAMAD_DEPLOY_KEY` | the deploy job |
 | Box host key | GitHub secret `SAMAD_DEPLOY_KNOWN_HOSTS` | the deploy job |
@@ -435,8 +434,8 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 
 ```
 pull request ─┐
-push develop ─┼─▶ web · go · migrations · security ─▶ image ─┬─▶ deploy dev         (develop)
-push main ────┘        (all must pass)        build, scan,   └─▶ deploy production  (main, approval)
+push main ────┴─▶ web · go · migrations · security ─▶ image ─▶ deploy production  (main, approval)
+                       (all must pass)        build, scan,
                                               push to GHCR
 ```
 
@@ -450,7 +449,7 @@ push main ────┘        (all must pass)        build, scan,   └─▶
 | **security** | gitleaks (full history), hadolint (Dockerfile), shellcheck (deploy script), actionlint (workflows), `docker compose config`, Trivy fs (dependencies, secrets, misconfiguration) | any secret, high/critical finding, warning-level lint |
 | **snyk** | Snyk Open Source + Snyk Code, only with a `SNYK_TOKEN` secret | high and up |
 | **image** | Buildx with cache, Trivy image scan (fixable high/critical), the image started read-only as non-root and asked for `/api/v1/health` and `/`, then pushed with SBOM + provenance (and, opt-in, a GitHub attestation) | a scan finding or a failed start |
-| **deploy-dev / deploy-prod** | `deploy.yml` → the box's deploy script ([§12](#12-deploying-rolling-back-checking-by-hand)) | the new release is not healthy (and it rolls back) |
+| **deploy-prod** | `deploy.yml` → the box's deploy script ([§12](#12-deploying-rolling-back-checking-by-hand)) | the new release is not healthy (and it rolls back) |
 
 Pull requests run everything except the push and the deploys.
 
@@ -510,7 +509,6 @@ pipeline, or the deploy jobs fail (the checks still run).
 
 | Environment | Deployment branches | Protection | Variable |
 | --- | --- | --- | --- |
-| `development` | `develop` only | none | `SAMAD_URL` = `https://dev.13-247-156-214.sslip.io` |
 | `production` | `main` only | **Required reviewers**: who approves; optionally a wait timer | `SAMAD_URL` = `https://13-247-156-214.sslip.io` |
 
 **Step 2: Secrets** (Settings → Secrets and variables → Actions → New repository secret)
@@ -518,7 +516,7 @@ pipeline, or the deploy jobs fail (the checks still run).
 | Name | Value |
 | --- | --- |
 | `SAMAD_DEPLOY_KEY` | the whole of `keys/samad-deploy` (begins `-----BEGIN OPENSSH PRIVATE KEY-----`) |
-| `SAMAD_DEPLOY_KNOWN_HOSTS` | the whole of `keys/samad-known_hosts` (one `… ssh-ed25519 …` line) |
+| `SAMAD_DEPLOY_KNOWN_HOSTS` | optional: only if the box is rebuilt (the workflow pins the current host key; the new line from `ssh-keyscan -t ed25519 <host>`) |
 | `GOOGLE_MAPS_API_KEY` | the Maps browser key |
 | `SNYK_TOKEN` | optional: from snyk.io → Account settings |
 
@@ -529,17 +527,15 @@ pipeline, or the deploy jobs fail (the checks still run).
 | `SAMAD_DEPLOY_HOST` | optional: only if the box moves (the workflow defaults to `ec2-13-247-156-214.af-south-1.compute.amazonaws.com`) |
 | `ENABLE_ATTESTATIONS` | optional: `true` only on GitHub Enterprise Cloud |
 
-**Step 4: Branch protection** (Settings → Rules → New branch ruleset), for `main` and `develop`:
+**Step 4: Branch protection** (Settings → Rules → New branch ruleset), for `main`:
 
-- Require a pull request before merging (at least 1 approval for `main`).
+- Require a pull request before merging (at least 1 approval).
 - Require status checks: `web · lint, test, build, audit`, `go · fmt, vet, lint, test, vulncheck`,
   `migrations · up, down, up on PostGIS`, `security · secrets, IaC, scripts, deps`,
   `image · build, scan, push` (they appear in the list after the first run).
 - Block force pushes and deletions.
 
-**Step 5: The develop branch**: created from `main` on the first push.
-
-**Step 6: After the first image push**: Packages → `samad` → Package settings:
+**Step 5: After the first image push**: Packages → `samad` → Package settings:
 check that `OGC-Ltd/samad` is listed under *Manage Actions access* (it is when
 the workflow created the package). Keep the package private.
 
@@ -547,28 +543,25 @@ the workflow created the package). Keep the package private.
 
 ## 11. Day-to-day: shipping a change
 
-1. **Branch** from `develop`:
+1. **Branch** from `main`:
    ```bash
-   git switch develop && git pull && git switch -c feature/<name>
+   git switch main && git pull && git switch -c feature/<name>
    ```
 2. **Check locally** before pushing (the same checks CI runs):
    ```bash
    npx eslint . --max-warnings=0 && npx vitest run && npm run build
    cd server && gofmt -l . && go vet ./... && golangci-lint run ./... && go test ./... && govulncheck ./...
    ```
-3. **Open a pull request into `develop`.** The pipeline runs every check and
+3. **Open a pull request into `main`.** The pipeline runs every check and
    builds the image. Fix anything red; merge when green and reviewed.
-4. **The merge deploys to dev** on its own. Watch Actions → pipeline →
-   *deploy · dev*; then check `https://dev.13-247-156-214.sslip.io`.
-5. **Promote**: open a pull request from `develop` into `main`. Merge it.
-6. **Approve the production deploy**: Actions → the run → *Review deployments*
+4. **Approve the production deploy**: Actions → the run → *Review deployments*
    → `production` → Approve. The image is deployed by digest, with a database
    backup first.
-7. **Verify**: the deploy job's summary shows the running image and schema
+5. **Verify**: the deploy job's summary shows the running image and schema
    version; open the site.
 
-Hotfix: branch from `main`, pull request into `main`, then merge `main` back
-into `develop`.
+There is no dev stack, so the pull request's checks (and its image, built
+and started in CI) are the test before production.
 
 ---
 
@@ -587,7 +580,7 @@ into `develop`.
 7. Asks `https://<domain>/api/v1/health` through Traefik (60 s).
 8. If 6 or 7 fails: puts the saved compose file and image back, and fails the job.
 
-One deploy per stack at a time (a lock on the box, and a GitHub concurrency group).
+One deploy at a time (a lock on the box, and a GitHub concurrency group).
 
 ### 12.2 From GitHub
 
@@ -595,11 +588,11 @@ Actions → **deploy** → Run workflow:
 
 | Stack | Action | Image |
 | --- | --- | --- |
-| `dev` / `prod` | `deploy` | `ghcr.io/ogc-ltd/samad@sha256:…` (from the image job's summary or Packages) |
-| `dev` / `prod` | `rollback` | — back to the previous release |
-| `dev` / `prod` | `status` | — image, containers, schema version |
+| `prod` | `deploy` | `ghcr.io/ogc-ltd/samad@sha256:…` (from the image job's summary or Packages) |
+| `prod` | `rollback` | — back to the previous release |
+| `prod` | `status` | — image, containers, schema version |
 
-A `prod` run waits for the production approval like any other.
+Every run waits for the production approval.
 
 ### 12.3 On the box
 
@@ -641,7 +634,7 @@ ls /opt/samad/releases/                       # what can be rolled back to
 ## 14. Moving to the real domain
 
 1. **DNS**: an `A` record for the domain (e.g. `fleet.samadresources.com`) → `13.247.156.214`.
-   Optionally `dev.fleet.…` for dev. Wait until `dig +short <domain>` answers the IP.
+   Wait until `dig +short <domain>` answers the IP.
 2. **Stack setting**: in `/opt/samad/.env` set `SAMAD_DOMAIN=<domain>`, then:
    ```bash
    cd /opt/samad && sudo -u deploy docker compose up -d --wait
@@ -676,6 +669,7 @@ Logs rotate at 10 MB × 3 per container.
 | Symptom | Likely cause | Do |
 | --- | --- | --- |
 | `variable is not set` warning, sign-in fails | a `$` in `server/.env` unquoted (bcrypt hash) | wrap the value in single quotes |
+| `migrate`: `failed to open source … permission denied` | `server/migrations` not readable by uid 65532 (fixed in `deploy.sh` on 28 Oct 2026) | `sudo chmod -R u=rwX,go=rX /opt/samad/server/migrations`, then `docker compose up -d --wait` |
 | `migrate` exits non-zero, app does not start | bad SQL, or a **dirty** version | `docker compose logs migrate`; fix; `migrate force <version>` |
 | `database "samad" does not exist` on a new stack | the database volume was initialised wrongly | stop the stack, `docker volume rm <stack>-pgdata` (only on an empty stack!), start again |
 | 404 from Traefik for the domain | container unhealthy or not on `proxy` | `docker compose ps`; check the labels with `docker inspect <stack>` |
@@ -683,8 +677,8 @@ Logs rotate at 10 MB × 3 per container.
 | Map tiles, fonts or Google layers blank | the Content Security Policy blocks a new host | add the host to the CSP label in `docker-compose.yml` |
 | Fleet summary says "AI unavailable" | no OpenAI key, or the account has no credits | add credits; `docker compose logs samad \| grep "ai insight"` |
 | Deploy job: `Permission denied (publickey)` | `SAMAD_DEPLOY_KEY` missing or wrong | re-paste `keys/samad-deploy` |
-| Deploy job: `Host key verification failed` | `SAMAD_DEPLOY_KNOWN_HOSTS` missing, or the box was rebuilt | `ssh-keyscan -t ed25519 <host>` and update the secret |
-| Deploy job: `denied` pulling the image | the package lacks Actions access for the repo | §10 step 6 |
+| Deploy job: `Host key verification failed` | the box was rebuilt (new host key) | `ssh-keyscan -t ed25519 <host>`; set `SAMAD_DEPLOY_KNOWN_HOSTS`, or update the default in `deploy.yml` |
+| Deploy job: `denied` pulling the image | the package lacks Actions access for the repo | §10 step 5 |
 | Deploy job: `another deploy … is running` | a deploy still running (or one killed mid-way) | wait; a lock left by a killed run frees itself when its process ends |
 
 ---
@@ -693,8 +687,7 @@ Logs rotate at 10 MB × 3 per container.
 
 **Network**
 - Only 80/443 (Traefik) face the internet; Traefik's dashboard is on localhost.
-- Databases are on internal networks with no internet and no published port.
-- Dev and production cannot reach each other's databases.
+- The database is on an internal network with no internet and no published port.
 
 **Containers**
 - The app: distroless, non-root (65532), read-only root filesystem, `/tmp` tmpfs,
@@ -735,11 +728,11 @@ Logs rotate at 10 MB × 3 per container.
 2. [§3](#3-preparing-the-server): Go, Docker, swap, the `admin` user.
 3. [§4](#4-traefik-the-front-door): Traefik from `deploy/traefik/`.
 4. [§9.4](#94-the-deploy-user-and-its-forced-command): the `deploy` user, its key, `samad-deploy`.
-5. [§6.3](#63-setting-up-a-stack-folder): `/opt/samad` and `/opt/samad-dev`.
+5. [§6.3](#63-setting-up-the-stack-folder): `/opt/samad`.
 6. Restore the latest database dump ([§13](#13-backups-and-restoring)) after the first deploy has created the database.
 7. Update the GitHub secret `SAMAD_DEPLOY_KNOWN_HOSTS` (new host key) and, if
    the address changed, `SAMAD_DEPLOY_HOST`, DNS and `SAMAD_DOMAIN`.
-8. Run Actions → deploy → `deploy` for each stack (or push to `develop`/`main`).
+8. Run Actions → deploy → `deploy` (or push to `main`).
 
 ---
 

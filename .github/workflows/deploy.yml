@@ -1,6 +1,6 @@
 # Deploy one image to one stack on the box, through deploy/deploy.sh.
 #
-# Called by pipeline.yml (develop → dev, main → production) and by hand from
+# Called by pipeline.yml (main → production) and by hand from
 # the Actions tab. The SSH key in SAMAD_DEPLOY_KEY can run nothing on the box
 # but /usr/local/bin/samad-deploy (a forced command), so this job sends it a
 # tar.gz of the release files and the image to run; the script does the rest
@@ -18,15 +18,15 @@ name: deploy
 on:
   workflow_call:
     inputs:
-      environment: { type: string, required: true }   # development | production
-      target:      { type: string, required: true }   # dev | prod (deploy.sh's names)
+      environment: { type: string, required: true }   # production
+      target:      { type: string, required: true }   # prod (deploy.sh's name)
       image:       { type: string, required: true }   # ghcr.io/ogc-ltd/samad@sha256:…
   workflow_dispatch:
     inputs:
       target:
         description: Stack
         type: choice
-        options: [dev, prod]
+        options: [prod]
       action:
         description: What to do
         type: choice
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
-      name: ${{ inputs.environment || (inputs.target == 'prod' && 'production' || 'development') }}
+      name: ${{ inputs.environment || 'production' }}
       url: ${{ vars.SAMAD_URL }}
     # One deploy per stack at a time, queued, never cancelled half way.
     concurrency:
@@ -67,9 +67,9 @@ jobs:
 
       - name: Check the request
         run: |
-          case "$TARGET" in dev|prod) ;; *) echo "::error::target must be dev or prod"; exit 1 ;; esac
+          [ "$TARGET" = prod ] || { echo "::error::target must be prod"; exit 1; }
           if [ -z "$HOST" ]; then
-            echo "::error::SAMAD_DEPLOY_HOST is empty. Add it under Settings → Secrets and variables → Actions → Variables (repository), or in the '${{ inputs.environment || 'development / production' }}' environment's variables. The name must match exactly."
+            echo "::error::SAMAD_DEPLOY_HOST is empty. Add it under Settings → Secrets and variables → Actions → Variables (repository), or in the '${{ inputs.environment || 'production' }}' environment's variables. The name must match exactly."
             exit 1
           fi
           if [ "$ACTION" = deploy ] && ! [[ "$IMAGE_REF" =~ ^ghcr\.io/ogc-ltd/samad@sha256:[0-9a-f]{64}$ ]]; then

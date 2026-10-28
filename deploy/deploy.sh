@@ -9,9 +9,9 @@
 # so whatever CI asks for arrives in SSH_ORIGINAL_COMMAND and nothing else
 # runs. Commands:
 #
-#   deploy   <dev|prod> <image>   stdin: a tar.gz of the release files (below)
-#   rollback <dev|prod>           back to the previous release
-#   status   <dev|prod>
+#   deploy   prod <image>   stdin: a tar.gz of the release files (below)
+#   rollback prod           back to the previous release
+#   status   prod
 #
 # The release bundle holds exactly: docker-compose.yml, server/migrations/*.sql
 # and .ghcr-token (a short-lived GitHub token, used to pull the image, then
@@ -41,8 +41,7 @@ action=${1:-}; envname=${2:-}; image=${3:-}
 
 case "$envname" in
   prod) dir=/opt/samad ;;
-  dev)  dir=/opt/samad-dev ;;
-  *)    die "usage: deploy <dev|prod> <image> | rollback <dev|prod> | status <dev|prod>" ;;
+  *)    die "usage: deploy prod <image> | rollback prod | status prod" ;;
 esac
 [ -f "$dir/.env" ] || die "$dir/.env missing: the stack is not set up"
 cd "$dir"
@@ -154,7 +153,8 @@ deploy)
   prev=$(save_current)
   install -m 640 "$stage/docker-compose.yml" docker-compose.yml
   rm -rf server/migrations && mkdir -p server && cp -r "$stage/server/migrations" server/migrations
-  chmod -R g+rX,o-rwx server/migrations
+  # Readable by migrate (uid 65532, not in our group); they are in git, not secret.
+  chmod -R u=rwX,go=rX server/migrations
   envset SAMAD_IMAGE "$image"
 
   log "starting $image (migrations first)"
