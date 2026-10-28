@@ -7,10 +7,12 @@
 # `samad:8080` and Samad reaches `jaeger:4318`; Samad's compose file is not
 # changed, and Samad runs the same whether or not this stack is up.
 #
-# Reached from outside: Grafana only, through Traefik at
-# https://SAMAD_DOMAIN/grafana (no DNS record of its own), with its own login. Prometheus and Jaeger have no login, so they listen on the
-# box's loopback alone (ssh -L 9090:127.0.0.1:9090 / -L 16686:127.0.0.1:16686),
-# and Grafana shows both through its datasources.
+# Reached from outside, through Traefik on Samad's host (no DNS records):
+#   https://SAMAD_DOMAIN/grafana   Grafana's own login
+#   https://SAMAD_DOMAIN/jaeger    Jaeger has no login, so Traefik asks for one
+#                                  (JAEGER_BASIC_AUTH in .env, see README.md)
+# Prometheus has no login and stays on the box's loopback
+# (ssh -L 9090:127.0.0.1:9090); Grafana shows it.
 #
 # Set up once: see README.md beside this file.
 
@@ -102,6 +104,8 @@ services:
       # The built-in config listens on this host; localhost would take OTLP
       # from inside the container only.
       JAEGER_LISTEN_HOST: 0.0.0.0
+    # Its pages and API under /jaeger, so Traefik can route it beside Samad.
+    command: ["--set=extensions.jaeger_query.base_path=/jaeger"]
     networks: [proxy, obs]
     expose: ["4317", "4318"]
     ports:
@@ -110,10 +114,70 @@ services:
     cpus: 0.5
     security_opt: ["no-new-privileges:true"]
     logging: *logging
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.services.jaeger.loadbalancer.server.port=16686
+      - traefik.http.routers.jaeger.rule=Host(`${SAMAD_DOMAIN}`) && PathPrefix(`/jaeger`)
+      - traefik.http.routers.jaeger.priority=200
+      - traefik.http.routers.jaeger.entrypoints=websecure
+      - traefik.http.routers.jaeger.tls.certresolver=letsencrypt
+      - traefik.http.routers.jaeger.service=jaeger
+      - traefik.http.routers.jaeger.middlewares=jaeger-auth,jaeger-limit,grafana-headers
+      # user:apr1-hash. Compose refuses to start without it, so Jaeger is never open.
+      - traefik.http.middlewares.jaeger-auth.basicauth.users=${JAEGER_BASIC_AUTH:?set JAEGER_BASIC_AUTH}
+      - traefik.http.middlewares.jaeger-auth.basicauth.realm=Samad traces
+      - traefik.http.middlewares.jaeger-limit.ratelimit.average=120
+      - traefik.http.middlewares.jaeger-limit.ratelimit.period=1m
+      - traefik.http.middlewares.jaeger-limit.ratelimit.burst=60
+
+  # Logs: Alloy reads every container's output through the Docker API and
+  # pushes it to Loki; Grafana queries Loki. Loki keeps 7 days (loki/loki.yml).
+  loki:
+    image: grafana/loki:3.5.5
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki:/loki
+    networks: [obs]
+    expose: ["3100"]
+    mem_limit: ${LOKI_MEM_LIMIT:-256m}
+    cpus: 0.5
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+  alloy:
+    image: grafana/alloy:v1.10.0
+    container_name: alloy
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --disable-reporting
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read-only, as Traefik has it: Alloy lists containers and reads their
+      # logs through the API, and starts or changes nothing.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy:/var/lib/alloy
+    networks: [obs]
+    depends_on: [loki]
+    mem_limit: ${ALLOY_MEM_LIMIT:-192m}
+    cpus: 0.25
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
 
 volumes:
   prometheus:
     name: observability-prometheus
+  loki:
+    name: observability-loki
+  alloy:
+    name: observability-alloy
   grafana:
     name: observability-grafana
 

@@ -1,0 +1,75 @@
+// Grafana Alloy: every container's stdout/stderr on this box, to Loki.
+//
+// Labels kept small on purpose (each label value is a stream): container,
+// compose project and service, and the stream (stdout/stderr). Anything finer,
+// a status code or a path, is searched in the line, not indexed.
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.containers.output
+  refresh_interval = "30s"
+  forward_to       = [loki.process.lines.receiver]
+}
+
+loki.process "lines" {
+  // Samad: its health probe answers every few seconds forever; nothing to read.
+  stage.match {
+    selector = "{container=\"samad\"}"
+
+    stage.drop {
+      expression = "\"/api/v1/health\""
+    }
+  }
+
+  // Samad's request line, `"GET" "/path" 200 12ms trace=<id>`: the status
+  // class becomes a label (five values at most), so "show me the 5xx" is an
+  // index lookup rather than a scan.
+  stage.match {
+    selector = "{container=\"samad\"}"
+
+    stage.regex {
+      expression = "^\\S+ \\S+ \"[A-Z]+\" \"[^\"]*\" (?P<code>[1-5])\\d\\d "
+    }
+    stage.template {
+      source   = "code"
+      template = "{{ if .code }}{{ .code }}xx{{ end }}"
+    }
+    stage.labels {
+      values = { code = "" }
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

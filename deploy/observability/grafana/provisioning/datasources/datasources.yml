@@ -11,9 +11,33 @@ datasources:
     jsonData:
       timeInterval: 15s
 
+  # A trace links to Samad's log lines for the same request (the trace= field
+  # Samad writes on each request line).
   - name: Jaeger
     uid: jaeger
     type: jaeger
     access: proxy
-    url: http://jaeger:16686
+    url: http://jaeger:16686/jaeger
     editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -1m
+        spanEndTimeShift: 1m
+        customQuery: true
+        query: '{container="samad"} |= "trace=$${__trace.traceId}"'
+
+  # A log line with trace=<id> links to that trace in Jaeger.
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: Trace
+          matcherRegex: 'trace=(\w+)'
+          url: '$${__value.raw}'
+          datasourceUid: jaeger

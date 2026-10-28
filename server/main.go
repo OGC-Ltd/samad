@@ -269,13 +269,19 @@ func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		route := routeLabel(r)
-		nameSpan(r, route)
+		traceID := nameSpan(r, route)
 		obs.begin()
 		sw := &obsWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
 		stream := strings.HasPrefix(sw.Header().Get("Content-Type"), "text/event-stream")
 		obs.done(r.Method, route, sw.status, sw.bytes, time.Since(start), stream)
+		// trace=: Grafana links a log line to its trace in Jaeger by this field
+		// (deploy/observability). A 32-character hex id, nothing to quote.
+		tail := ""
+		if traceID != "" {
+			tail = " trace=" + traceID
+		}
 		// %q: a path with an encoded newline cannot forge a log line.
-		log.Printf("%q %q %d %s", r.Method, r.URL.Path, sw.status, time.Since(start).Round(time.Millisecond)) //nolint:gosec // G706: both values are quoted
+		log.Printf("%q %q %d %s%s", r.Method, r.URL.Path, sw.status, time.Since(start).Round(time.Millisecond), tail) //nolint:gosec // G706: both values are quoted
 	})
 }

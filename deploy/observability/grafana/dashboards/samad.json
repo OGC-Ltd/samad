@@ -1756,7 +1756,7 @@
     },
     {
       "type": "row",
-      "title": "Traces",
+      "title": "Logs",
       "id": 29,
       "collapsed": false,
       "gridPos": {
@@ -1768,18 +1768,165 @@
       "panels": []
     },
     {
+      "type": "timeseries",
+      "title": "Log lines by container",
+      "description": "Lines written per interval by each container on the box (Loki).",
+      "id": 30,
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (container) (count_over_time({project=~\".+\"}[$__auto]))",
+          "refId": "A",
+          "legendFormat": "{{container}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "gradientMode": "none"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Samad server errors",
+      "description": "Request lines Samad answered with 5xx. Click a line, then Trace, to open it in Jaeger.",
+      "id": 31,
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"samad\", code=\"5xx\"}",
+          "refId": "A",
+          "legendFormat": "",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Samad log",
+      "description": "Everything Samad writes, newest first (health probes are dropped at collection). Search with Explore \u203a Loki: e.g. {container=\"samad\"} |= \"poll positions\".",
+      "id": 32,
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"samad\"}",
+          "refId": "A",
+          "legendFormat": "",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "type": "row",
+      "title": "Traces",
+      "id": 33,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "panels": []
+    },
+    {
       "type": "text",
       "title": "Request traces",
-      "id": 30,
+      "id": 34,
       "gridPos": {
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 82
       },
       "options": {
         "mode": "markdown",
-        "content": "Traces are in **Explore \u203a Jaeger** (the compass icon on the left): pick service **samad-server**, then filter by operation (the route) or by *Min duration* to find slow requests. Each trace shows the time spent in the Partner API, Google and OpenAI under it.\n\nTraces need `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in Samad's `server/.env`; see `deploy/observability/README.md`."
+        "content": "Traces are at **/jaeger** (its own password), or here in **Explore \u203a Jaeger**: pick service **samad-server**, then filter by operation (the route) or by *Min duration* to find slow requests. Each trace shows the time spent in the Partner API, Google and OpenAI under it.\n\nTraces need `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in Samad's `server/.env`; see `deploy/observability/README.md`."
       }
     }
   ],
