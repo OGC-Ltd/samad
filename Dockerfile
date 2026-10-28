@@ -13,6 +13,11 @@
 # OpenStreetMap only.
 #
 #   VITE_GOOGLE_MAPS_API_KEY=… docker build --secret id=google_maps_key,env=VITE_GOOGLE_MAPS_API_KEY .
+#
+# The server's own Google key (Routes and Weather) arrives the same way, as
+# the secret google_server_key, and is built into the server binary only, so
+# the box needs no .env entry for it. A GOOGLE_ROUTING_API_KEY or
+# GOOGLE_MAPS_API_KEY in server/.env still wins.
 
 # ── the dashboard ──────────────────────────────────────────────────────────
 FROM node:26.12.1-alpine AS web
@@ -35,7 +40,10 @@ COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/*.go ./
 ARG APP_VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${APP_VERSION}" -o /out/samad-server . \
+RUN --mount=type=secret,id=google_server_key,env=GOOGLE_SERVER_KEY,required=false \
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags="-s -w -X main.version=${APP_VERSION} -X main.builtGoogleKey=${GOOGLE_SERVER_KEY}" \
+      -o /out/samad-server . \
  && mkdir -p /out/data
 
 # ── what runs: no shell, no package manager, not root ─────────────────────

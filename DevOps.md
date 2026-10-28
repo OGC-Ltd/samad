@@ -403,7 +403,7 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 | Token signing secret | `server/.env` → `JWT_SECRET` (different per stack) | the app |
 | Default super admin | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
 | Google Maps key | CI secret `GOOGLE_MAPS_API_KEY` (built into the dashboard) and `server/.env` → `GOOGLE_MAPS_API_KEY` | Google hybrid/satellite/terrain maps and live traffic (browser); road routes, arrivals and the weather layer (server) |
-| Google Routes + Weather, own key | `server/.env` → `GOOGLE_ROUTING_API_KEY` (optional; overrides the Maps key on the server) | a separate IP-restricted server key, if the Maps key is referrer-restricted |
+| Google server key (Routes + Weather) | GitHub **repository** secret `GOOGLE_ROUTING_API_KEY`, built into the server binary by the pipeline (no box setting needed). Without it the server uses the Maps key. A `GOOGLE_ROUTING_API_KEY` or `GOOGLE_MAPS_API_KEY` in `server/.env` still wins | road routes, arrivals, the weather layer; restrict it by API (Routes, Weather) or the box's IP, not by website |
 | Driver roster | `drivers.json` in the `samad-data` volume (not git: ID and phone numbers) | drivers per truck, units labelled Truck |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
 | Uploaded files | `server/.env` → `S3_BUCKET` (`samad-522505217087-af-south-1-an`), `S3_REGION`, `S3_PREFIX`; access from the box's IAM role (`s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the bucket's objects). Empty `S3_BUCKET`: files stay in the `samad-data` volume | group organisation logos |

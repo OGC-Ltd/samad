@@ -143,13 +143,20 @@ func loadConfig() (Config, error) {
 	return c, nil
 }
 
+// builtGoogleKey is the server's Google key, built in by the pipeline
+// (-ldflags -X, from the GOOGLE_ROUTING_API_KEY repository secret) so the box
+// needs no .env entry for it. Empty in a local build.
+var builtGoogleKey string
+
 // GoogleKey is the key the server's Routes and Weather calls use: its own
-// GOOGLE_ROUTING_API_KEY, else the dashboard's GOOGLE_MAPS_API_KEY. A key
-// restricted to HTTP referrers is refused by Google for server calls; restrict
-// it by the box's IP address (or by API) instead.
+// GOOGLE_ROUTING_API_KEY, else the dashboard's GOOGLE_MAPS_API_KEY, else the
+// one built in. A key restricted to HTTP referrers is refused by Google for
+// server calls; restrict it by the box's IP address (or by API) instead.
 func (c Config) GoogleKey() string {
-	if c.GoogleRoutingAPIKey != "" {
-		return c.GoogleRoutingAPIKey
+	for _, k := range []string{c.GoogleRoutingAPIKey, c.GoogleMapsAPIKey, builtGoogleKey} {
+		if k != "" {
+			return k
+		}
 	}
-	return c.GoogleMapsAPIKey
+	return ""
 }
