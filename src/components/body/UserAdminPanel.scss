@@ -2687,24 +2687,29 @@ select.ua-input { appearance: none; cursor: pointer; }
 
    `position: fixed` against the viewport: the panel scrolls, and an undo that
    scrolls away is an undo you cannot reach. */
+/* Hallmark · component: toast · genre: modern-minimal · theme: studied-DNA (in-project --ua-* tokens)
+ * states: default · hover · focus · active · disabled · loading · error · success
+ *   (the toast itself is not a control: its states are its tones and the
+ *   note's sent / pending / failed; Undo and Dismiss carry the control states)
+ * 2026-10-28 redesign: no drop shadow, no coloured edge bar, no tinted border.
+ * It sits on the roster's own white, so ONE darker hairline is what lifts it
+ * off the page -- the same edge every field on this screen uses. */
 .ua-toast {
   position: fixed;
   right: 20px;
   bottom: 20px;
   z-index: 3000;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: min(420px, calc(100vw - 40px));
-  padding: 11px 12px 11px 15px;
-  border: 1px solid color-mix(in srgb, var(--ua-toast-hue) 40%, var(--ua-line-hi));
-  border-radius: 10px;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(400px, calc(100vw - 40px));
+  padding: 12px 8px 12px 14px;
+  border: 1px solid var(--ua-field-line);
+  border-radius: 6px;
   background: var(--ua-surface);
-  /* The rule is an inset shadow rather than a border-left, so it does not move
-     the text by 3px relative to a toast that has none. */
-  box-shadow: inset 3px 0 0 var(--ua-toast-hue),
-    0 12px 34px rgb(15 23 42 / 16%), 0 2px 8px rgb(15 23 42 / 8%);
+  animation: ua-toast-in 140ms cubic-bezier(0.2, 0, 0, 1);
 }
+@keyframes ua-toast-in { from { opacity: 0; transform: translateY(4px); } }
 
 /* ── Tone ────────────────────────────────────────────────────────────────
    Coloured by the OPERATION, not merely by whether it went well. Six of them
@@ -2723,33 +2728,66 @@ select.ua-input { appearance: none; cursor: pointer; }
    because the hue is answering "how bad" and those pairs are equally bad. The
    MARK is what answers "which": a cross for a deletion, an exclamation for a
    failure. Colour is never carrying it alone. */
-.ua-toast {
-  --ua-toast-hue: var(--ua-line-hi);
-  --ua-toast-mark: var(--ua-text-3);
-}
-.ua-toast--created   { --ua-toast-hue: var(--ua-accent); --ua-toast-mark: var(--ua-accent-ink); }
-.ua-toast--ok        { --ua-toast-hue: var(--ua-ok);     --ua-toast-mark: var(--ua-ok-ink); }
-.ua-toast--suspended { --ua-toast-hue: var(--ua-warn);   --ua-toast-mark: var(--ua-warn-ink); }
-.ua-toast--deleted   { --ua-toast-hue: var(--ua-crit);   --ua-toast-mark: var(--ua-crit); }
-.ua-toast--warn      { --ua-toast-hue: var(--ua-warn);   --ua-toast-mark: var(--ua-warn-ink); }
-.ua-toast--error     { --ua-toast-hue: var(--ua-crit);   --ua-toast-mark: var(--ua-crit); }
+.ua-toast { --ua-toast-mark: var(--ua-text-3); }
+.ua-toast--created   { --ua-toast-mark: var(--ua-accent-ink); }
+.ua-toast--ok        { --ua-toast-mark: var(--ua-ok-ink); }
+.ua-toast--suspended { --ua-toast-mark: var(--ua-warn-ink); }
+.ua-toast--deleted   { --ua-toast-mark: var(--ua-crit); }
+.ua-toast--warn      { --ua-toast-mark: var(--ua-warn-ink); }
+.ua-toast--error     { --ua-toast-mark: var(--ua-crit); }
 
 .ua-toast__mark {
   flex: none;
   display: grid;
   place-items: center;
+  /* Optical: centres the ring on the first line's x-height. */
+  margin-top: 1px;
   color: var(--ua-toast-mark);
 }
 
-.ua-toast__text {
-  font-size: 12.5px;
-  color: var(--ua-text-1);
-  line-height: 1.45;
-  /* The slack lives HERE, not on the Undo button, because a toast that has no
-     undo -- a deletion, an invitation sent -- still has to hold its close in
-     the same corner as one that does. */
+/* The slack lives HERE, not on the Undo button, because a toast that has no
+   undo -- a deletion, an invitation sent -- still has to hold its close in
+   the same corner as one that does. */
+.ua-toast__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
   margin-right: auto;
 }
+
+.ua-toast__text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ua-text-1);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* The mail's own outcome, under the event. A dot rather than a second icon:
+   the words say sent / not sent yet / not sent, the dot only lets the eye
+   find which before reading. */
+.ua-toast__note {
+  position: relative;
+  padding-left: 13px;
+  font-size: 12.5px;
+  color: var(--ua-text-2);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ua-toast__note::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ua-text-4);
+}
+.ua-toast__note--sent::before    { background: var(--ua-ok); }
+.ua-toast__note--pending::before { background: var(--ua-warn); }
+.ua-toast__note--failed::before  { background: var(--ua-crit); }
+.ua-toast__note--failed { color: var(--ua-crit); }
 
 .ua-toast__undo {
   flex: none;
@@ -2764,12 +2802,15 @@ select.ua-input { appearance: none; cursor: pointer; }
   font-family: var(--font-body);
   cursor: pointer;
 }
-.ua-toast__undo:hover { background: rgba(3, 105, 161, 0.08); }
+.ua-toast__undo:hover { background: color-mix(in srgb, var(--ua-accent) 8%, transparent); }
+.ua-toast__undo:active { background: color-mix(in srgb, var(--ua-accent) 14%, transparent); }
 .ua-toast__undo:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 2px; }
 
 .ua-toast__x {
   flex: none;
-  padding: 4px 6px;
+  /* Undo is 13px tall in a 26px button; this matches, so both sit on one line. */
+  margin-top: -3px;
+  padding: 4px 7px;
   border: 0;
   border-radius: 5px;
   background: none;
@@ -2778,12 +2819,16 @@ select.ua-input { appearance: none; cursor: pointer; }
   font-size: 12px;
   cursor: pointer;
 }
-.ua-toast__x:hover { color: var(--ua-text-1); background: rgba(0, 0, 0, 0.05); }
+.ua-toast__x:hover { color: var(--ua-text-1); background: var(--ua-raised); }
+.ua-toast__x:active { background: var(--ua-line); }
 .ua-toast__x:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 1px; }
 
 @media (max-width: 640px) {
   /* Full width at the bottom, clear of the phone's own home indicator. */
-  .ua-toast { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: none; }
+  .ua-toast { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ua-toast { animation-duration: 1ms; }
 }
 
 /* ── Add-user panel ──────────────────────────────────────────────────────────
@@ -3325,3 +3370,155 @@ select.ua-input { appearance: none; cursor: pointer; }
   font-size: 12px;
   color: var(--ua-text-3, var(--ua-text-2));
 }
+
+/* 2026-10-28 · scope: component — New account, redesigned (hallmark redesign).
+ *   in-project tokens only: --ua-* surfaces, text tiers and the #0369a1 accent.
+ *   · two sections, the Edit panel's Details / Access, instead of four boxed
+ *     fields, a loose label and a fieldset card with its own heading voice.
+ *   · labels above hairline fields, the sign-in page's flat field, not a label
+ *     printed inside a grey tile that looked like a card.
+ *   · the role chip cloud becomes a two-column radio list: fifteen roles read
+ *     down a column, and the chosen one carries a filled dot, not only a tint.
+ * states: default · hover · focus · active · disabled · selected (roles).
+ */
+.ua-form--create .ua-drawer__body { gap: 0; }
+.ua-form--create .ua-sect { gap: 12px; }
+.ua-form--create .ua-sect + .ua-sect { margin-top: 18px; padding-top: 18px; }
+
+.ua-form--create .ua-form__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.ua-form--create .ua-field,
+.ua-form--create .ua-field:focus-within {
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+}
+.ua-form--create .ua-label { letter-spacing: 0.05em; }
+.ua-form--create .ua-input,
+.ua-form--create .ua-orgchoice .ua-input {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--ua-field-line);
+  border-radius: 6px;
+  background: var(--ua-surface);
+  font-size: 13px;
+  color: var(--ua-text-1);
+  transition: border-color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.ua-form--create .ua-input:hover:not(:disabled) { border-color: var(--ua-text-4); }
+.ua-form--create .ua-input:focus-visible {
+  border-color: var(--ua-accent);
+  outline: 2px solid var(--ua-accent);
+  outline-offset: 1px;
+}
+.ua-form--create .ua-input:disabled { background: var(--ua-raised); cursor: not-allowed; }
+.ua-form--create .ua-orgchoice { margin: 2px 0 0; }
+
+/* One labelled picker inside Access: the caption, then its control. */
+.ua-pick { display: flex; flex-direction: column; gap: 6px; }
+.ua-pick .ua-orgs { margin-top: 0; }
+
+/* The role list, in both panels: a radio column, not a chip cloud. */
+.ua-roles--person {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+  /* The drawer body already scrolls; a second scrollbar inside it is a trap. */
+  max-height: none;
+  overflow: visible;
+}
+.ua-roles--person .ua-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--ua-line-hi);
+  border-radius: 6px;
+  background: var(--ua-surface);
+  color: var(--ua-text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+}
+.ua-roles--person .ua-role::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ua-field-line);
+  border-radius: 50%;
+  background: var(--ua-surface);
+}
+.ua-roles--person .ua-role:hover:not(:disabled) { border-color: var(--ua-text-4); color: var(--ua-text-1); }
+.ua-roles--person .ua-role:active:not(:disabled) { background: var(--ua-raised); }
+.ua-roles--person .ua-role:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 1px; }
+.ua-roles--person .ua-role:disabled { opacity: 0.55; cursor: not-allowed; }
+.ua-roles--person .ua-role--on {
+  border-color: var(--ua-accent);
+  box-shadow: inset 0 0 0 1px var(--ua-accent);
+  color: var(--ua-text-1);
+  font-weight: 600;
+}
+.ua-roles--person .ua-role--on::before {
+  border-color: var(--ua-accent);
+  background: radial-gradient(circle, var(--ua-accent) 0 3.5px, var(--ua-surface) 4px);
+}
+.ua-roles--person .ua-role__scope { margin-left: auto; }
+
+@media (max-width: 420px) {
+  .ua-form--create .ua-form__row,
+  .ua-roles--person { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ua-form--create .ua-input { transition: none; }
+}
+
+/* The set-password link: its own read-only field and a Copy button under the
+   note, rather than a URL run into the sentence. */
+.ua-toast__link {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+}
+.ua-toast__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--ua-line-hi);
+  border-radius: 6px;
+  background: var(--ua-raised);
+  color: var(--ua-text-2);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+}
+.ua-toast__url:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 1px; border-color: var(--ua-accent); }
+.ua-toast__copy {
+  flex: none;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--ua-accent);
+  border-radius: 6px;
+  background: none;
+  color: var(--ua-accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ua-toast__copy:hover { background: color-mix(in srgb, var(--ua-accent) 8%, transparent); }
+.ua-toast__copy:active { background: color-mix(in srgb, var(--ua-accent) 14%, transparent); }
+.ua-toast__copy:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 2px; }

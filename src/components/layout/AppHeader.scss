@@ -296,24 +296,63 @@
   .app-header__avatar { transition: none; }
 }
 
+/* Hallmark · component: dropdown menu · genre: modern-minimal · theme: the app's own header
+ * states: default · hover · focus · active · disabled (n/a: items are shown or
+ *   hidden by permission, never greyed) · open (enter) · keyboard (arrows, Esc)
+ * 2026-10-28 redesign: no drop shadow, no 10px corners, no near-invisible
+ * divider. It opens over the map, so the separation is one slate hairline --
+ * the same edge the toast and the sign-in fields use -- and the items get a
+ * hover you can actually see and a focus ring a keyboard can follow. */
 .app-header__user-menu {
+  --um-line: #94a3b8;
+  --um-rule: #e2e8f0;
+  --um-ink: #0f172a;
+  --um-ink-2: #334155;
+  --um-ink-3: #64748b;
+  --um-hover: #f1f5f9;
+  --um-press: #e2e8f0;
+  --um-focus: #2563eb;
   position: absolute;
-  top: calc(100% + 8px);
+  /* 9px takes it from the avatar's foot to the header's bottom rule (34px
+     avatar centred in the 52px bar); the 7px after that is a slight gap, just
+     enough for the tail (10px square, rises ~7px) to stop short of the bar. */
+  top: calc(100% + 9px + 7px);
   right: 0;
-  width: 220px;
+  width: 240px;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--um-line);
+  border-radius: 6px;
+  padding: 4px;
   z-index: 500;
+  animation: app-header-menu-in 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes app-header-menu-in { from { opacity: 0; transform: translateY(-3px); } }
+
+/* The tail, pointing up at the avatar: the map InfoWindow's (map-iw__tc in
+   lib/mapEngine.css, the weighbridge cards) turned over. That one is a bare
+   clip-path because its card draws no edge; this menu has a hairline, so the
+   tail is a square turned 45deg carrying the same two edges, and the line
+   runs unbroken round the point. right: 12px centres it on the 34px avatar
+   (17px in, less half the 10px square). */
+.app-header__user-menu::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-top: 1px solid var(--um-line);
+  border-left: 1px solid var(--um-line);
+  border-top-left-radius: 2px;
+  transform: rotate(45deg);
 }
 
 .app-header__user-info {
-  padding: 8px 10px 10px;
+  padding: 8px 10px 9px;
 }
 
-/* The menu is a fixed 220px box. Neither line had any wrap control, so a real
+/* The menu is a fixed-width box. Neither line had any wrap control, so a real
    full name — "Christopher Wanjala Simiyu" is an ordinary one on this fleet —
    pushed straight through the rounded corner and out over the page beneath.
    One line, clipped with an ellipsis; the full string is on the title
@@ -327,15 +366,15 @@
 .app-header__user-name {
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--um-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .app-header__user-email {
-  font-size: 11px;
-  color: #64748b;
+  font-size: 12px;
+  color: var(--um-ink-3);
   margin-top: 2px;
   /* An address has no spaces to break on, so the same treatment: it is a
      label here, not something anyone retypes from this menu. */
@@ -344,36 +383,53 @@
   white-space: nowrap;
 }
 
+/* Edge to edge, through the menu's own padding, so it reads as a rule
+   between groups rather than a line floating inside them. */
 .app-header__user-divider {
   height: 1px;
-  background: #f1f5f9;
-  margin: 2px 0;
+  background: var(--um-rule);
+  margin: 4px -4px;
 }
 
 .app-header__user-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  height: 34px;
+  padding: 0 10px;
   background: none;
   border: none;
   cursor: pointer;
   font-size: 13px;
-  color: #475569;
-  border-radius: 6px;
+  font-weight: 500;
+  color: var(--um-ink-2);
+  border-radius: 4px;
   font-family: inherit;
   text-align: left;
+  white-space: nowrap;
 }
 
 .app-header__user-item:hover {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--um-hover);
+  color: var(--um-ink);
+}
+.app-header__user-item:hover i { color: var(--um-ink-2); }
+.app-header__user-item:active { background: var(--um-press); }
+.app-header__user-item:focus-visible {
+  outline: 2px solid var(--um-focus);
+  outline-offset: -2px;
+  background: var(--um-hover);
+  color: var(--um-ink);
 }
 
 .app-header__user-item i {
-  font-size: 15px;
-  color: #64748b;
+  font-size: 16px;
+  color: var(--um-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header__user-menu { animation-duration: 1ms; }
 }
 
 /* Company logos in the organisation switcher */

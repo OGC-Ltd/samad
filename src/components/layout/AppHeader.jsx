@@ -276,6 +276,29 @@ export default function AppHeader() {
   // incident) closes the feed in turn.
   useEffect(() => onSidePanelClaim('feed', () => setFeedOpen(false)), []);
 
+  /* The account menu answers the keyboard: it opens on its first item, the
+     arrows walk it, and Escape puts focus back on the avatar it came from. */
+  const userMenuRef = useRef(null);
+  useEffect(() => {
+    if (userOpen) userMenuRef.current?.querySelector('[role="menuitem"]')?.focus();
+  }, [userOpen]);
+  const onUserMenuKey = (e) => {
+    const items = [...(userMenuRef.current?.querySelectorAll('[role="menuitem"]') ?? [])];
+    const at = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setUserOpen(false);
+      userRef.current?.querySelector('.app-header__avatar')?.focus();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      items[(at + step + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1]?.focus();
+    }
+  };
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
@@ -381,7 +404,8 @@ export default function AppHeader() {
           </button>
 
           {userOpen && (
-            <div className="app-header__user-menu">
+            <div className="app-header__user-menu" role="menu" aria-label="Account"
+                 ref={userMenuRef} onKeyDown={onUserMenuKey}>
               <div className="app-header__user-info">
                 <div className="app-header__user-name" title={displayName || user?.email || undefined}>
                   {displayName || user?.email || 'Signed in'}
@@ -393,24 +417,24 @@ export default function AppHeader() {
                   <div className="app-header__user-email" title={user.email}>{user.email}</div>
                 )}
               </div>
-              <div className="app-header__user-divider" />
-              <button className="app-header__user-item" onClick={() => { setAccountOpen(true); setUserOpen(false); }}>
+              <div className="app-header__user-divider" role="separator" />
+              <button className="app-header__user-item" role="menuitem" onClick={() => { setAccountOpen(true); setUserOpen(false); }}>
                 <i className="ti ti-user-circle" aria-hidden="true" />
                 Account
               </button>
               {can('user:create') && (
-                <button className="app-header__user-item" onClick={() => { setUserAdminOpen(true); setUserOpen(false); }}>
+                <button className="app-header__user-item" role="menuitem" onClick={() => { setUserAdminOpen(true); setUserOpen(false); }}>
                   <i className="ti ti-users" aria-hidden="true" />
                   Users
                 </button>
               )}
               {/* The Guide: the first-time tour, again (lib/productTour). */}
-              <button className="app-header__user-item" onClick={() => { setUserOpen(false); requestTour(); }}>
+              <button className="app-header__user-item" role="menuitem" onClick={() => { setUserOpen(false); requestTour(); }}>
                 <ManualIcon />
                 Guide
               </button>
-              <div className="app-header__user-divider" />
-              <button className="app-header__user-item" onClick={logout}>
+              <div className="app-header__user-divider" role="separator" />
+              <button className="app-header__user-item" role="menuitem" onClick={logout}>
                 <i className="ti ti-logout" aria-hidden="true" />
                 Sign out
               </button>

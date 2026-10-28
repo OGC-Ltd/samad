@@ -80,10 +80,36 @@ const EMPTY_FORM = { fullName: "", email: "", phone: "", employeeId: "" };
  * mailing it. The link is also put on the clipboard, best effort: the notice
  * stays up (warn toasts have no clock) so it can be selected by hand too.
  */
+/* The toast's parts for a set-password link: the event on one line, what to do
+   with the link on the next, and the link itself in a field of its own with a
+   Copy button, instead of a URL run into the middle of a sentence. */
 function shareLinkNotice(lead, invite) {
-  navigator.clipboard?.writeText(invite.link).catch(() => {});
-  const until = invite.expiresAt ? ` It works once, until ${new Date(invite.expiresAt).toLocaleString()}.` : "";
-  return `${lead} No email is sent from this server: give them this link to set their password (copied):  ${invite.link}${until}`;
+  const until = invite.expiresAt
+    ? ` It works once, until ${new Date(invite.expiresAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`
+    : " It works once.";
+  return [lead, {
+    state: "pending",
+    text: `No email goes out from Samad. Give them this link to set their password.${until}`,
+  }, invite.link];
+}
+
+/** The link in a read-only field with Copy. Copied on arrival, so it starts
+    saying so; the button copies again if the clipboard was taken meanwhile. */
+function ToastLink({ url }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(() => {
+    navigator.clipboard?.writeText(url).then(() => setCopied(true), () => setCopied(false));
+  }, [url]);
+  useEffect(() => { copy(); }, [copy]);
+  return (
+    <span className="ua-toast__link">
+      <input className="ua-toast__url" type="text" readOnly value={url}
+             aria-label="Set-password link" onFocus={(e) => e.target.select()} />
+      <button type="button" className="ua-toast__copy" onClick={copy}>
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
 }
 
 const COLUMNS = [
@@ -1095,9 +1121,11 @@ export default function UserAdminPanel() {
   /** Done, but not well: the account exists and nobody can sign in to it.
    *  Not an error — nothing failed to be written — and not an outcome to
    *  celebrate either, so it gets the middle tone and the same no-clock rule. */
-  const flag = useCallback((text) => {
+  // A sentence, or shareLinkNotice's [sentence, note, link].
+  const flag = useCallback((message) => {
+    const [text, note = null, link = null] = Array.isArray(message) ? message : [message];
     setError("");
-    setToast({ text, undo: null, tone: "warn" });
+    setToast({ text, undo: null, tone: "warn", note, link });
   }, []);
 
   const canAssignRoles = can("user:assign_role");
@@ -2389,10 +2417,15 @@ export default function UserAdminPanel() {
           onClose={closeInvite}
           id="ua-invite"
           title="New account"
-          hint="They choose their own password from an emailed link."
+          hint="You get a link to pass on; they set their own password with it."
         >
-              <form className="ua-form" onSubmit={handleCreate} noValidate>
+              {/* Two sections, the Edit panel's two: who they are, then what
+                  they can reach. Labels sit above hairline fields, as on the
+                  sign-in page, rather than inside grey boxes. */}
+              <form className="ua-form ua-form--create" onSubmit={handleCreate} noValidate>
                 <div className="ua-drawer__body">
+            <section className="ua-sect" aria-labelledby="ua-invite-details">
+            <h3 className="ua-sect__title" id="ua-invite-details">Details</h3>
             <div className="ua-form__row">
               <label className="ua-field">
                 <span className="ua-label">Full name</span>
@@ -2421,22 +2454,26 @@ export default function UserAdminPanel() {
 
             <OrgChoice own={activeCompany} options={groupOrgs}
                        value={newOrgName} onChange={setNewOrgName} disabled={busy} joinHint />
+            </section>
 
             {/* Access: one role, then the organisations it applies in. */}
-            <fieldset className="ua-access">
-              <legend className="ua-access__legend">
-                Access
-                <span className="ua-access__hint">
-                  {canAssignRoles
-                    ? "Choose their role, then each organisation they belong to. The role is the same in all of them."
-                    : "Tick each organisation. You cannot assign roles, so they will be granted access with no role."}
-                </span>
-              </legend>
+            <section className="ua-sect" aria-labelledby="ua-invite-access">
+              <h3 className="ua-sect__title" id="ua-invite-access">Access</h3>
+              <p className="ua-sect__note">
+                {canAssignRoles
+                  ? "One role, the same in every organisation you tick below."
+                  : "Tick each organisation. You cannot assign roles, so they get access with no role."}
+              </p>
 
               {canAssignRoles && (
-                <RolePicker roles={createChoices} chosen={createRoles}
-                            onChoose={(slug) => setCreateRoles([slug])} disabled={busy} />
+                <div className="ua-pick">
+                  <span className="ua-label" id="ua-invite-role">Role</span>
+                  <RolePicker roles={createChoices} chosen={createRoles}
+                              onChoose={(slug) => setCreateRoles([slug])} disabled={busy} />
+                </div>
               )}
+              <div className="ua-pick">
+              <span className="ua-label">Organisations</span>
               <OrgPicker
                 orgs={orgs}
                 draft={picked}
@@ -2451,7 +2488,8 @@ export default function UserAdminPanel() {
                   });
                 }}
               />
-            </fieldset>
+              </div>
+            </section>
 
                 </div>
 
@@ -2474,7 +2512,7 @@ export default function UserAdminPanel() {
                     <button className="ua-submit" type="submit"
                             aria-describedby={error ? "ua-invite-error" : undefined}
                             disabled={busy || !form.fullName.trim() || !form.email.trim() || selectedOrgIds.length === 0}>
-                      {busy ? "Creating…" : "Create and invite"}
+                      {busy ? "Creating…" : "Create and get link"}
                     </button>
                   </div>
                 </footer>
@@ -3185,7 +3223,15 @@ export default function UserAdminPanel() {
              role={toast.tone === "error" ? "alert" : "status"}
              aria-live={toast.tone === "error" ? "assertive" : "polite"}>
           <ToastMark tone={toast.tone ?? "ok"} />
-          <span className="ua-toast__text">{toast.text}</span>
+          <div className="ua-toast__body">
+            <span className="ua-toast__text">{toast.text}</span>
+            {toast.note && (
+              <span className={`ua-toast__note ua-toast__note--${toast.note.state}`}>
+                {toast.note.text}
+              </span>
+            )}
+            {toast.link && <ToastLink key={toast.link} url={toast.link} />}
+          </div>
           {/* Only when there is one. A disabled or absent-action "Undo" on a
               permanent deletion would be the cruellest button on the page. */}
           {toast.undo && (

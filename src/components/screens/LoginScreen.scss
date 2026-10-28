@@ -43,6 +43,13 @@
   --login-sheet: #ffffff;
   --login-sheet-border: rgba(15, 23, 42, 0.08);
   --login-sheet-shadow: 0 30px 80px rgba(8, 12, 18, 0.34);
+  /* Field edges: the same slate the admin forms use, dark enough (3:1 on
+     white) that a field reads as a field without a fill or a shadow. */
+  --login-field: #ffffff;
+  --login-field-line: #94a3b8;
+  --login-field-line-hi: #64748b;
+  /* Text on the green Sign in button: 5:1 on #15803d. */
+  --login-on-accent: #ffffff;
   /* The corner card sits a shade off the sheet so the two surfaces are
      distinguishable where they touch. Off-white on light; on dark the same
      idea inverted, a step LIGHTER than the sheet, because that is how this
@@ -58,8 +65,8 @@
      --login-photo-tone is its average colour and --login-photo-preview a
      32x16 copy, both shown until it arrives. */
   --login-photo: url("/banner.jpeg");
-  --login-photo-tone: #7888aa;
-  --login-photo-preview: url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAgABfQF+AAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb//gAPTGF2YzYzLjEuMTAxAP/bAEMACAwMDgwOEBAQEBAQExITFBQUExMTExQUFBUVFRkZGRUVFRQUFRUYGBkZGxwbGhoZGhwcHh4eJCQiIioqKzMzPv/EAGkAAQEBAQAAAAAAAAAAAAAAAAMFBgQBAQEBAAAAAAAAAAAAAAAAAAEEBRAAAgIABQQBBQEAAAAAAAAAAQIRAwUxABIEYUETIhQGgXFRITIRAAMAAwEBAAAAAAAAAAAAAAEAFFGRYaFx/8AAEQgAEAAgAwEiAAIRAAMRAP/aAAwDAQACEQMRAD8A6EwDdpzgVNZAexELZBiAT+Jz0S8XGkO75CPmfGtrrJPYkpl9xHbUjk4Zi3KdWemuFG0E3hjEzmxnOf3rSs4PGWc5LeXA+OzlFtRnEyoZSwjORM/zSN9PqNZziYTifGvFuykezE7bY/1nB2nrGr9WHXLcLi/iIEwLXs9uohQRPbdPXTYcDST/AHb/AP/Z");
+  --login-photo-tone: #75644e;
+  --login-photo-preview: url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCeHTmWMfugW75OKvJpyKoMmF7ZJ4/OuHh8U6rAgijbYuD1QsQfXJz+VR3niO+v4US7IZR1QpgZx16cVjJTZpHlPRrexhdQVMbqTgEEEZ+tXZdCTyi2BnGcV5KuqP5TJ5rk7lYFW24Pr9auR60Lh2+0XNwWYgIVkLFR9ck1m6bZoppbBHE6gNc3KQp/s0G6s4/9VD5zf3pTkfkKKKqHvasUvd0RBPdGYZlZSBwFAAA/AcVb0W8gtrzZJFGyTDZyoOD2NFFVOKcWiIt8yZ//2Q==");
 
   position: relative;
   isolation: isolate;
@@ -154,6 +161,9 @@
   --login-sheet: #0d1219;
   --login-sheet-border: rgba(255, 255, 255, 0.09);
   --login-sheet-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --login-field: #0a0f15;
+  --login-field-line: rgba(255, 255, 255, 0.26);
+  --login-field-line-hi: rgba(255, 255, 255, 0.45);
   --login-stat: #161d27;
   --login-stat-shadow: 0 10px 22px rgba(0, 0, 0, 0.42);
 }
@@ -270,72 +280,116 @@
   margin-top: 26px;
 }
 
-/* Label floats above the value inside the same bordered box, as in the mockup. */
+/* Hallmark · component: input · genre: modern-minimal · theme: in-project tokens
+ * states: default · hover · focus · active · disabled · loading · error · success
+ *   (loading = the form's pending, which disables the field; success = a value
+ *   the browser autofilled, kept on the field's own white)
+ * 2026-10-28 redesign: the label sits ABOVE the box, not inside it; the box is
+ * white with one slate hairline, not a grey-filled well; focus is one 2px
+ * ring in place of the border, not a border plus an offset outline, which
+ * read as two rings. */
 .login__field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 12px 7px;
-  border: 1px solid var(--color-border, #2a2d35);
-  border-radius: 10px;
-  background: var(--color-card-inner, #10141c);
-  transition: border-color 120ms ease;
-}
-
-/* An outline, not a transitioned box-shadow: a focus ring that fades in leaves
-   keyboard users with no indicator for the length of the transition. This also
-   matches how the eye toggle and the submit button take focus. */
-.login__field:focus-within {
-  border-color: var(--accent-info, #38bdf8);
-  outline: 2px solid var(--accent-info, #38bdf8);
-  outline-offset: 1px;
+  gap: 6px;
 }
 
 .login__label {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.3px;
-  color: var(--color-text-muted, #7d8a9c);
+  color: var(--color-text-sec, #475569);
+}
+
+/* The box. The email field IS its input; the password field is a wrapper
+   holding the input and the eye, so both are styled by one rule. */
+.login__field > .login__input,
+.login__pwwrap {
+  box-sizing: border-box;
+  height: 40px;
+  border: 1px solid var(--login-field-line);
+  border-radius: 6px;
+  background: var(--login-field);
+  transition: border-color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .login__input {
   width: 100%;
-  box-sizing: border-box;
-  padding: 0;
-  font-size: 14px;
+  padding: 0 12px;
+  /* 13.5px at a desk; 16px on a touch screen (below), where anything smaller
+     makes iOS zoom the page when the field is tapped. */
+  font-size: 13.5px;
   font-family: inherit;
-  color: var(--color-text-primary, #f0f4f8);
+  color: var(--color-text-primary, #0f172a);
   background: transparent;
   border: none;
   outline: none;
 }
 
-.login__input:disabled { opacity: 0.6; }
+.login__field > .login__input:hover:not(:disabled),
+.login__pwwrap:hover:not(:has(:disabled)) { border-color: var(--login-field-line-hi); }
+
+/* Shown at once, never faded in: a ring that transitions leaves a keyboard
+   user with no indicator for the length of the transition. The outline sits
+   ON the border (offset -1px), so focus is one ring, not two. */
+.login__field > .login__input:focus,
+.login__pwwrap:focus-within {
+  border-color: var(--accent-info, #0369a1);
+  outline: 2px solid var(--accent-info, #0369a1);
+  outline-offset: -1px;
+  transition: none;
+}
+
+.login__field > .login__input:disabled,
+.login__pwwrap:has(:disabled) {
+  background: var(--color-card-inner, #f3f6f9);
+  border-color: var(--color-border, #e2e8f0);
+  cursor: not-allowed;
+}
+.login__input:disabled { color: var(--color-text-muted, #5f6e83); cursor: not-allowed; }
+
+/* A refused sign-in marks the fields as well as printing the reason, so the
+   eye goes to what to change. Focus still wins the colour. */
+.login__field > .login__input[aria-invalid="true"]:not(:focus),
+.login__pwwrap:has([aria-invalid="true"]):not(:focus-within) {
+  border-color: var(--accent-crit, #b91c1c);
+}
+
+/* Autofill paints its own pale blue/yellow fill; keep the field white. */
+.login__input:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-text-primary, #0f172a);
+  box-shadow: 0 0 0 40px var(--login-field) inset;
+  caret-color: var(--color-text-primary, #0f172a);
+}
 
 .login__pwwrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  padding-right: 6px;
 }
 
-.login__input--pw { flex: 1 1 auto; min-width: 0; }
+.login__input--pw { flex: 1 1 auto; min-width: 0; height: 100%; }
 
 .login__eye {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
-  color: var(--color-text-muted, #7d8a9c);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-text-muted, #5f6e83);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.login__eye:hover:not(:disabled) { color: var(--color-text-primary, #f0f4f8); }
-.login__eye:focus-visible { outline: 2px solid var(--accent-info, #38bdf8); outline-offset: 1px; }
+.login__eye:hover:not(:disabled) { color: var(--color-text-primary, #0f172a); }
+.login__eye:active:not(:disabled) { background: var(--color-card-inner, #f3f6f9); }
+.login__eye[aria-pressed="true"] { color: var(--accent-info, #0369a1); }
+.login__eye:focus-visible { outline: 2px solid var(--accent-info, #0369a1); outline-offset: 0; }
 .login__eye:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Reserves its own line whether or not there is a message, so the button does
@@ -347,23 +401,60 @@
   color: var(--accent-crit, #ef4444);
 }
 
+/* Hallmark · component: button · genre: modern-minimal · theme: in-project tokens
+ * states: default · hover · focus · active · disabled · loading · error · success
+ *   (error and success are the form's line above it; the button only ever
+ *   waits or goes)
+ * 2026-10-28 redesign: no pill -- the same 44px and 6px corner as the fields
+ * it submits, so the form reads as one column. Green stays: it is the one
+ * thing on the page to press. Hover darkens the colour itself rather than
+ * brightening it with a filter, and disabled is a plain grey, not a washed-out
+ * green that looks like a broken version of the real one. */
 .login__submit {
+  height: 44px;
   margin-top: 2px;
-  padding: 13px 14px;
+  padding: 0 16px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   font-family: inherit;
-  color: var(--color-bg, #0b0d10);
-  background: var(--accent-ok, #22c55e);
-  border: none;
-  border-radius: 999px;
+  color: var(--login-on-accent);
+  background: var(--accent-ok, #15803d);
+  border: 1px solid var(--accent-ok, #15803d);
+  border-radius: 6px;
   cursor: pointer;
-  transition: filter 120ms ease;
+  transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1), border-color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.login__submit:hover:not(:disabled) { filter: brightness(1.07); }
-.login__submit:focus-visible { outline: 2px solid var(--accent-info, #38bdf8); outline-offset: 2px; }
-.login__submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.login__submit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-ok, #15803d) 86%, #000);
+  border-color: color-mix(in srgb, var(--accent-ok, #15803d) 86%, #000);
+}
+.login__submit:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-ok, #15803d) 76%, #000);
+  border-color: color-mix(in srgb, var(--accent-ok, #15803d) 76%, #000);
+}
+.login__submit:focus-visible {
+  outline: 2px solid var(--accent-info, #0369a1);
+  outline-offset: 2px;
+  transition: none;
+}
+
+.login__submit:disabled {
+  color: var(--color-text-muted, #5f6e83);
+  background: var(--color-card-inner, #f3f6f9);
+  border-color: var(--color-border, #e2e8f0);
+  cursor: not-allowed;
+}
+
+/* Waiting is not disabled: it keeps its colour so the press visibly took,
+   and the label ("Signing in…") says what is happening. */
+.login__submit[aria-busy="true"],
+.login__submit[aria-busy="true"]:disabled {
+  color: var(--login-on-accent);
+  background: color-mix(in srgb, var(--accent-ok, #15803d) 86%, #000);
+  border-color: color-mix(in srgb, var(--accent-ok, #15803d) 86%, #000);
+  cursor: progress;
+}
 
 /* A text button that reads as a link. Not an <a>: there is nowhere to
    navigate to — it swaps the panel in place — and an anchor with no href is a
@@ -563,7 +654,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login__field, .login__submit, .login__eye { transition: none; }
+  .login__field > .login__input, .login__pwwrap, .login__submit, .login__eye { transition: none; }
 }
 
 
@@ -708,8 +799,8 @@
   @media (max-height: 860px) {
     .login__shell      { --lt: 0.9; }
     .login__sub        { font-size: calc(13px * max(1, var(--lt) / var(--lz))); }
-    .login__label      { font-size: calc(11px * max(1, var(--lt) / var(--lz))); }
-    .login__input      { font-size: calc(14px * max(1, var(--lt) / var(--lz))); }
+    .login__label      { font-size: calc(12.5px * max(1, var(--lt) / var(--lz))); }
+    .login__input      { font-size: calc(13.5px * max(1, var(--lt) / var(--lz))); }
     .login__error      { font-size: calc(12.5px * max(1, var(--lt) / var(--lz))); }
     .login__submit     { font-size: calc(14px * max(1, var(--lt) / var(--lz))); }
     .login__link       { font-size: calc(12px * max(1, var(--lt) / var(--lz))); }
@@ -838,3 +929,9 @@
   .login__ic-level { animation: none; transform: translateY(28%); }
   .login__ic-road { animation: none; }
 }
+
+/* Touch screens keep 16px in the fields: iOS zooms the page into anything smaller. */
+@media (pointer: coarse) {
+  .login__input { font-size: 16px; }
+}
+

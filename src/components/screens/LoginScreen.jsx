@@ -191,6 +191,7 @@ export default function LoginScreen() {
                   className="login__submit"
                   type="submit"
                   disabled={resetBusy || resetSent || !email}
+                  aria-busy={resetBusy || undefined}
                 >
                   {resetBusy ? "Sending…" : "Send reset link"}
                 </button>
@@ -224,6 +225,8 @@ export default function LoginScreen() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={pending}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "login-error" : undefined}
                 required
               />
             </label>
@@ -239,6 +242,8 @@ export default function LoginScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={pending}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "login-error" : undefined}
                   required
                 />
                 {/* type="button" matters: a bare button in a form submits it. */}
@@ -257,7 +262,7 @@ export default function LoginScreen() {
 
             {/* aria-live so a screen reader announces the failure, which is
                 otherwise a silent visual change after the button re-enables. */}
-            <div className="login__error" role="alert" aria-live="polite">
+            <div id="login-error" className="login__error" role="alert" aria-live="polite">
               {error ?? ""}
             </div>
 
@@ -265,6 +270,7 @@ export default function LoginScreen() {
               className="login__submit"
               type="submit"
               disabled={pending || !email || !password}
+              aria-busy={pending || undefined}
             >
               {pending ? "Signing in…" : "Sign in"}
             </button>

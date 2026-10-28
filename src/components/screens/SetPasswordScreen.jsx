@@ -184,6 +184,7 @@ export default function SetPasswordScreen({ token, onDone }) {
                   className="login__submit"
                   type="submit"
                   disabled={resendBusy || resendDone || !resendEmail}
+                  aria-busy={resendBusy || undefined}
                 >
                   {resendBusy ? "Sending…" : "Send a new link"}
                 </button>
@@ -256,6 +257,7 @@ export default function SetPasswordScreen({ token, onDone }) {
                   className="login__submit"
                   type="submit"
                   disabled={state === "saving" || !password || password !== confirm || password.length < MIN_LENGTH}
+                  aria-busy={state === "saving" || undefined}
                 >
                   {state === "saving" ? "Setting…" : "Set password and sign in"}
                 </button>
