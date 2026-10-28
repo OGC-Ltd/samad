@@ -19,7 +19,6 @@
 // (`bg-card/50`) will not work on them. Use explicit opacity utilities instead.
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
-  corePlugins: { preflight: false },
   theme: {
     extend: {
       colors: {
