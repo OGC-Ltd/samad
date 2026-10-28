@@ -132,15 +132,15 @@
   padding: var(--sp4-lg) var(--sp4-gutter) var(--sp4-lg) var(--sp4-lg);
 }
 
-/* Footage over facts on the left; the map owns the right side from the top of
-   the footage to the foot of the facts, so neither column leaves a hole. */
+/* Footage over facts on the left; the map is a square on the right, from the
+   top of the footage. Nothing stretches to fill the pane: a stretched map
+   distorts nothing but reads as a strip, and a stretched facts card is empty. */
 .dci-evidence {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--dci-map-w);
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto;
   grid-template-areas: "media map" "facts map";
+  align-items: start;
   gap: var(--sp4-md);
 }
 .dci-evidence__media { grid-area: media; min-width: 0; }
@@ -308,7 +308,7 @@
   background: var(--sp4-surface);
 }
 .dci-card--facts { grid-area: facts; display: flex; flex-direction: column; }
-.dci-card--map   { grid-area: map; display: flex; }
+.dci-card--map   { grid-area: map; display: flex; aspect-ratio: 1 / 1; }
 .dci-facts {
   margin: 0;
   padding: var(--sp4-md) var(--sp4-lg);
@@ -332,7 +332,6 @@
 .dci-mini {
   position: relative;
   flex: 1 1 auto;
-  min-height: 280px;
   background: var(--sp4-raised);
 }
 .dci-mini__map { position: absolute; inset: 0; }
@@ -371,7 +370,6 @@
     grid-template-rows: auto auto;
     grid-template-areas: "media media" "facts map";
   }
-  .dci-mini { min-height: 240px; }
 }
 @media (max-width: 1100px) {
   .dci-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "when" "actions"; }
@@ -383,7 +381,7 @@
   .dci-detail { overflow: visible; }
   .dci-detail__inner { padding: var(--sp4-md) var(--sp4-gutter); }
   .dci-evidence { grid-template-columns: minmax(0, 1fr); grid-template-areas: "media" "map" "facts"; }
-  .dci-mini { min-height: 200px; }
+  .dci-card--map { width: min(100%, 420px); }
   .dci-unit-link { margin: 0 var(--sp4-md) var(--sp4-md); }
   .dci-facts { padding: var(--sp4-md); gap: var(--sp4-xs) var(--sp4-md); }
 }
