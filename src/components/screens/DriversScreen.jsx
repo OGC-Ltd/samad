@@ -5,7 +5,7 @@
 // Maintenance pages (cards, KPI tiles, ranked bars, Inter, --color-* tokens).
 
 import { useState, useEffect, useId, useRef, useCallback, useMemo } from "react";
-import "./DriversScreen.css";
+import "./DriversScreen.scss";
 import { getDriversOverview } from "../../api/drivers";
 import { useAppSelector, useCompanies } from "../../context/AppContext";
 import { pendingDriver, clearPendingDriver, driverNameMatches } from "../../lib/driverHandoff";
@@ -40,7 +40,7 @@ const initialsOf = (name = "") =>
 // "FAIR" (rating < 3) never shows a pill — the UI intentionally hides any
 // "Needs Work" style label for low performers.
 // `color` is for the PDF, which cannot resolve a CSS variable; on screen the
-// tier is a TONE name and its colour lives in DriversScreen.css, per theme.
+// tier is a TONE name and its colour lives in DriversScreen.scss, per theme.
 const ratingTier = (r = 0) => {
   if (r === 0) return { label: "NEW", color: "#94a3b8", tone: "new" };
   if (r >= 4.5) return { label: "EXCELLENT", color: "#22c55e", tone: "good" };
@@ -109,7 +109,7 @@ const ROSTER_PAGE_SIZE = 6;
 // The step is smaller on a phone because a row IS bigger there: the table
 // becomes a stack of cards, each about 133px tall, so 15 of those is a
 // ~2,000px page. The query is the same 700px the stylesheet switches on (see
-// DriversScreen.css) — the step and the row shape have to change at the same
+// DriversScreen.scss) — the step and the row shape have to change at the same
 // width, or a tablet gets table rows counted out for cards.
 const GRID_CARDS_QUERY = "(max-width: 700px)";
 const GRID_STEP = 15;
@@ -136,7 +136,7 @@ const GRID_METRICS = [
  * measures 2.3:1 on the light page and #f59e0b 2.1:1, both far under the 4.5
  * an 11px label needs, and no stylesheet could correct them because the value
  * arrived after the cascade. The name goes to a class and the colour lives in
- * DriversScreen.css, per theme, like every other colour on this page. */
+ * DriversScreen.scss, per theme, like every other colour on this page. */
 const DRIVER_STATUS = {
   ACTIVE: { label: "Active", tone: "active" },
   SUSPENDED: { label: "Suspended", tone: "suspended" },
@@ -243,7 +243,8 @@ export default function DriversScreen() {
     if (wanted) {
       const hit = list.find((d) => driverNameMatches(d.fullName, wanted));
       clearPendingDriver();
-      if (hit) { setSelectedId(hit.id); return; }
+      // Asked for by name, so the panel opens: it is the point of the jump.
+      if (hit) { setSelectedId(hit.id); setPanelOpen(true); return; }
     }
     setSelectedId((prev) => (prev && list.some((d) => d.id === prev) ? prev : list[0].id));
   }, [overview]);
@@ -297,8 +298,7 @@ export default function DriversScreen() {
   // still in this PDF, which is the artefact a statement should be anyway.
   const handleDriverReport = () => {
     if (!detail?.driver) return;
-    const { driver, totals, heaviestLoad, byDay = [] } = detail;
-    const tier = ratingTier(driver.rating);
+    const { driver, totals, byDay = [] } = detail;
     const period = byDay.length ? `${fmtDay(byDay[0].day)} – ${fmtDay(byDay.at(-1).day)}` : "no activity";
     const doc = createReport({
       companyName: activeCompany?.name || "Fleet",
@@ -307,31 +307,30 @@ export default function DriversScreen() {
       accentColor: accent,
     });
     addSummaryCards(doc, [
-      { value: `${fmt(driver.rating, 1)} / 5`,   label: tier.label ? `Rating: ${tier.label}` : "Rating", color: tier.color },
       { value: fmt(totals.trips),                label: "Trips",                  color: "#3b82f6" },
-      { value: `${fmt(totals.tonnes, 1)} t`,     label: "Tonnes ferried",         color: TONNES_COLOR },
+      { value: fmt(byDay.length),                label: "Days driven",            color: TONNES_COLOR },
       { value: `${fmt(totals.mileageKm)} km`,    label: "Mileage",                color: MILEAGE_COLOR },
+      { value: fmt(totals.overspeedingCases),    label: "Overspeeding",           color: "#ef4444" },
     ]);
     addSectionTitle(doc, "Performance Statement");
     addTable(doc, {
       accentColor: accent,
       head: ["Metric", "Value"],
       body: [
+        ["Truck",              driver.vehicle ?? "-"],
+        ["Trailer",            driver.trailer || "-"],
         ["Trips completed",    fmt(totals.trips)],
-        ["Tonnes ferried",     `${fmt(totals.tonnes, 1)} t`],
+        ["Days driven",        fmt(byDay.length)],
         ["Distance covered",   `${fmt(totals.mileageKm)} km`],
-        ["Hours on road",      `${fmt(totals.hoursOnRoad, 1)} h`],
-        ["Fuel-theft cases",   fmt(totals.fuelTheftCases)],
         ["Overspeeding cases", fmt(totals.overspeedingCases)],
-        ["Heaviest load",      heaviestLoad ? `${fmt(heaviestLoad.tonnes, 1)} t · ${fmtDay(heaviestLoad.date)} · ${heaviestLoad.route}` : "-"],
       ],
     });
     if (byDay.length > 0) {
       addSectionTitle(doc, "Daily Activity");
       addTable(doc, {
         accentColor: accent,
-        head: ["Date", "Tonnes", "Mileage (km)"],
-        body: byDay.map((d) => [fmtDay(d.day), fmt(d.tonnes, 1), fmt(d.mileageKm)]),
+        head: ["Date", "Trips", "Mileage (km)"],
+        body: byDay.map((d) => [fmtDay(d.day), fmt(d.trips), fmt(d.mileageKm)]),
       });
     }
     downloadReport(doc, `${activeCompany?.short || "Fleet"}-Driver-Report-${titleCase(driver.fullName).replace(/\s+/g, "")}.pdf`);
@@ -434,14 +433,6 @@ export default function DriversScreen() {
   );
 }
 
-/** A reverse-geocoded address cut to what a list row can hold: the road, and
- *  the "n km from a place" part where there is one. The full text is the title. */
-const shortPlace = (where) => {
-  const parts = String(where).split(",").map((x) => x.trim()).filter(Boolean);
-  const near = parts.find((x) => / from /.test(x));
-  return near && near !== parts[0] ? `${parts[0]}, ${near}` : parts[0] ?? "";
-};
-
 // How many cases each list shows before "Show all".
 const PANEL_CASES = 6;
 
@@ -478,20 +469,18 @@ function DriverPanel({ detail, row, liveVehicle, onReport, onClose }) {
   const per = (n, d) => (d > 0 ? n / d : null);
   const dash = (v, dec, unit) => (v == null ? "-" : `${fmt(v, dec)}${unit}`);
   const windowDays = totals.windowDays ?? 90;
+  // Samad's trucks carry no weighed loads and no fuel probes: trips and days
+  // driven stand where new-ui shows tonnes, and there is no fuel-theft list.
   const headline = [
     { label: "Trips", value: fmt(totals.trips) },
-    { label: "Tonnes", value: fmt(totals.tonnes, 1), unit: "t" },
+    { label: "Days driven", value: fmt(byDay.length) },
     { label: "Mileage", value: fmt(totals.mileageKm), unit: "km" },
   ];
   const rates = [
-    { label: "Hours on road", value: `${fmt(totals.hoursOnRoad, 1)} h` },
-    { label: "Tonnes per trip", value: dash(per(totals.tonnes, totals.trips), 1, " t") },
+    { label: "Trips per active day", value: dash(per(totals.trips, w?.days ?? 0), 1, "") },
     { label: "Km per trip", value: dash(per(totals.mileageKm, totals.trips), 0, " km") },
-    // Not km per hour on road: those hours run from trip start to trip end,
-    // waiting at the mill included, so the quotient read as 3 km/h.
     { label: "Km per active day", value: dash(per(totals.mileageKm, w?.days ?? 0), 0, " km") },
   ];
-  const thefts = incidents?.thefts ?? [];
   const overspeeds = incidents?.overspeeds ?? [];
   const daysSub = `${fmt(byDay.length)} active day${byDay.length === 1 ? "" : "s"}`;
 
@@ -536,14 +525,13 @@ function DriverPanel({ detail, row, liveVehicle, onReport, onClose }) {
 
         {byDay.length > 0 && (
           <section className="dr-panel__sec dr-panel__charts">
-            <TrendStat title="Tonnes per day" series={byDay} valueKey="tonnes" unit="t" tone="tonnes" type="bar"
-                       value={fmt(totals.tonnes, 1)} sub={daysSub} />
+            <TrendStat title="Trips per day" series={byDay} valueKey="trips" unit="" tone="tonnes" type="bar"
+                       value={fmt(totals.trips)} sub={daysSub} />
             <TrendStat title="Mileage per day" series={byDay} valueKey="mileageKm" unit="km" tone="mileage" type="line"
                        value={fmt(totals.mileageKm)} sub={daysSub} />
           </section>
         )}
 
-        <TheftCases thefts={thefts} count={totals.fuelTheftCases} seen={totals.fuelEventsSeen ?? thefts.length} />
         <SpeedCases overspeeds={overspeeds} trips={totals.overspeedingCases} />
       </div>
 
@@ -612,71 +600,6 @@ function useFold(items) {
       </button>
     ) : null,
   };
-}
-
-/**
- * Fuel theft: every fuel event on their units while they drove, with the ones
- * that count against them (siphons) set apart from the ones that do not. The
- * count in the head is the chargeable one; the switch narrows the list to it.
- */
-function TheftCases({ thefts, count, seen }) {
-  const [only, setOnly] = useState(false);
-  const counted = thefts.filter((t) => t.countsAgainstDriver);
-  const list = only ? counted : thefts;
-  const { shown, more } = useFold(list);
-  const litres = counted.reduce((n, t) => n + (Number(t.litres) || 0), 0);
-  return (
-    <section className="dr-panel__sec dr-cases-sec dr-cases-sec--theft">
-      <h3 className="dr-panel__h">
-        Fuel Theft
-        <span className={`dr-panel__count${count ? " dr-panel__count--theft" : ""}`}>{fmt(count)}</span>
-      </h3>
-      {thefts.length === 0 ? (
-        <p className="dr-panel__note">No fuel events on their units.</p>
-      ) : (
-        <>
-          <p className="dr-panel__note">
-            {count
-              ? <><b>{fmt(litres, 1)} L</b> in {fmt(count)} counted case{count === 1 ? "" : "s"}</>
-              : "None counts against them"}
-            {seen > count ? ` · ${fmt(seen)} events on their units in all` : ""}
-          </p>
-          {counted.length > 0 && counted.length < thefts.length && (
-            <div className="dr-seg dr-cases__filter" role="group" aria-label="Show fuel events">
-              <button type="button" className={`dr-chip${!only ? " dr-chip--active" : ""}`}
-                      aria-pressed={!only} onClick={() => setOnly(false)}>All {fmt(thefts.length)}</button>
-              <button type="button" className={`dr-chip${only ? " dr-chip--active" : ""}`}
-                      aria-pressed={only} onClick={() => setOnly(true)}>Counted {fmt(counted.length)}</button>
-            </div>
-          )}
-          <ul className="dr-cases">
-            {shown.map((t) => (
-              <li key={t.id} className={`dr-case${t.countsAgainstDriver ? " dr-case--on" : ""}`}>
-                <DayBlock iso={t.at} />
-                <span className="dr-case__body">
-                  <span className="dr-case__line">
-                    <b className="dr-case__qty">−{fmt(t.litres, 1)} L</b>
-                    <span className="dr-case__plate">{t.plate ?? "Unit"}</span>
-                    <span className="dr-case__time">{fmtTime(t.at)}</span>
-                  </span>
-                  <span className="dr-case__sub" title={t.where ?? undefined}>
-                    {t.fromL != null && t.toL != null ? `${fmt(t.fromL)} → ${fmt(t.toL)} L` : ""}
-                    {t.fromL != null && t.toL != null && t.where ? " · " : ""}
-                    {t.where ? shortPlace(t.where) : ""}
-                  </span>
-                </span>
-                <span className={`dr-case__tag${t.countsAgainstDriver ? " dr-case__tag--on" : ""}`}
-                      title={t.causeReason ?? t.verdictReason ?? undefined}>
-                  {t.countsAgainstDriver ? "Counts" : "Not counted"}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {more}
-        </>
-      )}
-    </section>
-  );
 }
 
 /**
@@ -810,11 +733,13 @@ function FleetCard({ fleet, loading }) {
 function DriverIdCard({ driver, tier, st, row, w, liveVehicle }) {
   const v        = liveVehicle;
   const engineOn = v?.engine === "on";
+  // Samad's partner sends speed but no fuel, load, temperature or oil: those
+  // read "-" (null), never a made-up 0.
   const speed    = v?.speed ?? 0;
-  const fuel     = v?.fuelLevel ?? 0;
-  const loadPct  = v?.maxPayload > 0 ? Math.min(100, Math.round(((v?.weight ?? 0) / v.maxPayload) * 100)) : 0;
-  const temp     = v?.engineTemp ?? 0;
-  const oil      = v?.oilLevel ?? 0;
+  const fuel     = v?.fuelLevel ?? null;
+  const loadPct  = v?.maxPayload > 0 ? Math.min(100, Math.round(((v?.weight ?? 0) / v.maxPayload) * 100)) : null;
+  const temp     = v?.engineTemp ?? null;
+  const oil      = v?.oilLevel ?? null;
 
   const gauges = [
     { key: "speed", label: "Speed", unit: "km/h", value: speed,   max: 120,
@@ -860,8 +785,12 @@ function DriverIdCard({ driver, tier, st, row, w, liveVehicle }) {
           </dd>
         </div>
         <div>
-          <dt>{row?.vehicleFrom === "assignment" ? "Assigned to" : "Last drove"}</dt>
+          <dt>{row?.vehicleFrom === "assignment" ? "Assigned to" : "Truck"}</dt>
           <dd>{row?.vehicle ?? "-"}</dd>
+        </div>
+        <div>
+          <dt>Trailer</dt>
+          <dd>{driver.trailer || row?.trailer || "-"}</dd>
         </div>
         <div>
           <dt>Active</dt>
@@ -893,9 +822,10 @@ function DriverIdCard({ driver, tier, st, row, w, liveVehicle }) {
 function DriverGauge({ g, off }) {
   const r = 18, c = 22;
   const circ = 2 * Math.PI * r;
-  const share = off ? 0 : Math.max(0, Math.min(g.value / g.max, 1));
+  const none = off || g.value == null;
+  const share = none ? 0 : Math.max(0, Math.min(g.value / g.max, 1));
   return (
-    <li className={`dr-gauge dr-meter--${off ? "off" : g.tone}`}>
+    <li className={`dr-gauge dr-meter--${none ? "off" : g.tone}`}>
       <span className="dr-gauge__ring">
         <svg className="dr-gauge__svg" viewBox="0 0 44 44" aria-hidden="true">
           <circle className="dr-gauge__track" cx={c} cy={c} r={r} />
@@ -905,7 +835,7 @@ function DriverGauge({ g, off }) {
             transform={`rotate(-90 ${c} ${c})`}
           />
         </svg>
-        <span className="dr-gauge__val">{off ? "-" : Math.round(g.value)}</span>
+        <span className="dr-gauge__val">{none ? "-" : Math.round(g.value)}</span>
       </span>
       <span className="dr-gauge__lbl">{g.label}<span className="dr-meter__unit">{g.unit}</span></span>
     </li>
@@ -922,7 +852,7 @@ function DriverRadar({ gauges, off }) {
     .map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ") + "Z";
   const vals = gauges.map((g) => (off ? 0 : Math.max(0, Math.min(g.value / g.max, 1))));
   const label = off ? "No live readings" :
-    gauges.map((g) => `${g.label} ${Math.round(g.value)} ${g.unit}`).join(", ");
+    gauges.map((g) => (g.value == null ? `${g.label} not reported` : `${g.label} ${Math.round(g.value)} ${g.unit}`)).join(", ");
   return (
     <svg className={`dr-radar${off ? " dr-radar--off" : ""}`} viewBox="0 0 100 92" role="img" aria-label={label}>
       {[0.33, 0.66, 1].map((lvl) => <path key={lvl} className="dr-radar__grid" d={poly(R * lvl)} />)}
@@ -1090,7 +1020,7 @@ function AllDriversSection({
         {/* `display: contents` at every width above 768px, so the chips still
             lay out as direct children of the wrapping flex row and the desktop
             bar is unchanged. Below 768 the wrapper becomes a real box and takes
-            one horizontally-scrolling line — see DriversScreen.css. */}
+            one horizontally-scrolling line — see DriversScreen.scss. */}
         {/* One control with four positions rather than four loose chips: the
             grid is ranked by exactly one measure at a time, and a segmented
             switch says so where a row of pills reads as filters that stack. */}

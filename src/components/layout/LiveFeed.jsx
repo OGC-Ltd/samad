@@ -30,7 +30,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { isUnread } from '../../lib/feedReads';
 import { useAuth } from '../../context/AuthContext';
 import { nearBottom } from '../shared/FeedFooter';
-import './LiveFeed.css';
+import './LiveFeed.scss';
 
 // Server feed types: info | success | warning | critical
 const ALERT_TYPES = new Set(['warning', 'critical']);

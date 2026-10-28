@@ -3,14 +3,14 @@
 // always show identical stats. Layout/positioning is the caller's job; this
 // renders only the card content.
 //
-// Most vt-* styles live in FleetMap.css for historical reasons; the ones added
-// with this component live in VehicleStatsCard.css, which MUST be imported
+// Most vt-* styles live in FleetMap.scss for historical reasons; the ones added
+// with this component live in VehicleStatsCard.scss, which MUST be imported
 // here. It was not, for a long time, so its rules never shipped and the
 // elements they targeted fell back to inherited values — 16px black text on a
 // dark card.
 
 import { useEffect, useRef, useState } from "react";
-import "./VehicleStatsCard.css";
+import "./VehicleStatsCard.scss";
 import { usePlaceName } from "../../hooks/usePlaceName";
 import { copyText, formatCoords } from "../../lib/copyText";
 import { vehicleActivity, isInTransit, isOnline, equipmentLabel, carriesCargo, maxPayloadTonnes, ACTIVITY_LABELS, ACTIVITY_COLORS, ONLINE_COLORS } from "../../lib/vehicleMap";

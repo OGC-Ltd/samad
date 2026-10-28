@@ -1,0 +1,431 @@
+/* Playback transport, floated over the map.
+   Matches .zone-legend's treatment — panel with a blur — so the two overlays
+   read as the same layer of the interface rather than as two different apps
+   sharing a screen.
+
+   THEMED THROUGHOUT, via the tokens aliased onto .app-root (--text-primary,
+   --text-secondary, --text-muted, --border) and the --color-* / --accent-*
+   set. Nothing here may be a literal colour: App.scss records what happened the
+   last time map CSS was written against dark values declared once at :root —
+   light mode inherited dark-theme colours and needed ~100 patch rules that
+   still failed contrast in 28 places. The panel is `position: fixed` but sits
+   inside .app-root in the DOM, so the themed values are in scope; custom
+   property inheritance follows the tree, not the visual position. */
+@use "../shared/windowChrome";
+
+.rp {
+  pointer-events: auto;
+  /* FIXED, not absolute, and this is load-bearing rather than a preference.
+     The drag handler works in VIEWPORT coordinates (`clientX`/`clientY`, and it
+     clamps against `innerWidth`/`innerHeight`). Under `position: absolute` those
+     are written into the offset parent's coordinate space instead, so the panel
+     jumped by the parent's own offset on the first pixel of movement and left
+     the screen. Same reason `.vehicle-tooltip` is fixed.
+
+     It also keeps the panel out from under the page furniture: absolute inside
+     the map body put it below the footer at the bottom of the layout. */
+  position: fixed;
+  /* Placed by useFloatingWindow on mount — at its dock, or wherever it was last
+     dragged. These are only the fallback for the frame before that runs, and
+     they deliberately anchor to `top`: anchoring to `bottom` is what put the
+     earlier version under the fixed footer nav, and a fallback that flashes
+     under the furniture for one frame is still a flash. */
+  left: 50%;
+  top: 120px;
+  transform: translateX(-50%);
+  /* Above the map furniture, matching .vehicle-tooltip — a transport that the
+     zone legend can cover is a transport you cannot reach. */
+  z-index: 9999;
+  /* Capped to the FREE column, not the viewport. The rails either side of the
+     map take 676px of a 1280px screen, so at 1024 there are 324px of usable
+     width and a 560px transport cannot be positioned anywhere that is not
+     behind one of them. --safe-w is published by useFloatingWindow; the calc
+     is the fallback for before the first measurement and for anywhere the map
+     is not mounted. */
+  width: min(560px, var(--safe-w, calc(calc(var(--vw) * 100) - 32px)));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--color-card);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.35));
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+/* Dragged panels lose the centring transform (see onDragMove), so nothing here
+   may depend on it. While dragging, suppress the pointer cursor changing over
+   children and kill text selection — a drag that selects the plate text reads
+   as the panel being broken. */
+.rp.is-dragging { user-select: none; cursor: grabbing; }
+.rp.is-dragging * { cursor: grabbing !important; }
+
+/* Minimised: the header only. Width shrinks to fit so it stops covering the
+   map, and the transport is unmounted rather than hidden — a range input left
+   in the tree still takes arrow keys. */
+.rp--min { width: auto; min-width: 0; gap: 0; padding: var(--win-pad-y) var(--win-pad-x); }
+
+.rp__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: grab;
+  /* Always, not only mid-drag: a drag begins with a press, and by the time
+     `.is-dragging` lands the browser has already started a selection. */
+  -webkit-user-select: none;
+  user-select: none;
+  /* The header is the drag handle, and a pointer drag on it must not also
+     scroll or select. */
+  touch-action: none;
+}
+.rp__head:active { cursor: grabbing; }
+
+.rp__grip {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.rp__plate {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0; /* the flex item may shrink below its text, so the ellipsis can happen */
+}
+.rp__day { flex: 0 0 auto; }
+/* The square arrow-button size below would otherwise catch the calendar too. */
+.rp__day .rcal-btn { width: auto; }
+/* The arrows beside the calendar were in the browser's Arial: buttons do
+   not inherit the font unless told to. */
+.rp__day button, .rp__close { font-family: inherit; }
+
+/* ── Buttons in the header ────────────────────────────────────────────────
+   One shared treatment. `--color-card-inner` is the token for a surface
+   sitting ON a card, which is exactly what these are, and it is defined in
+   both themes — a translucent white would vanish against the light card. */
+.rp__day button,
+.rp__min,
+.rp__close {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--color-card-inner);
+  color: var(--text-primary);
+  cursor: pointer;
+  line-height: 1;
+}
+.rp__day button:hover:not(:disabled),
+.rp__min:hover,
+.rp__close:hover { border-color: var(--accent-info); color: var(--accent-info); }
+
+.rp__day { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.rp__day button { width: var(--win-btn); height: var(--win-btn); }
+.rp__day button:disabled { opacity: 0.35; cursor: default; }
+
+.rp__min   { flex: 0 0 auto; width: var(--win-btn); height: var(--win-btn); font-size: 10px; }
+.rp__close { width: var(--win-btn); height: var(--win-btn); }
+
+/* Opaque, not a translucent fill. The date picker opens its own OS-painted
+   surface, and a see-through background leaves the text contrast to whatever
+   happens to be behind the panel. */
+.rp__day input {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--color-card-inner);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 2px 5px;
+  font-family: inherit;
+  /* Follows the app's theme, and flips the native picker indicator with it —
+     that glyph is near-black and invisible on the dark card otherwise. */
+  color-scheme: light dark;
+}
+.rp__day input:hover { border-color: var(--accent-info); }
+
+.rp__note { padding: 4px 2px 2px; color: var(--text-muted); }
+
+/* A midnight inside a range: a hairline across the bar, under the thumb. */
+.rp__midnight {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  transform: translate(-0.5px, -50%);
+  background: var(--text-muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Distance: this leg, and the trip ─────────────────────────────────────
+   Covered so far in bold, total after it, both in tabular figures so the
+   numbers tick over in place instead of shuffling the line as they grow. */
+.rp__dist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rp__dist b { color: var(--text-primary); font-weight: 600; }
+.rp__dist-lbl {
+  margin-right: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rp__dist-leg--none { font-style: italic; }
+.rp__dist-min {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rp__note--err { color: var(--accent-crit); }
+
+.rp__transport { display: flex; align-items: center; gap: 10px; }
+
+.rp__play {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--color-card-inner);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+.rp__play:hover { border-color: var(--accent-info); color: var(--accent-info); }
+
+/* Tabular so the digits do not jitter the layout as the clock runs — at 100x
+   the seconds field changes several times a second. */
+.rp__clock {
+  flex: 0 0 auto;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.rp__clock--min { font-size: 11px; color: var(--accent-info); margin-left: 2px; }
+
+.rp__barwrap { position: relative; flex: 1 1 auto; height: 18px; display: flex; align-items: center; }
+
+/* Silences, painted under the thumb track. Uses the WARN accent, which is
+   defined per theme — the dark-tuned amber measures ~2.4 on a white card. */
+.rp__gap {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg, var(--accent-warn) 0 2px, transparent 2px 4px);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.rp__bar {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  accent-color: var(--accent-info);
+}
+
+/* Speed sits behind a visible label rather than as a bare multiplier — it is
+   the control people look for first and a lone "10×" reads as a status. */
+.rp__ratewrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  cursor: pointer;
+}
+.rp__ratelbl {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.rp__rate {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  /* SOLID, not a translucent white. A `rgba(255,255,255,0.06)` fill read fine
+     on the dark panel, but the native popup the select opens is painted by the
+     OS on its own surface — and the light text was being inherited into it,
+     giving grey on white that only became readable on hover. The control and
+     its list now carry themed opaque colours instead of borrowing them from
+     whatever is behind. */
+  background: var(--color-card-inner);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  color-scheme: light dark;
+}
+.rp__rate:hover { border-color: var(--accent-info); }
+
+/* `light dark` above lets the OPERATING SYSTEM choose, not the app: on a
+   computer in dark mode the browser painted the date picker's calendar glyph
+   white on the app's white panel, invisible. The app stamps its theme on
+   <html> (AppContext), so follow that, as .sp4-date-input does. */
+:root[data-theme="light"] .rp__day input,
+:root[data-theme="light"] .rp__rate { color-scheme: light; }
+:root[data-theme="dark"] .rp__day input,
+:root[data-theme="dark"] .rp__rate { color-scheme: dark; }
+
+/* The list items themselves. Chrome on Windows honours these; where a platform
+   ignores them, `color-scheme` above still gets a popup matching the theme
+   rather than the white one that caused this. */
+.rp__rate option {
+  background: var(--color-card);
+  color: var(--text-primary);
+}
+
+.rp__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+.rp__warn { color: var(--accent-warn); }
+.rp__skip { color: var(--accent-info); }
+
+@media (max-width: 560px) {
+  .rp { padding: 8px 10px; }
+  /* Folded on a phone, the bar ran ~40px past the screen and took the close
+     button with it. The day is changed from the open panel; folded, the bar
+     keeps what says the replay is running: the clock and the leg. */
+  .rp--min .rp__day { display: none; }
+  .rp--min .rp__dist-min { margin-left: auto; }
+  .rp__foot { font-size: 10px; }
+  .rp__clock { font-size: 11px; }
+}
+
+/* The scrubber is the one control here that is dragged rather than clicked, so
+   it keeps a visible focus ring for keyboard use even though the panel is
+   otherwise chrome-light. */
+.rp__bar:focus-visible { outline: 2px solid var(--accent-info); outline-offset: 3px; }
+
+/* ── The day's events ───────────────────────────────────────────────────────
+   Marks on the scrubber and a timeline under it. The scrubber answers "when",
+   the timeline answers "what" — and the second is usually why a replay was
+   opened at all. */
+
+/* Marks sit ABOVE the silences: a gap is the absence of evidence and an event
+   is evidence, so where they overlap the event is the thing to see. Below the
+   thumb, which must stay grabbable. */
+.rp__ev {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 12px;
+  min-width: 2px;
+  border-radius: 2px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+/* Kind decides the colour, because kind is what an operator scans for — the
+   red marks are drains whatever their severity, and that is the point. */
+.rp__ev--theft    { background: var(--accent-crit, #ef4444); }
+.rp__ev--speeding { background: var(--accent-warn, #f59e0b); }
+.rp__ev--refill   { background: var(--accent-ok, #22c55e); }
+.rp__ev--fault    { background: var(--accent-warn, #f59e0b); opacity: 0.6; }
+.rp__ev--stop     { background: var(--text-muted, #64748b); height: 6px; opacity: 0.5; }
+.rp__ev--zone,
+.rp__ev--dispatch,
+.rp__ev--other    { background: var(--accent-info, #38bdf8); height: 6px; opacity: 0.45; }
+
+.rp__events {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 3px;
+}
+.rp__events-head {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* Scrolls rather than growing the window. A day can carry 300 events and the
+   transport has to stay a transport — the list is a reference, not the panel. */
+.rp__events-list {
+  max-height: 132px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  margin: 0 -4px;
+}
+
+.rp__event {
+  display: grid;
+  grid-template-columns: 8px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.rp__event:hover { background: color-mix(in srgb, var(--text-primary) 8%, transparent); }
+.rp__event:focus-visible { outline: 2px solid var(--accent-info); outline-offset: -1px; }
+.rp__event--critical .rp__event-label { color: var(--accent-crit, #ef4444); font-weight: 700; }
+.rp__event--warning  .rp__event-label { color: var(--accent-warn, #f59e0b); font-weight: 600; }
+
+.rp__event-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.rp__event-dot--theft    { background: var(--accent-crit, #ef4444); }
+.rp__event-dot--speeding { background: var(--accent-warn, #f59e0b); }
+.rp__event-dot--refill   { background: var(--accent-ok, #22c55e); }
+.rp__event-dot--fault    { background: var(--accent-warn, #f59e0b); }
+.rp__event-dot--zone,
+.rp__event-dot--dispatch { background: var(--accent-info, #38bdf8); }
+
+.rp__event-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.rp__event-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rp__event-detail {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -10,9 +10,9 @@ import {
   ESCALATION_REASONS, OUTCOME, escalationReason, fetchReviewRights, reviewIncident, reviewRightsNow, reviewState,
   useIncidentReview,
 } from "../../lib/fuelReview";
-import "./SensorPanel.css";
-import "./FuelFollowUp.css";
-import "./FuelReview.css";
+import "./SensorPanel.scss";
+import "./FuelFollowUp.scss";
+import "./FuelReview.scss";
 
 const WHEN = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Nairobi", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,

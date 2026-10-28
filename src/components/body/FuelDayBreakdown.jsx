@@ -13,7 +13,7 @@ import { Tile } from "../cards/VehicleStatsCard";
 import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import { useFuelDay } from "../../hooks/useFuelDay";
 import { dayAssessment, dayBreakdown, engineBasisLabel, eventLabel, fleetDayOf, isTheftEvent } from "../../lib/fuelDay";
-import "./FuelDayBreakdown.css";
+import "./FuelDayBreakdown.scss";
 
 const TZ = "Africa/Nairobi";
 const CLOCK = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });

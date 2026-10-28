@@ -10,7 +10,7 @@
 //   actions   [{ label, onClick }] — several ways out, side by side, first one
 //             leading; `action` is the one-button shorthand for it
 
-import "./EmptyNote.css";
+import "./EmptyNote.scss";
 
 export default function EmptyNote({ icon, title, children, tone = "ok", progress = null, action = null, actions = null, className = "" }) {
   const buttons = (actions ?? (action ? [action] : [])).filter(Boolean);

@@ -3,13 +3,13 @@
 import { rectXY, pointerXY } from "../../lib/appZoom";
 import { useState, useEffect, useMemo, useRef, useDeferredValue, memo } from "react";
 import VehicleStatsCard, { Tile } from "../cards/VehicleStatsCard";
-import "./MapOverlay.css";
+import "./MapOverlay.scss";
 // The fuel incident window renders a real `.vehicle-tooltip` — the hover
-// card's own wrapper — and those styles live in FleetMap.css. It reaches this
+// card's own wrapper — and those styles live in FleetMap.scss. It reaches this
 // file today only because FleetMap imports MapOverlay; stating the dependency
 // means a future move of either component cannot silently unstyle the window.
 // Vite dedupes the import.
-import "./FleetMap.css";
+import "./FleetMap.scss";
 
 import ErrorBoundary    from "../shared/ErrorBoundary";
 import { feedClock, feedDate, feedStamp } from "../../lib/feedTime";
@@ -325,7 +325,7 @@ const clampToViewport = (x, y, w = 680, h = 200) => sharedClamp(x, y, w, h);
  * The same 720px the body columns collapse at, deliberately — this component
  * already owns one breakpoint and a second one for the same component is two
  * numbers to keep in step. The behaviour it gates is in FuelIncidentModal; the
- * geometry is the matching block in MapOverlay.css.
+ * geometry is the matching block in MapOverlay.scss.
  */
 const SHEET_Q = '(max-width: 720px)';
 

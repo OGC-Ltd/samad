@@ -1,6 +1,6 @@
 // Per-vehicle maintenance card — worst wear item + braking-system stats.
 
-import "./MaintenanceCard.css";
+import "./MaintenanceCard.scss";
 
 export default function MaintenanceCard({ maintenance }) {
   const isGood = maintenance.status === "Good";

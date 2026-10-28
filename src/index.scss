@@ -1,0 +1,140 @@
+/* Global resets and base styles for the new UI. */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --app-zoom: 1;
+  --app-unzoom: 1;
+  --vh: 1vh;
+  --vw: 1vw;
+
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --font-display: 'Inter', system-ui, sans-serif;
+
+  /* Keep old aliases working for components that reference them */
+  --font: var(--font-body);
+  --font-ui: var(--font-body);
+  --mono: var(--font-mono);
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #f8fafc;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Colour tokens — light mode defaults (dark overrides per component) */
+:root {
+  --color-bg:          #f8fafc;
+  --color-surface:     #ffffff;
+  --color-border:      #e2e8f0;
+  --text-primary:      #0f172a;
+  --text-secondary:    #475569;
+  --text-muted:        #94a3b8;
+  --accent:            #2563eb;
+  --accent-light:      #eff6ff;
+
+  /* Full light theme token set. Defined on :root too (not only on
+     .app--light in App.scss) so Drivers, Analytics, Weighbridges and any
+     overlay page are light no matter which wrapper they render inside —
+     without these they fall back to their built-in DARK defaults. */
+  --color-card:         rgba(255, 255, 255, 0.98);
+  --color-card-inner:   rgba(243, 246, 249, 1);
+  --color-text-primary: #0f172a;
+  --color-text-sec:     #475569;
+  --color-text-muted:   #5f6e83;  /* 4.8:1 on the grey card-inner; #64748b was 4.4 */
+  --accent-ok:     #15803d;
+  --accent-warn:   #b45309;
+  --accent-crit:   #b91c1c;
+  --accent-idle:   #64748b;
+  --accent-info:   #0369a1;
+  --accent-idling: #0e7490;
+  --accent-off:    #4b5563;
+  --color-header-bg: #ffffff;
+  --map-brightness:  1;
+
+  /* Keep the old CSS variable names so existing components don't break */
+  --text-sec-adaptive: #64748b;
+  --header-h:          52px;
+
+  /* Phone control scale (≤767px rules read these). One set of heights for
+     every page, so a button on Maintenance is the size of one on Audit:
+     buttons, toggles and pagers --m-ctl; filter chips --m-chip; text fields,
+     date inputs and dropdown triggers --m-field; the primary action of a
+     sheet or footer --m-action. Big enough for a thumb, small enough that a
+     row of controls does not fill the screen. */
+  --m-ctl:    32px;
+  --m-chip:   30px;
+  --m-field:  36px;
+  --m-action: 36px;
+}
+
+
+/* ── Phones: field text size ───────────────────────────────────────────────
+ * iOS Safari zooms the page whenever a field under 16px takes focus, and does
+ * not zoom back out. That used to be prevented by forcing every field to 16px,
+ * which made search boxes and date pickers the largest text on the page. The
+ * zoom is now prevented by `maximum-scale=1` in index.html (iOS still lets the
+ * user pinch-zoom), so fields take the phone field size below, a step above
+ * body text. Nothing above the phone breakpoint changes.
+ */
+@media (max-width: 767px) {
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input:not([type]),
+  textarea,
+  select {
+    font-size: 14px !important;
+  }
+}
+
+/* ── Mapbox attribution ──────────────────────────────────────────────────────
+ * Hallmark · component: map attribution · static (links: default · hover ·
+ *   focus-visible; the rest n/a)
+ * Mapbox's terms ask for "© Mapbox © OpenStreetMap" and a feedback link
+ * wherever its tiles are shown (lib/mapboxBase, operator 2026-10-03: Mapbox
+ * primary). Shared by the live map and the Fuel report's track map, so it
+ * lives here rather than in FleetMap.scss. Bottom centre, in the strip Google's own terms line uses, small
+ * and on a translucent chip so it reads on imagery and on streets alike;
+ * clear of the zoom stack in the bottom-right corner. */
+.map-attrib {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  z-index: 440;
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.map-attrib a { color: #334155; text-decoration: none; }
+.map-attrib a:hover { text-decoration: underline; }
+.map-attrib a:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; border-radius: 2px; }

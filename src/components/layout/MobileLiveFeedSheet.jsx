@@ -8,7 +8,7 @@ import { feedItemFollowUp, openFollowUp } from '../../lib/fuelFollowUps';
 import { useVehicleFeed } from '../../hooks/useVehicleFeed';
 import { usePermissions } from '../../hooks/usePermissions';
 import FeedFooter, { nearBottom } from '../shared/FeedFooter';
-import './MobileLiveFeedSheet.css';
+import './MobileLiveFeedSheet.scss';
 
 const ALERT_TYPES = new Set(['warning', 'critical']);
 

@@ -8,9 +8,6 @@ dist/
 *.hallmark
 /build.zip
 
-# Source meshes for the sprite baker. Hundreds of MB, and only the baked
-# public/*-atlas.png output is ever served — see scripts/bake-vehicle-atlas.mjs.
-models/
 scratch/
 
 # Claude Code local dev-server config (browser pane launch targets).

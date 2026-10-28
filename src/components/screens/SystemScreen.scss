@@ -1,0 +1,30 @@
+/* System — only what the Sensor Monitor's sheet (SensorPanel.scss) does not
+   already own. The header, chips, toolbar, table and pills are its classes,
+   the same ones Repairs wears, so the two screens read at one rhythm. */
+
+/* "Waiting on you" is the one figure that asks something of the reader. */
+.sys-kpi--me .sp4-kpi-n { color: var(--sp4-accent); }
+
+/* `.sp4-pill--info` (under review) is declared with the case window, in
+   FuelFollowUp.scss, which this screen loads through its imports. */
+
+/* A count inside a State chip, like the tab counts elsewhere in the panel. */
+.sys-chip-n {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.sys-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Yard names run long; the case window has the full text. */
+.sys-where {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* Stays a table on a phone: `.sp4-keep-table` in SensorPanel.scss. */
+.sp4-keep-table .sys-where { max-width: 160px; }

@@ -1,0 +1,780 @@
+/* The units list.
+ *
+ * Dark in both themes, like every control that sits over the map: the basemap
+ * is hybrid satellite imagery and a light panel over it is a white hole. Same
+ * values as .map-cam-btn, MapLayersMenu and FuelAlertsMenu — four menus share
+ * this rail, so any difference between them reads as a mistake.
+ */
+
+.units-menu {
+  position: relative;
+  /* The rail is pointer-events:none so the map keeps its gestures between the
+     buttons; this wrapper has to take them back for the panel. */
+  pointer-events: auto;
+  display: flex;
+}
+
+.units-menu__btn { position: relative; }
+.units-menu__btn--on {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #38bdf8;
+}
+.units-menu__btn--open {
+  background: rgba(15, 23, 42, 1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* How many units the map is narrowed to, while the panel is shut. Cyan rather
+   than the funnel's green: they are different filters and a badge that looks
+   the same as its neighbour is read as the same number. */
+  /* ONE circle, always the same size. The DIGITS give way, not the disc.
+   *
+   * The first fix at this was `aspect-ratio: 1`, which kept it round by
+   * letting it grow — 16px at one digit, 19.4 at two, 24 at three. Round, but
+   * four badges on one rail then sat at three different sizes depending on
+   * what each happened to be counting, which reads as a rail that cannot keep
+   * its own geometry.
+   *
+   * So the box is fixed and the type steps down instead. `data-digits` carries
+   * the length from the component, because CSS cannot measure its own text —
+   * the alternative is guessing from a width, which is what produced the
+   * growing disc.
+   *
+   * NOTE: this badge is declared four times — fleets-menu__flagcount,
+   * fuel-alerts__count, units-menu__count, map-layers__count — identical but
+   * for its tint. They belong on one class; until they are, a change to the
+   * shape has to be made in all four. */
+  /* Placed OUTWARD, not upward.
+   *
+   * These four buttons stack in `.map-cam-controls`, a column with a 6px gap,
+   * and the column is right-aligned against open map. So there is exactly 6px
+   * above a button — pushing the badge up put the layers counter onto the fuel
+   * alerts button above it — and unlimited room to its right.
+   *
+   * `right: -12px` puts the disc's left edge at x 27 on a 34px button. The
+   * 17px glyph centred inside ends at 25.5, so the two never share a pixel
+   * whatever their heights. `top: -3px` keeps the disc 4px clear of the button
+   * above inside that 6px gap.
+   *
+   * NOTE: this badge is declared four times — fleets-menu__flagcount,
+   * fuel-alerts__count, units-menu__count, map-layers__count — identical but
+   * for its tint, and a fifth time in FleetMap.scss for short viewports. They
+   * belong on one class; until they are, a change has to be made in all five. */
+.units-menu__count {
+  position: absolute;
+  top: -3px;
+  right: -12px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #38bdf8;
+  color: #04212e;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Two digits in the same disc, then three. Measured to fit inside 20px with
+   air at the sides. The disc is fixed, so the type is the only thing that
+   can give — and it gives from a smaller starting point than the old badge
+   used, because a counter is read as a magnitude at a glance, not parsed. */
+.units-menu__count[data-digits="2"] { font-size: 8px; letter-spacing: -0.02em; }
+.units-menu__count[data-digits="3"] { font-size: 7px;   letter-spacing: -0.04em; }
+/* Four digits is not a badge any more — no fleet here reaches it, and if one
+   does the number wants somewhere with room rather than a smaller font. */
+.units-menu__count[data-digits="4"] { font-size: 6px;     letter-spacing: -0.06em; }
+
+
+/* Much wider than its siblings: a row here is a nine-column TABLE — tick,
+   sprite, plate, location, motion, recency, connection and two actions — where
+   theirs carry a label and a count. 440px is what those columns need before
+   the plate and the location truncate on every single row. */
+.units-menu__panel {
+  position: absolute;
+  right: calc(100% + 8px);
+  bottom: 0;
+  z-index: 451;
+  width: 440px;
+  /* The column between MapOverlay's rails, published by useFloatingWindow. */
+  max-width: var(--safe-w, calc(calc(var(--vw) * 100) - 24px));
+  /* Bounded by the room above the button — --rail-panel-max-h lives beside the
+     rail geometry it comes from, in FleetMap.scss. */
+  max-height: var(--rail-panel-max-h, var(--safe-h, calc(calc(var(--vh) * 100) - 160px)));
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  color: #cbd5e1;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.units-menu__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.units-menu__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.units-menu__clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #38bdf8;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.units-menu__clear:hover { text-decoration: underline; }
+.units-menu__clear:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.units-menu__search {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.6);
+  color: #e2e8f0;
+  font: inherit;
+}
+.units-menu__search::placeholder { color: #64748b; }
+.units-menu__search:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: -1px;
+}
+
+/* ── the table ─────────────────────────────────────────────────────────────
+ *
+ * One grid template shared by the header row and every data row, declared once
+ * here: a header whose columns can drift out of step with the rows beneath it
+ * is the classic failure of a hand-built table, and the only reliable fix is
+ * for both to be the same declaration.
+ *
+ * Fixed columns are sized to their glyph; only the plate and the location flex,
+ * because they are the only two carrying text of unpredictable length.
+ */
+.units-menu__table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.units-menu__row {
+  display: grid;
+  /* Widened to fit the type, not the other way round.
+     Every icon column here was narrower than the 13px glyph it held — the
+     connection column was 12px — so the panel could only be made legible by
+     giving the glyphs somewhere to go first. */
+  grid-template-columns:
+    17px            /* track tick     */
+    24px            /* machine sprite */
+    /* Location gets the larger share since it shows place names: half the
+       plates are under 92px once IMEI names are shortened, and a wide plate
+       column left a gap before every location. 1 : 1.6 puts ~137px / 218px
+       in the 600px window; the longest plates truncate (full in the title). */
+    minmax(60px, 1fr)     /* plate    */
+    minmax(52px, 1.6fr)   /* location */
+    18px            /* motion         */
+    32px            /* recency        */
+    16px            /* connection     */
+    28px            /* quick track    */
+    26px;           /* open           */
+  align-items: center;
+  gap: 0 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+/* The header sits still while the rows scroll under it — a column legend that
+   scrolls away is a legend you cannot consult when you need it. */
+.units-menu__row--head {
+  flex: 0 0 auto;
+  /* The same -4px the list below pulls itself out by.
+     `.units-menu__list` carries `margin: 0 -4px` so a row's hover fill and its
+     selected state bleed to the panel edge instead of stopping short. The head
+     row is not inside that list, so it kept the panel's own inset and every
+     header cell — the select-all tick first among them — sat 4px right of the
+     column it labels. Measured: head row left -833, body rows -837. */
+  margin: 0 -4px;
+  padding-bottom: 5px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  /* The list's scrollbar took ~10px out of every row but not out of this one,
+     so the flexible columns came out wider here and every glyph right of the
+     plate sat ~10px right of its values. The same thin gutter, reserved here
+     and on the list whether or not it scrolls, keeps the two grids the same
+     width. `overflow` has to be set for the gutter to exist; the sort caret
+     sits inside the 5px padding above, so nothing is clipped. */
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+.units-menu__h {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: default;
+}
+/* Text columns label from the left, so the glyph sits over the values. */
+.units-menu__h--plate,
+.units-menu__h--loc { justify-items: start; }
+
+/* ── sorting ───────────────────────────────────────────────────────────────
+ * The six columns that carry a value are buttons; the two action columns are
+ * not, because there is nothing to order a control by.
+ *
+ * The active column is marked by COLOUR plus a caret, not by colour alone: at
+ * 13px on a dark panel a hue shift is easy to miss, and which way the list is
+ * ordered is the half of the state that actually changes what you are reading.
+ */
+.units-menu__h--sortable {
+  cursor: pointer;
+  border-radius: 5px;
+}
+.units-menu__h--sortable:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.08); }
+.units-menu__h--sortable:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: -1px;
+}
+.units-menu__h--on { color: #38bdf8; }
+.units-menu__h--on::after {
+  content: "▴";
+  position: absolute;
+  right: -1px;
+  bottom: -4px;
+  font-size: 10px;
+  line-height: 1;
+  color: #38bdf8;
+}
+.units-menu__h--on[data-dir="desc"]::after { content: "▾"; }
+/* The two text columns are left-aligned, so their caret follows the glyph
+   instead of sitting at the far edge of a mostly-empty cell. */
+.units-menu__h--plate.units-menu__h--on::after,
+.units-menu__h--loc.units-menu__h--on::after { right: auto; left: 10px; }
+
+.units-menu__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable; /* see .units-menu__row--head */
+  margin: 0 -4px;
+  /* 597 rows is more DOM than a blurred panel wants to lay out and paint at
+     once. This skips both for anything scrolled out of view. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
+}
+
+/* 25px, tracking the row's real height after the tick and the plate came
+   down — this is the placeholder height the browser uses for rows it has
+   skipped, so a stale figure makes the scrollbar lie about the list. */
+.units-menu__list .units-menu__row { content-visibility: auto; contain-intrinsic-size: auto 25px; }
+.units-menu__list .units-menu__row:hover { background: rgba(255, 255, 255, 0.06); }
+.units-menu__row--on { background: rgba(56, 189, 248, 0.1); }
+.units-menu__row--on:hover { background: rgba(56, 189, 248, 0.16); }
+
+.units-menu__tick {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+.units-menu__tick:disabled { opacity: 0.4; cursor: default; }
+.units-menu__tick:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: 0;
+}
+
+.units-menu__box {
+  position: relative;
+  /* One knob: the marks below are derived from it, so the box can be retuned
+     without three coordinates having to be re-derived by hand.
+
+     13px, down from 16. At 16 the control was the heaviest thing in a row
+     whose subject is the unit — a 26px row led by a 16px square reads as a
+     list of checkboxes that happen to have names beside them, which is
+     backwards. The button around it stays larger than the mark, so the
+     target a finger has to hit is not what shrank. */
+  --um-box: 13px;
+  width: var(--um-box);
+  height: var(--um-box);
+  border-radius: 3.5px;
+  border: 1.5px solid rgba(148, 163, 184, 0.55);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.units-menu__tick[aria-checked="true"] .units-menu__box {
+  background: #38bdf8;
+  border-color: #38bdf8;
+}
+/* Drawn rather than typed, so it keeps its weight at this size.
+   Proportions follow --um-box: the stroke thins with the box, or a 13px
+   square ends up carrying a 16px square's tick and reads as a filled blob. */
+.units-menu__box::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--um-box) * 0.25);
+  top: calc(var(--um-box) * 0.06);
+  width: calc(var(--um-box) * 0.22);
+  height: calc(var(--um-box) * 0.47);
+  border: solid #04212e;
+  border-width: 0 1.7px 1.7px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 140ms ease;
+}
+.units-menu__tick[aria-checked="true"] .units-menu__box::after {
+  transform: rotate(45deg) scale(1);
+}
+/* SOME of the listed units, not all — a dash, because a tick would claim the
+   header does something it would not do. */
+.units-menu__box--some::before {
+  content: "";
+  position: absolute;
+  /* Centred on the box rather than positioned from its edges, so it stays
+     centred at any --um-box. */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--um-box) * 0.5);
+  height: 2px;
+  border-radius: 1px;
+  background: #38bdf8;
+}
+
+/* The MARKER's own artwork: `--lf-marker` drives .lf-truck's width, height and
+   background-size (FleetMap.scss), so this is the same sprite sheet, the same
+   status row, at table size. Column 0 is north — a row does not rotate, because
+   heading is not what this column is for. */
+.units-menu__sprite {
+  pointer-events: auto;   /* .lf-truck disables them for map markers */
+}
+
+.units-menu__plate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  /* Was the panel's inherited 12.5px, which made the plate the largest type
+     on screen — larger than the panel's own title. It is the row's subject
+     and should lead its row, not the whole panel, so it is set explicitly
+     here rather than left to inherit. */
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The plate ellipses, never the Reported chip beside it. */
+.units-menu__plate-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Reported for a fuel probe repair: the orange of the Warning status card
+   and Stopped in transit (operator, 2026-10-01). */
+.units-menu__hold {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, #d97706 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #d97706 12%, transparent);
+  color: #d97706;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Coordinates rather than a place name deliberately: resolving a name is a
+   fetch per row, and 597 of them is a request storm for a list nobody reads
+   end to end. */
+.units-menu__loc {
+  min-width: 0;
+  /* Steps down with the plate. It was 11.5 against the plate's 12.5, so
+     holding it there while the plate came to 11 would have left the
+     supporting column LARGER than the subject it supports. */
+  font-size: 10.5px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Motion takes the ACTIVITY colour the marker uses, inline, so the column and
+   the map agree; grey when the unit is offline and the state is only a memory. */
+.units-menu__motion {
+  font-size: 10.5px;
+  line-height: 1;
+  text-align: center;
+}
+.units-menu__motion--transit { font-size: 11.5px; }
+
+/* Recency is graded, not just printed: "14m" means nothing until you know
+   whether 14 minutes is normal here. Green live, amber lagging, red stale. */
+.units-menu__age {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.units-menu__age--live { color: #4ade80; }
+.units-menu__age--lag  { color: #fbbf24; }
+.units-menu__age--old  { color: #f87171; }
+.units-menu__age--none { color: #64748b; }
+
+/* Connection is the provider's verdict and nothing else — see isOnline. A
+   ring when offline rather than a filled dot: absence should look like absence. */
+.units-menu__conn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #64748b;
+  box-sizing: border-box;
+  justify-self: center;
+}
+.units-menu__conn--on {
+  background: #4ade80;
+  border-color: #4ade80;
+}
+
+.units-menu__act {
+  display: grid;
+  place-items: center;
+  justify-self: center; /* over its header glyph, not 2px left of it */
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.units-menu__act:hover { background: rgba(255, 255, 255, 0.1); color: #e2e8f0; }
+.units-menu__act:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: -1px;
+}
+/* The one unit whose route is drawn. Only ever one, by construction. */
+.units-menu__act--on {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+}
+
+
+.units-menu__empty {
+  padding: 10px 6px;
+  color: #94a3b8;
+}
+
+/* ── the unit that lives in another organisation ───────────────────────
+ *
+ * A multi-tenant account can search from the wrong organisation without
+ * knowing it. When more than one of the others holds a match the dashboard
+ * does not guess — it offers them here. A switch it CAN make on its own is
+ * not captioned: the header, the map and the list all say so already. See
+ * UnitsMenu.jsx and hooks/useCrossOrgUnits.
+ */
+.units-menu__empty-lead {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.units-menu__elsewhere {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.6);
+  color: #e2e8f0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.units-menu__elsewhere:hover { border-color: rgba(148, 163, 184, 0.5); }
+.units-menu__elsewhere:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.75);
+  outline-offset: -1px;
+}
+.units-menu__elsewhere-org { font-weight: 600; }
+.units-menu__elsewhere-units {
+  min-width: 0;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.units-menu__foot {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── On a phone, pinned to the viewport ────────────────────────────────────
+ *
+ * Its siblings open upward from their own button and cap the height with
+ * `100dvh - header - footer - <slack>`. That works for them and does NOT work
+ * here, because the constant assumes the panel's bottom edge sits a fixed
+ * distance off the floor — and the panel's bottom edge is its BUTTON, which
+ * moves up the rail every time a control is added, and which is already 578px
+ * down a 812px screen for this one. Measured at 375x812 before this rule: the
+ * panel was 501px tall with its top at y=69, opening 42px behind a header that
+ * ends at 111.
+ *
+ * Pinning to the viewport is the same escape hatch the rail already uses on a
+ * landscape phone, and it is the only version of this that cannot be broken by
+ * a seventh button: with BOTH top and bottom set, the panel is the band between
+ * the header and the nav by construction, and its height is never a number
+ * anyone has to keep up to date.
+ *
+ * `max-height` rather than `top` + `bottom`: a fleet of six units must render
+ * a six-row panel, not stretch one to fill the band.
+ *
+ * Must live in this file rather than beside the rail in FleetMap.scss: that
+ * stylesheet loads FIRST, so a grouped rule there would lose the cascade.
+ */
+@media (max-width: 767px) {
+  .units-menu__panel {
+    position: fixed;
+    /* Left of the rail: its 12px inset + a 34px button + the 8px gap the
+       desktop panel already uses. */
+    right: calc(12px + 34px + 8px);
+    left: auto;
+    /* Clear of the close pill and the camera row — see --map-bottom-band
+       where it is defined, in FleetMap.scss. */
+    bottom: calc(var(--footer-h, 64px) + 16px + var(--map-bottom-band, 0px));
+    width: min(440px, calc(calc(var(--vw) * 100) - 54px - 12px));
+    max-height: calc(calc(var(--vh) * 100) - var(--header-h, 57px) - var(--footer-h, 64px) - 24px - var(--map-bottom-band, 0px));
+    max-height: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 24px - var(--map-bottom-band, 0px));
+  }
+  /* A phone panel is ~300px, and the desktop grid needs ~340: the last
+     buttons were cut off the right edge. Tighter columns and gaps. */
+  .units-menu__row {
+    grid-template-columns:
+      17px 22px minmax(56px, 1fr) minmax(44px, 1.6fr)
+      16px 30px 12px 24px 24px;
+    gap: 0 4px;
+    padding: 3px 4px;
+  }
+}
+
+/* The rail shrinks its buttons to 28px below 560px tall, so the panel follows
+   them 6px right — otherwise it hangs over the rail it opens beside. */
+@media (max-width: 767px) and (max-height: 560px) {
+  .units-menu__panel {
+    right: calc(12px + 28px + 8px);
+    width: min(440px, calc(calc(var(--vw) * 100) - 48px - 12px));
+  }
+}
+
+/* The short-viewport badge is set for ALL FOUR of these counters at once in
+   FleetMap.scss, beside the rule that shrinks the buttons they sit on. A copy
+   lived here and disagreed with it — 17px at top -9 against the shared 15px at
+   top -3 — and won on source order alone, which is how the Units badge was the
+   one still clipping its icon and touching the button above after the other
+   three were fixed. */
+
+@media (prefers-reduced-motion: reduce) {
+  .units-menu__box, .units-menu__box::after { transition: none; }
+}
+
+/* ── Light mode overrides ─────────────────────────────────────────────────── */
+.units-menu__panel {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.10) !important;
+}
+
+.units-menu__head {
+  border-bottom: 1px solid #f1f5f9 !important;
+  background: #fff !important;
+}
+
+.units-menu__title {
+  color: #0f172a !important;
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .06em !important;
+}
+
+.units-menu__search {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+  border-radius: 6px !important;
+}
+
+.units-menu__search::placeholder { color: #94a3b8 !important; }
+
+.units-menu__body { background: #fff !important; }
+
+.units-menu__row {
+  border-bottom: 1px solid #f8fafc !important;
+  color: #334155 !important;
+}
+
+.units-menu__row:hover { background: #f8fafc !important; }
+
+.units-menu__plate {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+}
+
+.units-menu__coord { color: #94a3b8 !important; }
+
+.units-menu__age { font-family: 'Inter', 'Roboto', sans-serif !important; }
+
+.units-menu__foot {
+  border-top: 1px solid #f1f5f9 !important;
+  background: #fff !important;
+  color: #64748b !important;
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 11px !important;
+}
+
+.units-menu__col-head { color: #94a3b8 !important; }
+
+/* ── As a window, beside the sidebar ───────────────────────────────────────
+   Opened from the sidebar's Units row at 1024px and up, where the map's own
+   button for it is hidden (FleetMap.scss).
+
+   Deliberately NOT a modal. A modal is for a decision you finish before going
+   back to the page; this is a list an operator works FROM — click a unit, look
+   at the map, come back — so there is no scrim, the map stays live behind it,
+   and it can be dragged out of the way, pinned open and closed from its own
+   corner. `left`/`top` here are only the pre-placement default; the moment
+   useFloatingWindow has measured the sidebar it writes the real position
+   inline, and after a drag it writes whatever the operator chose. */
+.units-menu__panel--window {
+  position: fixed;
+  left: calc(var(--side-panel-w, 320px) + 12px);
+  top: calc(var(--app-header-h, 52px) + 12px);
+  right: auto;
+  bottom: auto;
+  /* Over the app header (500) and the vehicle panel, under the account and
+     admin overlays (2500+), which are whole pages. */
+  z-index: 1400;
+  /* Wider than the popover: as a window it has the room, and the extra goes
+     to the plate and location columns (the only `fr` tracks), which are what
+     truncated at 440. Still bounded by --safe-w above. */
+  width: 600px;
+  max-height: min(78vh, 720px);
+  /* The map is live behind it, so it reads as something ON the page rather
+     than the page itself. */
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+}
+
+/* The head is the handle. `grab` on the bar, `grabbing` once a drag has passed
+   the slop — the class comes from useFloatingWindow. */
+.units-menu__panel--window .units-menu__head {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.units-menu__panel--window.is-dragging { cursor: grabbing; }
+.units-menu__panel--window.is-dragging .units-menu__head { cursor: grabbing; }
+
+.units-menu__winbtns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Pushed to the far end whether or not "Show all" is beside them. */
+  margin-left: auto;
+}
+
+.units-menu__winbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background .13s, color .13s, border-color .13s;
+}
+.units-menu__winbtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+.units-menu__winbtn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+}
+/* Pinned is a state the panel is IN, so it stays lit rather than only
+   responding to hover. Cyan, the same "this control is doing something" colour
+   the tracked badge uses. */
+.units-menu__winbtn--on {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+/* Folded to the title bar: no list, no rule under the head, and only as wide
+   as the bar needs. */
+.units-menu__panel--min {
+  width: 260px;
+  padding-top: var(--win-pad-y, 7px);
+  padding-bottom: var(--win-pad-y, 7px);
+}
+.units-menu__panel--min .units-menu__head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .units-menu__winbtn { transition: none; }
+}

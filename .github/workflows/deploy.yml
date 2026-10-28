@@ -21,6 +21,7 @@ on:
       environment: { type: string, required: true }   # production
       target:      { type: string, required: true }   # prod (deploy.sh's name)
       image:       { type: string, required: true }   # ghcr.io/ogc-ltd/samad@sha256:…
+      version:     { type: string, required: false }  # 1.4: tagged v1.4 once it is live
   workflow_dispatch:
     inputs:
       target:
@@ -37,7 +38,7 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: write   # the version tag
   packages: read
 
 jobs:
@@ -56,6 +57,8 @@ jobs:
       ACTION: ${{ inputs.action || 'deploy' }}
       TARGET: ${{ inputs.target }}
       IMAGE_REF: ${{ inputs.image }}
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}   # gh: the version tag
       # The box. Not a secret (SAMAD_DEPLOY_KNOWN_HOSTS pins its key, so a
       # wrong host is refused, never trusted); a SAMAD_DEPLOY_HOST variable or
       # secret overrides it, e.g. after a rebuild.
@@ -74,6 +77,14 @@ jobs:
           fi
           if [ "$ACTION" = deploy ] && ! [[ "$IMAGE_REF" =~ ^ghcr\.io/ogc-ltd/samad@sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::image must be ghcr.io/ogc-ltd/samad@sha256:<digest>, got '$IMAGE_REF'"; exit 1
+          fi
+          if [ -n "$VERSION" ]; then
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9]$ ]] || { echo "::error::version must be like 1.4, got '$VERSION'"; exit 1; }
+            # Two builds waiting on approval both get the same number; the
+            # second must be rebuilt (re-run the pipeline) to take the next.
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
+              echo "::error::v$VERSION is already deployed. Re-run the pipeline to build the next version."; exit 1
+            fi
           fi
 
       - name: SSH key and pinned host key
@@ -119,6 +130,12 @@ jobs:
           else
             ssh box "$ACTION $TARGET" < /dev/null
           fi
+
+      - name: Tag the version
+        if: env.ACTION == 'deploy' && env.VERSION != ''
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/v$VERSION" -f "sha=$GITHUB_SHA" >/dev/null
+          echo "Deployed **v$VERSION**" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Status
         if: always()

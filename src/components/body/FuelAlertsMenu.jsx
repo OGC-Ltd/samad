@@ -27,7 +27,7 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import "./FuelAlertsMenu.css";
+import "./FuelAlertsMenu.scss";
 import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import { useMapLayers } from "../../context/MapLayersContext";
 import { fleetPrefix, withoutPrefix } from "../../lib/plateLabel";
@@ -36,7 +36,7 @@ import { useFloatingWindow } from "../../hooks/useFloatingWindow";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { displayPlate } from "../../lib/plate";
 
-/** Where the sidebar opens this as a window — the same line FuelAlertsMenu.css
+/** Where the sidebar opens this as a window — the same line FuelAlertsMenu.scss
  *  hides the map button on. */
 const WINDOW_Q = "(min-width: 1024px)";
 

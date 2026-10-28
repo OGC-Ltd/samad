@@ -45,7 +45,7 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { useAppFields, useAppActions } from "../../context/AppContext";
 import { fleetTypeOptions } from "../../lib/vehicleMap";
-import "./FleetsMenu.css";
+import "./FleetsMenu.scss";
 import { displayPlate } from "../../lib/plate";
 
 /** A funnel. Drawn at the same 1.9 stroke as the rest of the app's icons. */

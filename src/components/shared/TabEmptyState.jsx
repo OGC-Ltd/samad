@@ -3,7 +3,7 @@
 // there is no data yet (the DB starts empty until the RaiFactorySuite live
 // integration lands).
 
-import "./TabEmptyState.css";
+import "./TabEmptyState.scss";
 
 // `action` is for the one case where the state is not merely empty but STUCK —
 // an organisation this account can open no screen in. An empty tab is

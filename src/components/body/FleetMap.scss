@@ -1,0 +1,3276 @@
+/* Map view and marker styles. */
+@use "../shared/windowChrome";
+
+
+
+:root {
+  --bg-dark:        #050505;
+  --bg-panel:       #0d0d0e;
+  --border:         #2a2d35;
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted:     #484f58;
+  --accent-green:   #22c55e;
+  --accent-amber:   #f59e0b;
+  --accent-red:     #ef4444;
+  --accent-grey:    #94a3b8;
+  --radius-sm:      4px;
+  --radius-md:      8px;
+  --radius-lg:      12px;
+  --shadow-lg:      0 8px 32px rgba(0,0,0,0.72);
+  --font-ui:        var(--font-body);
+}
+
+.fleet-map-body {
+  position: relative;
+  width: 100%;
+  /* Fills the shell's `.app-map-panel`, which flex already sized correctly.
+     This used to be `calc(var(--vh) * 100 - var(--header-h, 56px))` — measured
+     off the VIEWPORT, so it ignored whatever space the shell had actually left
+     it. That was survivable in the old dash, where the map did span the
+     viewport below the header. It is not survivable here: `--header-h` is
+     never published any more (the rewrite dropped the ResizeObserver that set
+     it), so the calc fell back to 56px and ran the map 76px past the bottom of
+     its parent — straight over the fixed mobile tab bar, which measured as
+     present and visible while being completely covered. */
+  height: 100%;
+  overflow: hidden;
+  background: #050505;
+  font-family: var(--font-ui);
+}
+
+.gmap-fill {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+
+  position: relative;
+  z-index: 0;
+}
+
+ /* Dim ONLY the raster tiles (Google renders them as <img>), so the darkening
+   matches the old Leaflet tile-pane filter without touching our DOM markers.
+   The truck sprite is a CSS background-image on a <div>, so it is out of this
+   selector's reach and keeps its full contrast against the dimmed imagery. */
+.gmap-fill .gm-style img {
+  filter: brightness(0.84) saturate(1.1);
+}
+
+.gmap-fill .gm-style:focus,
+.gmap-fill div:focus { outline: none; }
+
+/* Google's own UI chrome (zoom buttons, ToS links) must not be dimmed. */
+.gmap-fill .gm-style .gm-control-active img,
+.gmap-fill .gmnoprint img,
+.gmap-fill .gm-style-cc img { filter: none; }
+
+.lf-marker-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  position: relative;
+}
+
+.lf-marker-wrap:hover {
+  transform: scale(1.22);
+  z-index: 9999 !important;
+}
+
+
+/* ── Hover-card type scale ───────────────────────────────────────────────────
+   The card previously mixed eight font sizes (8 / 9 / 9.5 / 10 / 10.5 / 11 /
+   13 / 14 px) inside 248px of width. Five steps, topping out at 12px, keeps it
+   compact and consistent. Every .vt-* rule below references these — do not
+   reintroduce a literal px size in the card. */
+.vehicle-tooltip,
+.search-result-card {
+  --vt-fs-title: 12px;   /* plate, tile values — the largest thing in the card */
+  --vt-fs-body:  10px;   /* sentences and badges */
+  --vt-fs-label:  9px;   /* secondary values, place names */
+  --vt-fs-micro:  8px;   /* uppercase micro-labels */
+  /* Fixed slot so leading icons line up in a column instead of jittering with
+     each glyph's width. It was sized for emoji, whose advance widths differ
+     wildly between platforms; the run glyphs are drawn now and fill it
+     exactly, which is why they can share the measure. */
+  --vt-icon-slot: 13px;
+}
+
+.vt-icon-slot,
+.vt-run-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--vt-icon-slot);
+  flex: 0 0 var(--vt-icon-slot);
+  font-size: var(--vt-fs-label);
+  line-height: 1;
+  font-style: normal;
+}
+
+/* The drawn glyphs take the slot's full box and the row's own colour, which is
+   what lets one set of paths serve the rest, idle and transit tints and both
+   themes without a second asset. */
+.vt-run-icon {
+  height: var(--vt-icon-slot);
+  color: currentColor;
+  opacity: 0.9;
+}
+
+/* The over-limit mark sits inline in the tile's sub-label, so it is sized to
+   that text rather than to the icon column. */
+.vt-warn-icon {
+  width: 9px;
+  height: 9px;
+  vertical-align: -1px;
+}
+
+/* Marker glyph — a frame of the baked truck atlas, public/truck-atlas.png:
+   24 heading columns × 5 status rows of 64 device-px cells, drawn here at 40
+   CSS px: --lf-marker × 24 wide by --lf-marker × 5 tall, indexed with
+   background-position from FleetMap.jsx. Every Samad unit is a truck, so every
+   marker draws this one atlas, whatever kind lib/vehicleMap resolves.
+
+   Sizes are driven off --lf-marker so the pulse / ripple / search rings below
+   stay concentric with the sprite if the size is ever retuned. */
+.lf-marker-wrap { --lf-marker: 40px; }
+
+.lf-truck {
+  width:  var(--lf-marker);
+  height: var(--lf-marker);
+  background-repeat: no-repeat;
+  background-image: url("/truck-atlas.png");
+  background-size: calc(var(--lf-marker) * 24) calc(var(--lf-marker) * 5);
+  /* Separation from busy satellite imagery comes from a shadow BAKED INTO the
+     atlas, not from `filter: drop-shadow()`. Two filter passes on up to 224
+     markers were re-rasterised on every frame of a zoom (the layer scales, so
+     the shadow cannot be cached) — one of the main causes of zoom stutter.
+     Baked, it costs nothing: it is just pixels in an image the GPU already
+     holds.  */
+  pointer-events: none;
+}
+
+/* The one borrowed ONLINE row, shaded.
+
+   `stationary` draws the GREEN `ok` truck (see TRUCK_ROW_FOR in FleetMap.jsx —
+   the atlas has no row of its own).
+   Green is the right answer to "is this live", but a stopped unit drawing the
+   identical sprite to a driving one loses the second answer, so it is tinted
+   towards the pale green its halo already carries. `idling` needs none of this:
+   it has a baked row in its own sky blue.
+
+   This is the `filter` the rule above warns off, and the warning stands — it
+   re-rasterises on every frame of a zoom. It is affordable here only because
+   of what it is scoped to: one of seven marker states. On this fleet that is
+   roughly 40 markers of 597, not the 224 the drop-shadow experiment put it on.
+   If the online-and-stopped count ever approaches the fleet size, bake the row
+   instead. */
+.lf-marker-wrap[data-status="stationary"] .lf-truck,
+.lf-cluster[data-status="stationary"]     .lf-truck { filter: brightness(1.3) saturate(0.72); }
+
+/* Soft status wash under the truck. Replaces the dark chip the old SVG glyph
+   sat in: the sprite is legible on its own, but the marker still has to say
+   "this one is speeding" at a glance from across the map. */
+.lf-halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width:  calc(var(--lf-marker) * 1.05);
+  height: calc(var(--lf-marker) * 1.05);
+  transform: translate(-50%, -50%);
+  margin-top: calc(var(--lf-marker) * -0.09);   /* centre on the truck, not the dot */
+  border-radius: 50%;
+  background: radial-gradient(circle,
+              color-mix(in srgb, var(--lf-status) 55%, transparent) 0%,
+              color-mix(in srgb, var(--lf-status) 18%, transparent) 55%,
+              transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Selected (route open) and search-hit states used to be a white border on the
+   chip. With no chip, they brighten the halo instead. */
+.lf-halo--active   { background: radial-gradient(circle, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.16) 58%, transparent 74%); }
+.lf-halo--searched { background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.3) 60%, transparent 76%); }
+
+.lf-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.72; }
+  70%  { transform: scale(2.2); opacity: 0;    }
+  100% { transform: scale(2.2); opacity: 0;    }
+}
+
+.lf-pulse::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--lf-marker);
+  height: var(--lf-marker);
+  /* Circular, like every other ring on a marker. This was --radius-md (an 8px
+     rounded SQUARE), so a speeding vehicle got a boxed card around it while the
+     halo underneath and the in-transit ripple beside it were both circles —
+     three cues on one marker, one of them a different shape. A ring around a
+     point on a map is a radius; nothing about it is rectangular. */
+  border-radius: 50%;
+  border: 2px solid;
+  animation: pulse-ring 1.6s cubic-bezier(0.215,0.61,0.355,1) infinite;
+  pointer-events: none;
+}
+
+.lf-pulse[data-status="speeding"]::before { border-color: var(--accent-amber); }
+.lf-pulse[data-status="theft"]::before    { border-color: var(--accent-red);   }
+
+/* Idling deliberately has NO ring. It is a normal operating state on this
+   fleet — trucks queue with the engine running — so ringing it put dozens of
+   animated markers on screen at once and drowned out the two states a ring is
+   for. Idling is carried by the marker's status colour alone. */
+
+/* In-transit ripple — a circular wave off the marker so a driving vehicle
+   stands out on a map where most markers are parked and motionless.
+   Uses ::after because ::before is the alert pulse above: a speeding vehicle
+   is both moving and in trouble, and must keep showing both. Sits behind the
+   icon (negative z-index) so it never dims the glyph, and stays
+   pointer-events:none so it cannot steal the marker's hover or click. */
+@keyframes transit-ripple {
+  0%   { transform: translateX(-50%) scale(0.55); opacity: 0.55; }
+  80%  { transform: translateX(-50%) scale(2.4);  opacity: 0;    }
+  100% { transform: translateX(-50%) scale(2.4);  opacity: 0;    }
+}
+
+.lf-ripple::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--lf-marker);
+  height: var(--lf-marker);
+  border-radius: 50%;
+  border: 2px solid var(--accent-green, #22c55e);
+  animation: transit-ripple 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Match the ripple to the marker so it reinforces status instead of fighting
+   it — a speeding vehicle ripples amber, not green. */
+.lf-ripple[data-status="speeding"]::after { border-color: var(--accent-amber); }
+.lf-ripple[data-status="theft"]::after    { border-color: var(--accent-red);   }
+
+/* Respect a user's reduced-motion preference: keep a static ring so the
+   in-transit cue survives, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .lf-ripple::after { animation: none; opacity: 0.4; transform: translateX(-50%) scale(1.35); }
+}
+
+.vehicle-tooltip {
+  position: fixed;
+  /* Anchored at the origin; the cursor offset is applied as a transform written
+     directly onto the node by FleetMap's pointer effect. Positioning via
+     left/top would relayout on every mouse move — transform stays on the
+     compositor and never touches React state. */
+  left: 0;
+  top: 0;
+  will-change: transform;
+  width: 248px;
+  background: var(--color-card, rgba(10, 10, 11, 0.97));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(56,189,248,0.07);
+  padding: 13px 15px 15px;
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+  z-index: 9999;
+  animation: tt-in 0.13s ease;
+}
+
+/* Opacity only. This used to animate `transform` too, which now carries the
+   card's cursor position — a running animation overrides inline styles, so the
+   card would snap to the animation's transform for its first 130 ms and then
+   jump to the cursor. The inner card keeps the scale-in so the pop survives. */
+@keyframes tt-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes tt-in-inner {
+  from { transform: translateY(5px) scale(0.97); }
+  to   { transform: translateY(0)   scale(1);    }
+}
+
+.vehicle-tooltip > * { animation: tt-in-inner 0.13s ease; }
+
+/* ── Pinned card ───────────────────────────────────────────────────────────
+   Opened by a click rather than a hover. The one property that matters is
+   pointer-events: the hover card is deliberately inert so it can never take
+   the mouse from the map, and a card holding a button has to do the opposite.
+   The accent border is not decoration — it is the only thing distinguishing a
+   card that will follow the cursor from one that will not. */
+.vehicle-tooltip--pinned {
+  pointer-events: auto;
+  /* Pinned it is a window the operator drags, so it obeys the free column —
+     see the note in RoutePlayback.scss. Not on the hover card: that one is
+     positioned by the cursor and lives and dies with it. */
+  max-width: var(--safe-w, none);
+  /* The accent is themed: --accent-info is #0369a1 in light mode against
+     #38bdf8 in dark, because the dark-tuned cyan measures under 3:1 on a white
+     card. `color-mix` keeps the translucent ring without pinning it to one
+     theme's hex. */
+  border-color: color-mix(in srgb, var(--accent-info) 55%, transparent);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent-info) 25%, transparent);
+}
+
+/* Title bar: grip, plate, and the three window controls. Also the DRAG HANDLE,
+   which is why it has `touch-action: none` — a pointer drag on it must not
+   also scroll the page. */
+.vehicle-tooltip__bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 9px;
+  cursor: grab;
+  touch-action: none;
+}
+.vehicle-tooltip__bar:active { cursor: grabbing; }
+.vehicle-tooltip.is-dragging,
+.vehicle-tooltip.is-dragging * { cursor: grabbing !important; user-select: none; }
+
+.vt-grip {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+/* The plate is repeated in the bar so there is something to GRAB that is not a
+   button — a 12px grip glyph alone is a poor drag target, and the bar is the
+   only draggable surface on the card. */
+.vt-bar-plate {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--vt-fs-label, 9px);
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Minimised: the bar only, shrunk to fit so it stops covering the map. The
+   route button stays, so a replay can be started from a folded card.
+
+   Padding comes from the SHARED window metrics, not from this card's own
+   13/15px — so a collapsed vehicle card and a collapsed playback transport are
+   the same height. The base rule's padding has to be overridden on all four
+   sides for that; overriding only `padding-bottom` left the card 7px taller
+   than the transport, which is visible the moment both are folded away. */
+.vehicle-tooltip--min {
+  width: auto;
+  min-width: 150px;
+  padding: var(--win-pad-y) var(--win-pad-x);
+}
+.vehicle-tooltip--min .vehicle-tooltip__bar { margin-bottom: 0; }
+
+/* Themed, not translucent white: a `rgba(255,255,255,0.05)` fill is invisible
+   on the light theme's near-white card, so the button lost its edges entirely.
+   --color-card-inner is the token for a surface sitting ON a card. */
+/* Square icon buttons, sized so all three read as one set. Themed, not
+   translucent white: an `rgba(255,255,255,0.05)` fill is invisible on the light
+   theme's near-white card and the buttons lost their edges entirely. */
+.vt-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--win-btn);
+  height: var(--win-btn);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--color-card-inner);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--vt-fs-body, 10px);
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+}
+.vt-action:hover:not(:disabled) { border-color: var(--accent-info); color: var(--accent-info); }
+.vt-action:disabled { opacity: 0.45; cursor: default; }
+
+/* Neutral at rest, like every button beside it (operator, 2026-10-02: a tint
+   on an unpressed button read as "already on"). It lights only while this
+   unit's route is replaying — the same .vt-action--on the camera and zoom use
+   — and stays lit rather than greyed, since it is disabled for being on, not
+   for being unavailable. */
+.vt-action--route.vt-action--on:disabled { opacity: 1; }
+.vt-action--route svg { display: block; }
+.vt-action--cam svg { display: block; }
+.vt-action--zoom svg { display: block; }
+
+/* Muted. The reticle only moves the camera — nothing opens, nothing is
+   fetched, nothing is recorded — so it has no claim on the accent. It borrows .vt-action--on when
+   the map is sitting on the unit, which is the same convention the camera
+   toggle uses and the only way to tell that a double-click has somewhere to
+   go back to. */
+.vt-action--zoom { color: var(--color-text-muted); }
+
+/* A toggle, so it has to show its state. The camera opens a window that stays, and a control that looks
+   identical open and closed is a control you press twice. */
+.vt-action--on {
+  color: var(--accent-info);
+  border-color: var(--accent-info);
+  background: color-mix(in srgb, var(--accent-info) 22%, var(--color-card-inner));
+}
+
+.vt-action--close { flex: 0 0 auto; padding: 4px 7px; }
+
+.vt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.vt-reg {
+  font-family: var(--font-mono);
+  font-size: var(--vt-fs-title);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.vt-status-badge {
+  font-size: var(--vt-fs-micro-chip, 10px);
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 99px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* The theft badge on a clicked card is a button that opens the fuel theft
+   window. Same pill; it only gains the button's affordances. */
+.vt-status-badge--action {
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  transition: filter 0.12s ease-out, transform 0.12s ease-out;
+}
+.vt-status-badge--action:hover { filter: brightness(0.94) saturate(1.2); }
+.vt-status-badge--action:active { transform: translateY(1px); }
+.vt-status-badge--action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vt-status-badge--action { transition: none; }
+  .vt-status-badge--action:active { transform: none; }
+}
+
+/* In-transit dot — carries the same rippling circle as the map marker, so the
+   card and the marker say the same thing about the same vehicle. It lives on
+   the activity chip in the person row (.vt-person-chip), which is already a
+   flex row with a gap, so it needs no wrapper rule of its own; it replaces the
+   chip's plain .vt-dot when the vehicle is moving. */
+.vt-transit-dot {
+  position: relative;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vt-transit-color, var(--accent-green, #22c55e));
+}
+
+.vt-transit-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid var(--vt-transit-color, var(--accent-green, #22c55e));
+  animation: transit-ripple-dot 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  pointer-events: none;
+}
+
+/* Scales from the dot rather than the marker's --lf-marker ring, but keeps the
+   same duration and easing so the two read as one effect. */
+@keyframes transit-ripple-dot {
+  0%   { transform: scale(0.7); opacity: 0.7; }
+  80%  { transform: scale(2.6); opacity: 0;   }
+  100% { transform: scale(2.6); opacity: 0;   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vt-transit-dot::after { animation: none; opacity: 0.45; transform: scale(1.6); }
+}
+
+.vt-driver {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.vt-divider {
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 10px;
+}
+
+.vt-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.vt-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vt-cell.full { grid-column: 1 / -1; }
+
+.vt-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.vt-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.engine-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+.engine-dot.on  { background: var(--accent-green); box-shadow: 0 0 5px var(--accent-green); }
+.engine-dot.off { background: var(--accent-grey); }
+.engine-on  { color: var(--accent-green); }
+.engine-off { color: var(--accent-grey); }
+
+.speed-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+.speed-tag.ok   { background: rgba(34,197,94,0.12);  color: var(--accent-green); }
+.speed-tag.over { background: rgba(245,158,11,0.14); color: var(--accent-amber); }
+
+.geo-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+.geo-dot.inside  { background: var(--accent-green); }
+.geo-dot.outside { background: var(--accent-red); box-shadow: 0 0 5px var(--accent-red); }
+.geofence-inside  { color: var(--accent-green); }
+.geofence-outside { color: var(--accent-red); }
+
+.map-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 20px;
+  background: rgba(15, 19, 26, 0.90);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  z-index: 500;
+  backdrop-filter: blur(10px);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.map-live-badge {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: rgba(15, 19, 26, 0.90);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  z-index: 500;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes live-blink {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.3; }
+}
+
+.live-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+  animation: live-blink 1.4s ease-in-out infinite;
+}
+
+.vt-location {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.vt-location-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+  position: relative;
+  top: 1px;
+}
+
+.route-tip {
+  background: var(--color-card, rgba(10, 10, 11, 0.97)) !important;
+  border: 1px solid #2a2d35 !important;
+  border-radius: 7px !important;
+  color: #e6edf3 !important;
+  font-family: var(--font-body);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
+  padding: 5px 10px !important;
+}
+.route-tip::before { display: none !important; }
+
+.vt-route-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vt-route-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vt-route-dot.dep  { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
+.vt-route-dot.dest { background: #f59e0b; }
+.vt-route-line {
+  display: block;
+  width: 1px;
+  height: 10px;
+  background: #2a2d35;
+  margin-left: 3.5px;
+}
+.vt-route-place {
+  font-size: 11px;
+  color: #8b949e;
+  line-height: 1.3;
+}
+
+/* Route endpoint pins + their hover label (replaces the Leaflet tooltip). */
+.route-pin { position: relative; display: flex; align-items: center; justify-content: center; }
+.route-pin .rp-dep {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid; opacity: 0.9;
+}
+.route-pin .rp-dest {
+  width: 10px; height: 10px; border: 2px solid #fff;
+  border-radius: 2px; transform: rotate(45deg);
+}
+.route-pin .route-tip {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  white-space: nowrap; font-size: 11px; opacity: 0; pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.route-pin:hover .route-tip { opacity: 1; }
+
+@keyframes search-ping {
+  0%   { transform: scale(1);   opacity: 0.9; }
+  50%  { transform: scale(2.6); opacity: 0.3; }
+  100% { transform: scale(1);   opacity: 0.9; }
+}
+
+.lf-searched::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: var(--lf-marker); height: var(--lf-marker);
+  /* Circular for the same reason as the alert ring above. This is the ring a
+     live-feed click puts on its vehicle, so it is the one most often seen. */
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  animation: search-ping 1s ease-in-out 3;
+  pointer-events: none;
+}
+
+.map-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-load-error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 5, 5, 0.55);
+  backdrop-filter: blur(2px);
+}
+.map-load-error-overlay .error-boundary--full {
+  max-width: 360px;
+}
+
+/* The height the bottom band is built from. Named here because two different
+   things need it: the camera row itself, and --map-bottom-band further down,
+   which is what the rail menus clear. --map-cam-h tracks .map-cam-btn and is
+   overridden with it on a short screen.
+
+   There was a second height here, --map-close-h, for the "✕ Close Map" pill
+   that used to sit above the camera row in the explicit "View map" mode. The
+   pill is gone (see FleetMap.jsx), so the mode no longer costs the band 50px
+   and every rail menu opening off the bottom is that much taller. */
+.map-layer {
+  /* The camera rail is drawn on every mobile map, so its height is a property
+     of .map-layer. */
+  --map-cam-h: 34px;
+}
+
+
+@media (max-width: 767px) {
+
+  /* The bottom band, published for the rail menus to clear.
+   *
+   * On a phone the map's own chrome sits along the bottom: the "Close Map"
+   * pill (42px, centred, z-index 900) and the camera row (34px, right), both
+   * anchored at --footer-h + 16px. The four rail panels — layers, fleets,
+   * units, fuel alerts — were anchored at the SAME point, and every one of
+   * them opened straight into that chrome. Measured at 375x812 with the
+   * layers panel open: the pill covered 141x42px of it, burying the layer key
+   * and the hint line, and the panel in turn buried Reset view and Zoom out,
+   * which were unclickable for as long as it was open.
+   *
+   * z-index cannot settle this. Whichever of the two wins, one of them is
+   * hidden behind the other, and both are controls. The panels move up
+   * instead, past both rows: the camera buttons, then the pill on the line
+   * above them, 8px of air after each.
+   *
+   * Consumed by MapLayersMenu / FleetsMenu / UnitsMenu / FuelAlertsMenu, each
+   * with a 0px fallback so the value only bites where the pill is drawn. */
+  /* Two bands, because there are two bottom chromes.
+   *
+   * This used to be declared on `.map-layer--visible` only — the explicit
+   * "View map" mode. The normal mobile Fleet tab does NOT carry that class
+   * (see `.fleet-map-body .map-layer` below, which forces the layer visible
+   * through the tab system instead), so every panel there read the 0px
+   * fallback and opened straight down onto the camera buttons it belongs to.
+   *
+   * The camera row is on both, so it is cleared by both. The pill is only on
+   * the fullscreen one, so only that band pays for it. */
+  .map-layer {
+    --map-bottom-band: calc(var(--map-cam-h, 34px) + 8px);
+  }
+
+  .map-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+
+    transition: opacity 0.22s ease, visibility 0.22s ease;
+  }
+
+  .map-layer--visible {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+    z-index: 800;
+
+    top: var(--header-h, 56px);
+    bottom: 64px;
+    inset-inline: 0;
+  }
+
+  /* On mobile, always show the map layer — the fleet-map-body container
+     handles show/hide via the app tab system instead */
+  .fleet-map-body .map-layer {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    position: absolute !important;
+
+    /* The z-index goes with the `position: fixed` this rule just undid.
+     *
+     * The 700/800 above belong to the old mobile behaviour, where .map-layer
+     * was a FIXED full-viewport overlay that had to cover the page underneath
+     * it. Here it is an absolutely-positioned child of .fleet-map-body, so it
+     * only has to order itself against its own siblings — and there are none;
+     * every floating control on the map (StatusRail, the type toggle, the
+     * camera rail, the rail menus) is INSIDE it, so their order is untouched
+     * by this.
+     *
+     * Left at 700 it outranked the whole shell while occupying only the map
+     * panel, and anything that legitimately overlapped the panel's edge got
+     * cut off at it. The bottom tab bar (z-index 300) is the visible case: the
+     * FAB is raised 20px above the bar by design and the map's bottom edge
+     * fell 12px into that circle, slicing its top off and eating the taps
+     * that landed there. */
+    z-index: 0 !important;
+  }
+
+  .map-legend {
+    bottom: 16px;
+    left: 10px;
+    padding: 7px 10px;
+    gap: 5px;
+  }
+  .legend-label     { font-size: 10px; }
+  .vehicle-tooltip  { width: 210px; font-size: 11px; }
+}
+
+@media (max-width: 480px) {
+  .map-legend { display: none; }
+}
+
+@media (max-width: 767px) {
+  .fleet-map-body {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 480px) {
+  .vehicle-tooltip {
+    width: calc(calc(var(--vw) * 100) - 24px);
+    max-width: 300px;
+    font-size: 11px;
+  }
+}
+
+/* The map fills the viewport, so the page behind it must not flash a
+   different colour. This used to force the dark value with !important, which
+   overrode LIGHT mode across the whole app — hence the black Weighbridges
+   slab. Keep dark as the default and let the light theme win. */
+html, body, #root {
+  background-color: #050505;
+  margin: 0;
+  padding: 0;
+}
+html[data-theme="light"],
+html[data-theme="light"] body,
+html[data-theme="light"] #root {
+  background-color: #eef2f6;
+}
+
+.vehicle-panel:not(.vehicle-panel--open) {
+  border-bottom: none !important;
+  border-top: none !important;
+}
+
+.sukari-header {
+  border-bottom-color: #050505 !important;
+}
+
+.sukari-header + *,
+[ref] {
+  margin-top: 0 !important;
+}
+
+.app--light .fleet-map-body       { background: #e8edf2; }
+.app--light .gmap-fill .gm-style img { filter: brightness(1) saturate(1.05); }
+.app--light .vehicle-tooltip {
+  background: rgba(255,255,255,0.98);
+  border-color: #dde1e7;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+.app--light .vt-reg               { color: #0f172a; }
+.app--light .vt-driver,
+.app--light .vt-location          { color: #475569; }
+.app--light .vt-label             { color: #64748b; }
+.app--light .vt-value             { color: #0f172a; }
+.app--light .vt-divider           { background: #dde1e7; }
+.app--light .map-legend {
+  background: rgba(255,255,255,0.95);
+  border-color: #dde1e7;
+}
+.app--light .legend-label         { color: #475569; }
+.app--light .lf-icon {
+  background: rgba(255,255,255,0.92);
+}
+.app--light .route-tip {
+  background: rgba(255,255,255,0.97) !important;
+  border-color: #dde1e7 !important;
+  color: #0f172a !important;
+}
+
+/* ─── Rich hover card (ported from fleetdash's VehicleCard) ──────────────── */
+
+.vehicle-tooltip--rich {
+  width: 264px;
+  max-height: calc(calc(var(--vh) * 100) - 24px);
+  overflow-y: auto;
+}
+
+.vehicle-tooltip--rich .vt-header {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.vt-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vt-driver-sub {
+  font-size: var(--vt-fs-label);
+  color: var(--text-secondary);
+}
+
+.vt-info { pointer-events: none; user-select: none; }
+
+/* Driver / location row */
+.vt-person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.vt-person-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--vt-fs-label);
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 99px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.vt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vt-loc-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--vt-fs-label);
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stationary-time row — parked vehicles only (see VehicleStatsCard) */
+.vt-idle-row {
+  font-size: var(--vt-fs-body);
+  color: var(--text-secondary);
+  margin: -4px 0 10px;
+  line-height: 1.4;
+}
+.vt-idle-row b { color: var(--text-primary); font-weight: 700; }
+.vt-idle-since { color: var(--text-secondary); }
+.app--light .vt-idle-row   { color: #475569; }
+.app--light .vt-idle-row b { color: #0f172a; }
+
+/* ── Vitals, as a ledger ─────────────────────────────────────────────────────
+   Four bordered boxes in a 2 x 2 grid, until 2026-09-13. The grid stretched
+   every cell to the tallest in its row, and the cells are not equally full:
+   ENGINE is one word with nothing under it and sat beside SPEED, which carries
+   a value, a unit and a limit. So a third of the ENGINE box was empty, by
+   construction, on every vehicle — and the same happened wherever a tile had no
+   sub-line. Four boxes also paid for four borders and eight paddings to
+   separate readings that a hairline separates for nothing.
+
+   A ledger instead: one line per reading, label left, figure right, the
+   qualifier beside the figure rather than under it. Every line is exactly as
+   tall as a line, so there is no space that content is failing to fill. The
+   figures share a right edge and are tabular, which is what makes four
+   unrelated readings scannable as a column.
+
+   Used by the incident panel too (MapOverlay writes in this card's idiom), so
+   the two surfaces stay one thing. */
+.vt-tiles {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+.vt-tile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.vt-tile:last-child { border-bottom: 0; }
+.app--light .vt-tile { border-bottom-color: rgba(15, 23, 42, 0.09); }
+
+/* Tracking is a VARIABLE with today's value as its default. The hover card
+   keeps 0.7px; the fuel incident window sets --vt-ls-label to the 0.04em the
+   Maintenance page tracks its uppercase labels at, and every label inside that
+   window — these, the bar captions, the journey captions, the fact rows —
+   follows from one declaration instead of four. A fixed px tracking also drifts
+   in em terms every time the window's micro step changes, which is how 0.7px
+   came to mean 0.064em there and 0.058em on a phone. */
+.vt-tile-lbl {
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* Figure and qualifier, right-aligned as one group: the qualifier explains the
+   figure, so it travels with it rather than sitting under the label.
+   Never cropped (operator, 2026-10-13: "the burn rate info should be as
+   complete as the snapshot ... it should never be cropped out"): where the row
+   is too narrow for both, the qualifier wraps under the figure, still
+   right-aligned, rather than ending in an ellipsis. */
+.vt-tile-fig {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0 7px;
+  min-width: 0;
+  text-align: right;
+}
+.vt-tile-val {
+  font-size: var(--vt-fs-title);
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vt-tile-unit {
+  font-size: var(--vt-fs-label);
+  font-weight: 600;
+  opacity: 0.75;
+}
+.vt-tile-sub {
+  font-size: var(--vt-fs-label);
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Progress bars */
+.vt-bar-section { margin-bottom: 10px; }
+.vt-bar-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.vt-bar-lbl {
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.7px);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 6px;
+}
+.vt-bar-amt {
+  font-size: var(--vt-fs-label);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.vt-bar-track {
+  height: 5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.vt-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+.vt-bar-sub {
+  display: block;
+  font-size: var(--vt-fs-micro);
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* Journey row */
+.vt-journey-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.vt-jdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vt-jdot.dep  { background: #22c55e; box-shadow: 0 0 4px #22c55e55; }
+.vt-jdot.dest { background: #f59e0b; }
+.vt-jplace {
+  font-size: var(--vt-fs-label);
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* `flex: 1` — so each end grew to fill half the card and "Naitiri ⇄ Raiply"
+     came out as two words at opposite edges with the arrow adrift between
+     them. The arrow says these two places are the ends of ONE run, and it can
+     only say it while they are close enough to read as a pair.
+     Shrink-only: a long name still ellipsises rather than pushing the other
+     end off the card. */
+  flex: 0 1 auto;
+}
+.vt-jarrow {
+  font-size: var(--vt-fs-label);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Journey departure / ETA times */
+.vt-journey-times {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.vt-jtime {
+  font-size: var(--vt-fs-label);
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.vt-jtime--eta { color: #22c55e; }
+.vt-jtime-lbl {
+  font-size: var(--vt-fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--vt-ls-label, 0.6px);
+  color: var(--text-secondary);
+  margin-right: 2px;
+}
+
+/* ── Estate boundaries overlay ─────────────────────────────────────────────
+   Toggle + legend sit top-left of the map canvas, clear of Google's own
+   zoom control (bottom-right) and of the mobile close button. */
+/* Top-CENTRE, not a corner. MapOverlay owns both corners on desktop: a 336px
+   panel down the left and a 340px panel down the right, full height at
+   z-index 400. The centre band between them is the only clear space, and the
+   z-index has to clear 400 or the controls sit behind the panels — which is
+   exactly what happened. */
+/* The top-centre band. It used to hold the two layer buttons and the map key
+   as well; those moved into the control rail's menu, and what is left is the
+   isolation pill — the one thing here that is a STATEMENT about the map rather
+   than a control for it.
+
+   Width comes from --safe-w (the column between MapOverlay's rails, published
+   by useFloatingWindow) instead of the `calc(100% - 700px)` that hardcoded
+   336 + 340 + air. That guess was already wrong below 1024px, where the rails
+   narrow to 300. */
+.map-top-band {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 450;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  max-width: min(560px, var(--safe-w, calc(100% - 700px)));
+  pointer-events: none;   /* only the controls themselves take clicks */
+}
+/* "Showing KTCB 419R only" — the isolation indicator, in the same top-centre
+   band as the layer toggles and above MapOverlay's panels. Blue, not amber: an
+   isolated map is a deliberate state, not a warning. */
+.focus-pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(56, 130, 246, 0.55);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #bfdbfe;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.focus-pill:hover { border-color: rgba(56, 130, 246, 0.9); background: rgba(15, 23, 42, 0.92); }
+.focus-pill strong { color: #e2e8f0; font-weight: 800; letter-spacing: 0.3px; }
+.focus-pill-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #3882f6;
+  box-shadow: 0 0 0 3px rgba(56, 130, 246, 0.25);
+}
+.focus-pill-hint {
+  padding-left: 6px;
+  border-left: 1px solid rgba(148, 163, 184, 0.3);
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* The same pill for the same job, in the units menu's cyan rather than the
+   isolation blue — the two say "the fleet is missing on purpose" about two
+   different causes, and one clears something the other cannot. */
+.focus-pill--tracked {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #bae6fd;
+}
+.focus-pill--tracked:hover {
+  border-color: rgba(56, 189, 248, 0.9);
+  background: rgba(15, 23, 42, 0.92);
+}
+.focus-pill--tracked .focus-pill-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+/* `.zone-toggle-row`, `.zone-toggle-btn` and `.zone-legend-sub` all retired
+   with the top-centre button row. A layer is one row in the control rail's
+   menu now — switch, name and key together — so there is no button to skin, no
+   row to lay out, and no sub-heading needed to tell two stacked keys apart.
+   See MapLayersMenu.scss. */
+
+/* ── Map camera controls (zoom / reset) ─────────────────────────────────────
+   Google's built-in zoom and camera widgets can only be anchored to an EDGE of
+   the map, and on this screen every edge is spoken for: MapOverlay's 336px
+   left rail and 340px right rail are full-height at z-index 400, and the
+   footer nav is fixed across the bottom 64px at z-index 1000. The built-ins
+   sat at RIGHT_BOTTOM, so they disappeared behind the right rail's cards
+   whenever those ran long enough to reach the bottom. These replacements are
+   positioned by us instead: clear of the right rail (340 + 12 gap) and above
+   the footer (64 + 24 gap), inside the free centre column. */
+/* FIXED, not absolute, and on a phone this is the whole difference.
+ *
+ * Absolute anchored the rail to `.fleet-map-body`, whose height is
+ * `100vh - --header-h`. On a mobile browser `100vh` is the LARGEST viewport —
+ * the one with the URL bar hidden — so that box extends below the screen by
+ * however tall the bar is. The footer nav is `position: fixed` and therefore
+ * sits at the VISIBLE bottom, and the rail, measured from a container bottom
+ * that is off-screen, landed underneath it. Adding a footer-height inset did
+ * not save it: the inset was correct and the origin it was measured from was
+ * not, which is why this looked fixed in a desktop browser (no URL bar, the two
+ * bottoms coincide) and stayed broken on a phone.
+ *
+ * Fixed puts the rail in the same coordinate space as the nav it has to clear,
+ * so the clearance below holds whatever the browser chrome is doing. It changes
+ * nothing on desktop — `.fleet-map-body` spans the viewport there, so the two
+ * origins were already the same — and it does NOT escape the hidden tab panel,
+ * because `display: none` on an ancestor removes fixed descendants too.
+ */
+.map-cam-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 24px;
+  z-index: 450;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+
+/* The foot of the L: reset · zoom out · zoom in. */
+.map-cam-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+.map-cam-btn {
+  /* The chip's own colour, as a variable, because two things need to know it:
+     the chip paints it, and a badge sitting on the chip's corner draws a ring
+     in it. Overridden by the open state below, so the ring follows. */
+  /* White, as the tool rail (MapToolRail.scss .mtr-card). */
+  --chip: #ffffff;
+  --chip-ink: #334155;
+
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 8px;
+  background: var(--chip);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.16);
+  color: var(--chip-ink);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.map-cam-btn:hover {
+  --chip: #f1f5f9;
+  --chip-ink: #0f172a;
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
+/* A press that moves. The only feedback was the background going from 0.94 to
+   1.0 alpha, which over a map is no feedback at all — these chips are
+   translucent by design and the last 6% of opacity is invisible against
+   whatever is underneath. One pixel down is felt rather than seen, which is
+   what a press wants to be. */
+.map-cam-btn:active {
+  --chip: #e2e8f0;
+  transform: translateY(1px);
+}
+
+/* There was NO focus style on this class.
+ *
+ * Five controls sit on this rail — camera, layers, units, fuel alerts, fleets
+ * — every one of them reachable by keyboard, and the only indicator was the
+ * browser default, which is a thin ring the same blue-grey family as the chip
+ * and is routinely lost against a satellite tile. A ring that cannot be seen
+ * is the same as no ring.
+ *
+ * White, and doubled: the inner 2px separates the ring from the chip's own
+ * border and the outer dark halo separates it from the MAP, which may be a
+ * snow-bright tile or a night one. Not transitioned — a focus ring that fades
+ * in leaves a keyboard user with no indicator for the length of the fade. */
+.map-cam-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85);
+}
+/* Set apart from the zoom pair — it moves the camera rather than scaling it. */
+/* No margin now that it heads a row rather than trailing a column. */
+.map-cam-btn--reset { font-size: 15px; }
+
+/* The rails narrow to 300px before they stack, so the clearance follows. */
+/* Rescaled for the 90% app scale. Authored as 1024 LAYOUT px; above the
+   1024px threshold the app lays out at viewport/0.9, so the viewport that
+   corresponds to it is 1023. Anything at 1024 viewport already has 1138 layout px, so this narrow rule now stops just below the threshold.
+   See --app-zoom in src/index.scss. */
+@media (max-width: 1023px) {
+  .map-cam-controls { right: 16px; bottom: 24px; }
+}
+
+/* The standalone map key retired here. It was a collapsible box floating in
+   the same top-centre band as the buttons that turned its layers on — two
+   controls for one idea, in two places, and a key that stayed on screen for a
+   layer whether or not it was drawn. Both are one row of the layers menu now:
+   see MapLayersMenu.scss, which carries the swatch and hint styles.
+
+   `.zone-label` below is a different thing and stays — a name plate drawn ON
+   the map at a zone's centroid, not chrome. */
+
+/* Zone name plate, drawn as a DomMarker at the ring centroid. Non-interactive
+   so it never steals a click from the polygon underneath it. */
+.zone-label {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.62);
+  color: var(--zone-color);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  /* The imagery underneath ranges from near-black to bright red soil, so the
+     plate alone can't guarantee contrast — the outline does. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+.zone-label-area {
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.85;
+  color: #e2e8f0;
+}
+/* The surveyor's designation for the same ground. Deliberately quieter than the
+   operators' name above it: it is a cross-reference to the printed plan, not
+   what anyone calls the block on the radio. */
+.zone-label-plan {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  opacity: 0.7;
+  color: #cbd5e1;
+}
+
+/* The drawing's own area names (ZONE 3, ZONE 4, B1-B4). Same plate shape as a
+   zone name so they read as labels, in the plan layer's orange and a size down,
+   because they carry the drawing's ±1.5 km accuracy rather than a survey's. */
+.plan-label {
+  --zone-color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(15, 23, 42, 0.55);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+}
+.plan-label-note {
+  font-size: 8.5px;
+  font-weight: 600;
+  opacity: 0.8;
+  color: #e2e8f0;
+}
+
+/* InfoWindow body — Google styles the frame, we style the contents. */
+.zone-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  color: #0f172a;
+  font-size: 12px;
+}
+.zone-info strong { font-size: 13px; }
+.zone-info-plan { font-size: 11px; font-weight: 600; opacity: 0.75; }
+.zone-info-state { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; opacity: 0.65; }
+
+/* Below 768px MapOverlay's panels go static and stop overlaying the map, so the
+   centre band constraint no longer applies and the controls can use the width. */
+@media (max-width: 767px) {
+  /* Under the map-type toggle and the status chips, not on them: at 10px the
+     tracking pill covered both, and its own × with them. */
+  .map-top-band { top: 58px; max-width: calc(100% - 20px); }
+  .tracked-pill__clear { min-height: 30px; padding: 0 12px; }
+  /* The rail's own offsets are NOT set here. They are set in the
+     `max-width: 767px` block further down this file, which wins on source
+     order and carries the reasoning — see `.map-cam-controls` there.
+
+     What used to stand here was `right: 16px; bottom: 24px` under a note
+     saying the map body runs the full height underneath the fixed nav. That
+     stopped being true when App.scss gave `.app-map-panel` a margin-bottom of
+     --mobile-nav-h; leaving a dead declaration and a stale explanation behind
+     is how the double-offset below went unnoticed. */
+}
+
+/* The planting plan's own button styling retired with the button row. It was
+   deliberately styled apart from the zone toggle — one layer is authoritative
+   geofence data, the other an indicative trace, and they must not read as
+   equals. That distinction now lives in the menu's copy and in the two keys
+   the menu shows, rather than in a differently-tinted chip.
+
+   `.zone-legend--plan` went the same way, one step earlier. */
+
+
+
+/* Hallmark · component: map hover card · genre: modern-minimal
+ * theme: in-project tokens (preserved) · states: default · hover · focus-visible
+ * active · disabled · empty · untracked · pinned
+ * pre-emit critique: P5 H5 E5 S5 R5 V4 · contrast: pass (40-41)
+ */
+
+/* ── The map's hover cards ──────────────────────────────────────────────────
+   One card, three overlays: the weighbridges, the Kabras survey and the
+   planting plan. They were three separate opinions before — a white sheet with
+   near-black ink in one, a different type scale in the next — on a map that
+   sits inside a dark application. A card that ignores the app's theme reads as
+   something the map borrowed rather than something the product drew.
+
+   So the InfoWindow's own chrome is restyled to the app surface (below), and
+   everything inside it is this block. Sizes come off the card's own scale
+   rather than the global one: these sit over satellite imagery beside 26 px
+   markers, where the app's body size is bigger than the card can afford.
+
+   `.mapcard-host` is the element hoverWindow builds. It carries nothing of its
+   own now: it is the hover target that keeps the card alive while the pointer
+   is on it, and a box rather than `display: contents` for that reason alone.
+   Every pixel of surface and padding belongs to `.mapcard` below. */
+.mapcard-host { display: block; }
+
+.mapcard {
+  --mc-gap: 7px;
+  --mc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* The card's own named colours. The app's palette has no token for "a chip
+     that means delivery", so they are named here rather than improvised at
+     each use — and naming them is what let the muted grey be caught: at 9-10px
+     on the panel it measured about 2.4:1, well under the 4.5 small text needs,
+     so the quiet register is --text-secondary and the card carries no colour
+     that cannot be read. */
+  --mc-good:  #7dd3a0;
+  --mc-good-line: rgba(34, 197, 94, 0.35);
+  --mc-good-fill: rgba(34, 197, 94, 0.1);
+  --mc-info:  #8fbcf5;
+  --mc-info-line: rgba(56, 130, 246, 0.5);
+  --mc-info-fill: rgba(56, 130, 246, 0.14);
+  --mc-info-fill-strong: rgba(56, 130, 246, 0.22);
+  --mc-info-ring: #3882f6;
+  --mc-quiet: var(--text-secondary);
+  --mc-surface: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-gap);
+  /* THE CARD IS THE CARD. Surface, hairline, radius, shadow and — the reason
+     this moved — padding are all drawn here, on the element that also lays out
+     the content, rather than on the InfoWindow frame Google wraps it in.
+     Two goes at padding that frame both came back short on one side, and the
+     mechanism is measurement order: the frame sizes itself from the content it
+     is handed, so anything declared on the frame afterwards is a gap the frame
+     never counted. Nothing here depends on that measurement. The frame is
+     reduced to a transparent pass-through further down, and `-d` is left
+     `overflow: visible`, so even a frame that measures a few pixels narrow
+     shows the whole card rather than clipping it.
+     One value on all four sides: this is what "equal left to right, equal top
+     to bottom" means when it cannot be argued with. */
+  box-sizing: border-box;
+  padding: 14px;
+  max-width: 276px;
+  min-width: 200px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+/* Head — the name, and what kind of thing this card is about. One row with the
+   chip pushed right: the title is what you read, the chip is what you glance
+   at, and stacking them would make the glance a read. */
+.mapcard__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: var(--mc-gap);
+  border-bottom: 1px solid var(--border);
+}
+.mapcard__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+/* The chip carries a CATEGORY — never a count, and never a status colour that
+   would compete with the marker states the map already paints. */
+.mapcard__chip {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.mapcard__chip--delivery {
+  color: var(--mc-good);
+  border-color: var(--mc-good-line);
+  background: var(--mc-good-fill);
+}
+.mapcard__chip--transfer {
+  color: var(--mc-info);
+  border-color: var(--mc-info-line);
+  background: var(--mc-info-fill);
+}
+.mapcard__chip--quiet { opacity: 0.7; }
+
+/* Subject — the lorry. Second, because it is what the card was opened to find. */
+.mapcard__subject { display: flex; }
+.mapcard__plate {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.mapcard__plate--loose { display: inline-flex; align-items: baseline; gap: 6px; }
+
+/* The backlink. A button, not an anchor: it moves the camera inside this app
+   and navigates nothing, and an <a href="#"> would offer a middle-click that
+   opens a dead tab. All eight states, and the focus ring never animates in. */
+.mapcard__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--mc-surface);
+  color: var(--mc-info);
+  font: inherit;
+  cursor: pointer;
+  transition: background 140ms var(--mc-ease), border-color 140ms var(--mc-ease);
+}
+.mapcard__link:hover,
+.mapcard__link.is-hover {
+  background: var(--mc-info-fill);
+  border-color: var(--mc-info-line);
+}
+.mapcard__link:focus-visible,
+.mapcard__link.is-focus { outline: 2px solid var(--mc-info-ring); outline-offset: 1px; }
+.mapcard__link:active,
+.mapcard__link.is-active { background: var(--mc-info-fill-strong); }
+.mapcard__link[disabled],
+.mapcard__link.is-disabled { opacity: 0.45; cursor: not-allowed; }
+.mapcard__chev { font-size: 12px; line-height: 1; opacity: 0.8; }
+
+/* Measure — the one number the conversation is about. */
+.mapcard__figure {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+}
+.mapcard__fig {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.mapcard__figk {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mc-quiet);
+}
+
+/* Working — a definition list, so the pairs are pairs in the markup as well as
+   on screen. Figures right-aligned in tabular numerals: they are read down a
+   column against each other, and a proportional 1 breaks the column. */
+.mapcard__rows { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+.mapcard__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.mapcard__k {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.mapcard__v {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+/* A field the provider is not filling. Rendered rather than hidden: a card that
+   silently omits it would have an operator assume nobody asked. */
+.mapcard__absent {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-style: italic;
+  color: var(--mc-quiet);
+}
+
+/* Circumstance — last, quiet, under a hairline. */
+.mapcard__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: var(--mc-gap);
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.mapcard__foot--notes { flex-direction: column; gap: 2px; line-height: 1.35; }
+.mapcard__muted { color: var(--mc-quiet); }
+
+/* A scale with nothing in the window is not a broken marker, and the card has
+   to say which of the two it is. */
+.mapcard__empty {
+  margin: 0;
+  max-width: 210px;
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+/* The survey's class line, with the swatch that ties a pin back to the key. */
+.mapcard__class {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--text-secondary);
+}
+.mapcard__swatch {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+/* ── The InfoWindow's own chrome ────────────────────────────────────────────
+   Google paints a white sheet with its own padding, a tail and a close button.
+   Restyled here to the app's panel so the card belongs to the product. These
+   are the documented structural classes — `-c` the frame, `-d` the scroll box,
+   `-tc` the tail — scoped under `.gm-style` so nothing else can catch them.
+
+   The close button goes. These cards are dismissed by moving the pointer away
+   or with Escape; an X on a card that opens under the pointer is a target that
+   moves while you aim at it. */
+.gm-style .gm-style-iw-c {
+  /* Nothing. Not a surface, not a border, not a shadow, not a pixel of
+     padding — `.mapcard` above draws all five, and a frame that drew any of
+     them again would be a second box around the first.
+     Google's own padding is also not symmetrical: it reserves a strip at the
+     top for the close button we hide, which is why the gap above the title
+     used to be larger than the one below the footer. */
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.gm-style .gm-style-iw-d {
+  /* Visible, so a frame measured narrow shows the card instead of cropping it,
+     and so the card's shadow is not cut off at the frame's edge. Google
+     computes a max-width and a max-height here from the map's viewport and
+     leaves a scrollbar gutter inside them; on a card this small the gutter was
+     the whole asymmetry on the right. */
+  overflow: visible !important;
+  background: transparent;
+  max-width: none !important;
+  padding: 0 !important;
+}
+.gm-style .gm-style-iw-tc::after { background: var(--bg-panel); }
+/* The close button, and the header strip that reserves room for it. Hiding the
+   button alone leaves the strip holding the top padding open. */
+.gm-style .gm-style-iw-c button.gm-ui-hover-effect,
+.gm-style .gm-style-iw-chr { display: none !important; }
+
+/* Light mode. The surface and the ink flip with the app; the two accents do
+   not need to, beyond a darker shade that holds its contrast on white. */
+.app--light .mapcard,
+.app--light .gm-style .gm-style-iw-tc::after { background: #ffffff; }
+.app--light .mapcard { color: #0f172a; }
+.app--light .mapcard__title { color: #0f172a; }
+.app--light .mapcard__chip--delivery { color: #15803d; }
+.app--light .mapcard__chip--transfer { color: #1d4ed8; }
+.app--light .mapcard__link { color: #1d4ed8; background: rgba(15, 23, 42, 0.04); }
+.app--light .mapcard__swatch { box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mapcard__link { transition: none; }
+}
+
+/* ── Live-feed rows that fly to their vehicle ────────────────────────────── */
+.feed-item--focusable { cursor: pointer; }
+.feed-item--focusable:hover { background: rgba(56, 130, 246, 0.12); }
+.feed-item--focusable:focus-visible {
+  outline: 1px solid rgba(56, 130, 246, 0.7);
+  outline-offset: -1px;
+}
+
+/* ── Dark trackers: last fix older than 24 h ───────────────────────────────
+   The marker still shows WHERE the vehicle was when its tracker last spoke,
+   because that is genuinely useful — but it must not read as a live position.
+   Measured 2026-08-01: 77 of Sukari's 278 located vehicles and 53 of Kasulu's
+   211 were dark, the oldest at 564 days. Undimmed, those sit on the map
+   indistinguishable from vehicles reporting every 30 seconds.
+
+   Deliberately still visible and still hoverable — this is a demotion, not a
+   removal. The halo, pulse and ripple are dropped in markerIconHtml rather
+   than hidden here, so a dark marker costs less to draw as well. */
+.lf-marker-wrap.lf-dark {
+  opacity: 0.38;
+  filter: grayscale(0.85);
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+/* Hovering restores it to full strength — you are asking about this one. */
+.lf-marker-wrap.lf-dark:hover {
+  opacity: 1;
+  filter: grayscale(0);
+}
+/* A dark marker never scales up on hover the way a live one does; the size
+   jump reads as liveliness. */
+.lf-marker-wrap.lf-dark:hover { transform: none; }
+
+.lf-dark-age {
+  position: absolute;
+  top: -3px;
+  right: -6px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── ADDED 2026-08-06: Location icon button ─────────────────────────────────
+   Replaces the static 📍 emoji. Clicking copies lat/lng to clipboard.
+   Brief "Copied!" flash via the --copied modifier class. */
+.vt-loc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary, #8b949e);
+  border-radius: 3px;
+  transition: color 0.15s, transform 0.15s;
+  pointer-events: auto;
+}
+.vt-loc-icon-btn:hover {
+  color: #60a5fa;
+  transform: scale(1.2);
+}
+.vt-loc-icon-btn:focus-visible {
+  outline: 2px solid var(--accent-info, #38bdf8);
+  outline-offset: 1px;
+  color: #60a5fa;
+}
+/* The flash. `!important` because both modifiers have to beat :hover, which
+   the cursor is still sitting on at the moment the click lands. */
+.vt-loc-icon-btn--copied {
+  color: #22c55e !important;
+  transform: scale(1.15) !important;
+}
+/* The clipboard refused. Held ~800ms longer than the tick: "it worked" needs
+   a glance, "it did not" needs reading the tooltip underneath. */
+.vt-loc-icon-btn--failed {
+  color: #f59e0b !important;
+  transform: scale(1.15) !important;
+}
+/* No fix to copy — the marker is drawn from a last-known position. Dimmed
+   rather than removed so the row does not reflow as a unit loses its fix. */
+.vt-loc-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+.vt-loc-icon-btn:disabled:hover { color: var(--text-secondary, #8b949e); transform: none; }
+
+/* Announced, not shown. */
+.vt-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.vt-loc-icon {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* ── ADDED 2026-08-06: Cluster markers ──────────────────────────────────────
+   Shown below zoom 14 when multiple vehicles are within ~200m of each other.
+   Click to zoom in and separate them into individual markers. */
+.lf-cluster {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lf-cluster__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--cc, #22c55e);
+  opacity: 0.35;
+  animation: cluster-pulse 2s ease-in-out infinite;
+}
+@keyframes cluster-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.35; }
+  50%       { transform: scale(1.15); opacity: 0.15; }
+}
+.lf-cluster__bubble {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--cc, #22c55e);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 3px rgba(0,0,0,0.3);
+  letter-spacing: -0.3px;
+  transition: transform 0.15s;
+}
+.lf-cluster:hover .lf-cluster__bubble {
+  transform: scale(1.12);
+}
+
+/* ── ADDED 2026-08-06: Canvas overlay for smooth fleet rendering ─────────────
+   Sits on top of the Google Map, pointer-events:none so the map still receives
+   pan/zoom. Click and hover are handled by JS hit-testing on the canvas itself
+   at zoom < CANVAS_ZOOM. Above that zoom DOM markers take over. */
+.fleet-canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  z-index: 2;
+  image-rendering: crisp-edges;
+}
+/* ── ADDED 2026-08-06: Trip Path overlay ────────────────────────────────────
+   Drawn by a marker click alongside the route. No button and no close chip:
+   the top-centre strip belongs to the estate-areas / planting-plan controls,
+   so the path is dismissed by clicking the same unit again or the empty map. */
+
+/* CHANGED 2026-08-08: timestamp TICKS along the path, not timestamp labels.
+   A tick is a direction triangle and nothing else until it is clicked; the
+   stamp opens on the clicked one alone, so the line stays readable. */
+.tp-tick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Transparent padding rather than a bigger triangle: 12 px of arrow is the
+     right amount of ink on the line, ~26 px is a reliable tap target. */
+  padding: 7px;
+}
+.tp-tick__arrow {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 11px solid #00e5ff;
+  /* Rotated inline to the vehicle's heading — a triangle that points the way
+     it went is the direction cue, so it earns its place before it is clicked.
+     Satellite imagery is busy, hence the shadow. */
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9));
+  transition: border-bottom-color 120ms ease, filter 120ms ease;
+}
+.tp-tick:hover .tp-tick__arrow,
+.tp-tick--open .tp-tick__arrow {
+  border-bottom-color: #fff;
+  filter: drop-shadow(0 0 5px rgba(0,229,255,0.95));
+}
+.tp-tick__bubble {
+  position: absolute;
+  bottom: calc(100% - 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: rgba(0,0,0,0.82);
+  border: 1px solid rgba(0,229,255,0.55);
+  border-radius: 5px;
+  padding: 3px 7px;
+  white-space: nowrap;
+  /* Clickable, unlike the labels this replaced. The bubble is a DESCENDANT of
+     the marker node, so a click on it bubbles to the tick's handler and closes
+     it. Letting it fall through instead would hand the click to the map, which
+     dismisses the whole path — a heavy answer to "close this stamp". */
+  pointer-events: auto;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+}
+.tp-tick__ts {
+  font-size: 9px;
+  color: #00e5ff;
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+.tp-tick__speed {
+  font-size: 10px;
+  color: #fff;
+  font-weight: 600;
+  font-family: var(--font-ui);
+}
+
+/* Fuel event markers */
+/* ── CHANGED 2026-08-08: the three dots ─────────────────────────────────────
+   Green (rippling) where the run began, amber for a stop it drove away from,
+   red where it ended. Replaces the START/END word chips and the red "STOP"
+   octagons: those were three different shapes shouting three different things,
+   when all a reader wants along a line is how long the unit stood at a point.
+   Colour carries that; the tooltip carries the detail, on hover only. */
+.tp-dot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Transparent padding around a small dot, for a tap target that works. */
+  padding: 6px;
+  cursor: pointer;
+}
+.tp-dot__pin {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.85);
+  transition: transform .15s;
+}
+.tp-dot:hover .tp-dot__pin { transform: scale(1.3); }
+
+.tp-dot--start .tp-dot__pin { background: #22c55e; }
+.tp-dot--stop  .tp-dot__pin { background: #f59e0b; }
+.tp-dot--end   .tp-dot__pin { background: #ef4444; }
+
+/* The ripple marks the START only — one per path, so it reads as "this is
+   where it began" rather than as decoration. It is a separate ring behind the
+   dot so the dot itself never moves: a marker that changes size is hard to
+   aim at. */
+.tp-dot--start::before {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #22c55e;
+  opacity: 0.55;
+  pointer-events: none;
+  animation: tp-dot-ripple 2s ease-out infinite;
+}
+@keyframes tp-dot-ripple {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(3.2); opacity: 0; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-dot--start::before { animation: none; opacity: 0.35; transform: scale(2); }
+}
+
+.tp-dot__tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% - 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 7px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+.tp-dot:hover .tp-dot__tip { display: flex; }
+/* The tooltip border echoes the dot it belongs to. */
+.tp-dot--start .tp-dot__tip { border-color: rgba(34,197,94,0.55); }
+.tp-dot--stop  .tp-dot__tip { border-color: rgba(245,158,11,0.55); }
+.tp-dot--end   .tp-dot__tip { border-color: rgba(239,68,68,0.55); }
+
+.tp-dot__time {
+  font-size: 10px;
+  color: #00e5ff;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+}
+.tp-dot__detail {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 700;
+}
+.tp-dot__place {
+  font-size: 10px;
+  color: #00e5ff;
+  font-weight: 500;
+  max-width: 180px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.tp-dot__place--coords {
+  color: #8b949e;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+
+
+/* ── No text selection on the map's own UI ──────────────────────────────────
+ *
+ * A map is dragged, and a drag that leaves a trail of highlighted labels reads
+ * as the interface being broken. It matters more now that three of the things
+ * over the map are windows with drag handles: the gesture that moves them is
+ * the same gesture that selects text inside them.
+ *
+ * Scoped, NOT applied to `.fleet-map-body` wholesale — the side panels live in
+ * that subtree, and a plate, a driver's name or a feed line is something an
+ * operator copies. The rule covers what is dragged and what is chrome; the
+ * things that are READ keep their selection.
+ *
+ * `user-select` inherits, and an element's own declaration beats an inherited
+ * one whatever the ancestor's specificity — so `.fi-slug` (audit ids,
+ * deliberately `user-select: text`) is unaffected by anything here.
+ */
+.map-layer,
+.gmap-fill,
+.lf-marker-wrap,
+.zone-label,
+.map-cam-controls,
+.map-layers,
+.fuel-alerts,
+.units-menu,
+.map-top-band,
+.vehicle-tooltip__bar,
+/* The HOVER card only. A pinned card is a window an operator reads, and
+   `.fi-modal` — the fuel incident window — is a whole report built on the same
+   wrapper class: litres, timings, confidence, the audit id. Locking those was
+   caught by measuring the computed value rather than by reading the selector,
+   which is the only way this kind of over-reach shows up. */
+.vehicle-tooltip:not(.vehicle-tooltip--pinned):not(.fi-modal) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Google's InfoWindow is the one thing inside .gmap-fill that exists to be
+   read — the zone detail popup. It opts back in. */
+.gmap-fill .gm-style-iw,
+.gmap-fill .gm-style-iw * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Touch: suppress the long-press callout and the selection handles it drags in
+   with. `touch-action` is deliberately NOT set here — the map owns its own
+   gestures and pinch-zoom must keep working. */
+@media (pointer: coarse) {
+  .map-layer,
+  .gmap-fill,
+  .lf-marker-wrap,
+  .map-cam-controls,
+  .map-layers,
+  .fleets-menu,
+  .fuel-alerts,
+  .units-menu,
+  .map-top-band {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* ── How tall a rail menu's panel may be ───────────────────────────────────
+ *
+ * The three rail menus — layers, fuel alerts, fleets — all anchor their panel
+ * to the BOTTOM of their own button and grow upward, capped at --safe-h. That
+ * variable describes the column the map has between MapOverlay's rails; it
+ * knows nothing about the fixed header, so a panel with enough rows opens
+ * straight up through it. Measured at 1280x550 on KASULU: the layers panel
+ * started at y=44 and the fleets panel at y=20, against a header ending at 57.
+ *
+ * Phones already dodge this — below 768px each panel flips to open upward with
+ * its own bounded height. This is the case that rule cannot reach: WIDE enough
+ * to miss the phone breakpoint, and short enough (or full enough) that the
+ * space above the button runs out.
+ *
+ * The cap is the room above the HIGHEST button the rail can hang a panel on,
+ * so one number holds whichever of the six is pressed:
+ *
+ *     rail top     = 100dvh - footer - 24 (the rail's bottom offset) - rail height
+ *     panel bottom = rail top + one button
+ *     usable       = panel bottom - header - 8 (breathing room)
+ *
+ * The rail is an L (see .map-cam-row): the three camera buttons sit in a ROW
+ * along the bottom, so the COLUMN is five tall — four menus stacked on the
+ * zoom-in button. Five 34px buttons and four 6px gaps is a 194px rail, which
+ * reduces the whole thing to `100dvh - header - footer - 192px`. Below 560px
+ * tall the buttons shrink to 28 and the gaps to 4 — a 156px rail — so the
+ * constant does too.
+ *
+ * These are a BUTTON COUNT written as a number, so adding a MENU to the column
+ * without changing them silently lets every panel open through the header.
+ * Whoever adds the fifth menu: 6x34 + 5x6 - 2 = 232, and 6x28 + 5x4 - 2 = 186.
+ * Turning the corner bought back 80px of panel height, which on a 450px-tall
+ * window is the difference between a list and a sliver.
+ *
+ * Left UNSET below 769px: the phone rule owns the height there, and defining
+ * this would override it.
+ */
+@media (min-width: 768px) {
+  .map-cam-controls {
+    --rail-panel-max-h: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 192px);
+  }
+}
+@media (min-width: 768px) and (max-height: 560px) {
+  .map-cam-controls {
+    --rail-panel-max-h: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 154px);
+  }
+}
+
+/* ── The control rail on a SHORT screen ─────────────────────────────────────
+ *
+ * Five 34px buttons and four 6px gaps is 198px of vertical, which fits a phone
+ * held upright and does not fit one turned sideways: at 360px tall, with a
+ * 110px header and a 60px nav both fixed, the rail would start above the
+ * header and take the zoom controls with it.
+ *
+ * Keyed on HEIGHT, not width — the failure is a vertical one, and a short
+ * landscape phone is wide. 5x28 + 4x4 = 156px, which clears it.
+ */
+@media (max-height: 560px) {
+  /* The band is measured from these, so it shrinks with them rather than
+     reserving 6px of nothing under the pill. */
+  .map-layer { --map-cam-h: 28px; }
+  .map-cam-controls { gap: 4px; }
+  .map-cam-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+  }
+  .map-cam-btn--reset { font-size: 13px; }
+  /* The badges shrink with the buttons — as a fixed SQUARE, like the full-size
+     rule. This block still said `min-width: 13px; height: 13px`, the geometry
+     that made the badge an ellipse the moment it held two digits, and it is
+     the authoritative short-viewport variant for all four. It only stopped
+     applying because the per-component rules happen to come later in the
+     bundle, which is source order doing a job specificity should.
+     At 28px buttons the 15px glyph starts at y 6.5; a 15px disc at top -10
+     ends at 6. They do not meet. */
+  .map-layers__count,
+  .fuel-alerts__count,
+  .units-menu__count,
+  .fleets-menu__flagcount {
+    /* Outward, for the reason given on the full-size rule: this is a column
+       with a 6px gap, so up is where the button above is. At 28px the glyph
+       ends at x 21.5 and a 15px disc at right -10 starts at 22. */
+    top: -3px; right: -10px;
+    width: 15px; height: 15px;
+    font-size: 7.5px;
+  }
+}
+
+/* ── Playback fuel pins ─────────────────────────────────────────────────────
+ *
+ * A chip: the pump glyph and a signed figure, nothing else. Red out of the
+ * tank, green into it — the same two colours the fuel-alerts menu and the
+ * scrubber marks use for the same two facts.
+ *
+ * THE FIGURE ALONE is the design. No clock, no place, no verdict wording, and
+ * no tooltip carrying them: a pin is read at a glance while following a route,
+ * and the only question it has to answer there is how much fuel moved and
+ * which way. The timeline beside the scrubber already holds the sentence, the
+ * time and whether our own probe confirmed it.
+ *
+ * The plate earns its area by being small — roughly 54x18px against satellite
+ * imagery that is bright in one place and near-black in the next, where a text
+ * shadow alone leaves the figure legible on about half a route. Opaque for the
+ * same reason the rest of this map's chrome is: translucency over hybrid
+ * imagery is a contrast lottery.
+ */
+.pb-fuel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px 2px 4px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(9, 14, 26, 0.94);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  /* Nothing to hover on a fuel pin, so nothing catches the pointer — the map
+     keeps its drag, and a pan that starts on top of a pin is not swallowed. */
+  pointer-events: none;
+}
+.pb-fuel__icon { display: inline-flex; }
+/* Tabular so a route's figures line up instead of jittering, and the sign is
+   U+2212 in the markup, which is a digit wide where a hyphen is not. */
+.pb-fuel__amt { font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+
+/* Brighter than the alert palette's #ef4444 / #22c55e: these sit on a dark
+   plate on top of dimmed imagery, two layers down from where those were
+   contrast-checked. */
+.pb-fuel--drain { color: #f87171; }
+.pb-fuel--fill  { color: #4ade80; }
+.pb-fuel--speed { color: #fbbf24; }
+
+/* A pin that carries a tip takes the pointer back. Speeding always does — a
+   peak figure is not the whole story without the moment it happened at — and
+   so does a fuel pin on the TRIP PATH, which has no timeline beside it to hold
+   the clock the way the day replay's scrubber does. */
+.pb-fuel--speed,
+.pb-fuel--hover { pointer-events: auto; position: relative; cursor: pointer; }
+.pb-fuel__tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 9px;
+  /* Follows the pin: amber for speeding, red for a drain, green for a fill.
+     A fixed amber border was right while speeding was the only pin with a tip. */
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  color: #e2e8f0;
+  font-weight: 500;
+  z-index: 30;
+}
+.pb-fuel--speed:hover,
+.pb-fuel--hover:hover { z-index: 20; }
+.pb-fuel--speed:hover .pb-fuel__tip,
+.pb-fuel--hover:hover .pb-fuel__tip { display: flex; }
+
+/* ── Waypoint pins on a replayed track ──────────────────────────────────────
+   A dot on the line with the time beside it. Unlike the fuel and speeding
+   pins, the clock is ON the pin: these mark where the unit reached somewhere
+   — a gate, a zone, a dispatch — and the question they answer is "when", so
+   the answer is not hidden behind a hover.
+
+   Cyan, matching the replay trail, so a reader can tell at a glance which
+   pins belong to the replay and which to the static trip path. */
+.pb-way {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border: 1px solid #38bdf8;
+  border-radius: 999px;
+  background: rgba(9, 14, 26, 0.94);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+  color: #7dd3fc;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  /* Takes the pointer back so the sentence can be read; the pin is small and
+     sits on a line the reader is already following. */
+  pointer-events: auto;
+  position: relative;
+  cursor: default;
+}
+.pb-way__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #38bdf8;
+  flex: 0 0 auto;
+}
+/* Tabular, so a column of times down a route does not jitter. */
+.pb-way__time { font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+
+.pb-way__tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  max-width: 240px;
+  white-space: normal;
+  text-align: left;
+  border: 1px solid #2a2d35;
+  border-radius: 7px;
+  background: rgba(9, 14, 26, 0.97);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  z-index: 12;
+}
+.pb-way:hover .pb-way__tip { display: flex; }
+
+.app--light .pb-way {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0369a1;
+}
+.app--light .pb-way__tip {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: #dde1e7;
+}
+
+/* ── Minute dots on a replayed track ────────────────────────────────────────
+   One per minute the unit was reporting. There are a lot of them, so closed
+   they are the smallest mark on the map — a 6px dot that reads as texture
+   along the line until you want one. Clicking opens the card below.
+
+   Deliberately quieter than the waypoint pins: a gate crossing is a fact
+   about the day, a minute dot is a handle for asking about one. */
+.pb-min {
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* A hit area larger than the ink, so a 6px dot is still clickable on a
+     touch screen without drawing a 20px blob on the route. */
+  width: 18px;
+  height: 18px;
+}
+.pb-min__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e2f5ff;
+  border: 1.5px solid #0ea5e9;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.pb-min:hover .pb-min__dot { transform: scale(1.35); }
+.pb-min--open .pb-min__dot { background: #0ea5e9; transform: scale(1.35); }
+
+/* The card a minute dot opens.
+ *
+ * Colours are stated OUTRIGHT here, in both themes, rather than taken from
+ * --ink / --text-2 / --border. Those are page-bridge aliases declared on the
+ * screen wrappers (.ua-page, .drivers-page and friends); this markup lives
+ * inside a Google Maps overlay pane, where none of them is defined — so every
+ * one of them fell through to its dark fallback and the card rendered light
+ * grey text on a white sheet in light mode. The map's other overlays hardcode
+ * for exactly this reason. */
+.pb-card {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 272px;
+  padding: 10px 11px;
+  text-align: left;
+  white-space: normal;
+  border: 1px solid #2a2d35;
+  border-radius: 10px;
+  background: rgba(9, 14, 26, 0.975);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.62);
+  font-family: var(--font-ui);
+  color: #f0f4f8;
+  z-index: 14;
+  cursor: default;
+}
+
+.pb-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pb-card__title {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.1px;
+  color: #f0f4f8;
+}
+.pb-card__when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.pb-card__ago   { font-size: 10px; color: #9fb0c3; }
+.pb-card__stamp { font-size: 10px; color: #9fb0c3; font-variant-numeric: tabular-nums; }
+
+/* The street address. Wraps to at most two lines and then clips — a full
+   Kenyan postal address runs longer than this card is wide, and the first two
+   lines carry the road and the locality, which is the part being read. */
+.pb-card__addr {
+  margin-top: 8px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #c8d4e2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pb-card__addr--wait { color: #7c8899; font-style: italic; }
+
+.pb-card__zones { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.pb-card__zone {
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #38bdf8;
+  color: #7dd3fc;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.pb-card__stats { display: flex; gap: 6px; margin-top: 9px; }
+.pb-card__stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 7px;
+  border: 1px solid #2a2d35;
+  border-radius: 7px;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9fb0c3;
+}
+.pb-card__stat b {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #f0f4f8;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-card__coords {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pb-card__latlng {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #9fb0c3;
+}
+
+/* Copy the reading. A crosshair rather than a clipboard glyph: the thing being
+   copied is a GPS fix, and the icon says which of the card's several numbers
+   the button means. */
+.pb-card__copy {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #2a2d35;
+  border-radius: 6px;
+  background: none;
+  color: #9fb0c3;
+  cursor: pointer;
+}
+.pb-card__copy:hover { color: #f0f4f8; border-color: #4a5160; }
+.pb-card__copy:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.pb-card__copy.is-copied { color: #22c55e; border-color: #22c55e; }
+.pb-card__copy.is-failed { color: #ef4444; border-color: #ef4444; }
+
+/* ── Light mode ─────────────────────────────────────────────────────────────
+   Every text colour restated. The card sits on a white sheet here, so nothing
+   may keep the dark theme's pale greys. */
+.app--light .pb-card {
+  background: rgba(255, 255, 255, 0.985);
+  border-color: #dde1e7;
+  color: #0f172a;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+}
+.app--light .pb-card__title    { color: #0f172a; }
+.app--light .pb-card__ago,
+.app--light .pb-card__stamp,
+.app--light .pb-card__latlng   { color: #5b6b7f; }
+.app--light .pb-card__addr     { color: #24354a; }
+.app--light .pb-card__addr--wait { color: #7a8798; }
+.app--light .pb-card__zone     { color: #0369a1; border-color: #0ea5e9; }
+.app--light .pb-card__stat     { border-color: #dde1e7; color: #5b6b7f; }
+.app--light .pb-card__stat b   { color: #0f172a; }
+.app--light .pb-card__copy     { border-color: #dde1e7; color: #5b6b7f; }
+.app--light .pb-card__copy:hover { color: #0f172a; border-color: #9aa7b6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-min:hover .pb-min__dot,
+  .pb-min--open .pb-min__dot { transform: none; }
+}
+
+/* ── Marker clusters ────────────────────────────────────────────────────────
+   Shown only while a filter narrows the fleet — see the cluster pass in
+   FleetMap.jsx for why, and lib/markerCluster.js for how the grouping works.
+
+   Built from the marker's own parts so a cluster reads as "several of those"
+   rather than as a new kind of object on the map. The badge is the only new
+   element: a count in the alert red the rest of the map already uses. */
+.lf-cluster {
+  --lf-marker: 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* Same 0.15s ease the vehicle marker uses — a cluster that grew on a
+     different curve would read as a different control. */
+  transition: transform 0.15s ease;
+}
+.lf-cluster:hover { transform: scale(1.18); }
+
+.lf-cluster-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+/* The count. Top-right of the sprite, clear of the heading it points in.
+
+   A CIRCLE, never a pill. It was `min-width` plus horizontal padding, which
+   is the standard notification-badge recipe and is wrong here: at one digit
+   it drew a circle and at two it stretched into a lozenge, so a cluster
+   growing from 9 to 10 changed SHAPE as well as number. On a map where every
+   other round thing is a status dot, a badge that is sometimes round and
+   sometimes not reads as two different objects.
+
+   So the diameter is set explicitly and `aspect-ratio` holds it square, with
+   no horizontal padding to stretch it. Wider counts get a WIDER CIRCLE rather
+   than a longer one — the three steps below are the only widths the label can
+   take, since clusterBadgeLabel caps at "99+". Type steps down on the widest
+   so three characters still clear the curve.
+
+   Tabular figures throughout, so "11" and "10" occupy the same width and the
+   badge does not jitter as a unit joins or leaves. */
+.lf-cluster-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  /* One knob. Everything below is derived from it, so retuning the badge is a
+     single edit rather than four that have to agree. */
+  --lf-badge: 17px;
+  width: var(--lf-badge);
+  height: var(--lf-badge);
+  /* Belt and braces with the explicit height: a flex or grid parent can
+     stretch a fixed height, and this badge must not survive that. */
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  /* Centred on BOTH axes by flex, not by line-height. A line-height tuned to
+     one diameter goes off-centre the moment the diameter changes, and it
+     changes twice below. `text-align` is belt and braces for the wrapped-text
+     case that should never happen but would be visibly off if it did. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  /* Zero leading, so the glyph box is the glyph and vertical centring has
+     nothing invisible padding it off-axis. */
+  line-height: 1;
+  font-size: 8.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  /* No optical nudge. Measured against the glyphs' own ink box (canvas
+     actualBoundingBox, not a range rect, which reports the font box and reads
+     half a pixel high): flex centring lands the label within 0.1 px of the
+     circle's centre on every label the badge can carry. A hand-tuned offset
+     here would be correcting a measurement artifact, not a visible error. */
+  pointer-events: none;
+}
+
+/* Two digits, then the "99+" cap. The circle grows; it never elongates, and
+   the type steps down with it so the label keeps the same breathing room
+   inside the curve at every width. */
+.lf-cluster-badge[data-len="2"] { --lf-badge: 19px; font-size: 8px; }
+/* "99+" in Inter is wider than the system face this was tuned in: at 22px the
+   label touched the curve (operator, 2026-10-07). 24px gives it the same air
+   as "42" has in 19px; the extra size goes outward, off the sprite, so the
+   badge covers no more of the vehicle than before. */
+.lf-cluster-badge[data-len="3"] { --lf-badge: 24px; font-size: 7.5px; letter-spacing: -0.03em; top: -5px; right: -7px; }
+
+/* ── Cluster hover list ──────────────────────────────────────────────────────
+   A three-column table, not a list of lines: activity glyph, registration,
+   fix age. See ClusterList.jsx for what each column answers and why the
+   glyphs carry shape as well as colour.
+
+   The panel's own colours are lifted into scoped custom properties rather
+   than repeated down the file — they are the same glass the rest of the map
+   chrome uses, and one place to retune them is the difference between a panel
+   that tracks the map and one that drifts from it. */
+.lf-cluster-tip {
+  /* White, as the rest of the map chrome (MapToolRail.scss .mtr-card). */
+  --ct-paper:  #ffffff;
+  --ct-line:   rgba(15, 23, 42, 0.10);
+  --ct-rule:   rgba(15, 23, 42, 0.08);
+  --ct-ink:    #0f172a;
+  --ct-ink-2:  #475569;
+  --ct-ink-3:  #64748b;
+
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1200;
+  min-width: 176px;
+  max-width: 250px;
+  padding: 8px 10px 7px;
+  border-radius: 8px;
+  background: var(--ct-paper);
+  border: 1px solid var(--ct-line);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: var(--ct-ink);
+  /* It follows the cursor, so it must never take the pointer: intercepting it
+     would swallow the badge's own mouseleave and strand the panel on screen.
+     This is also why no row is clickable and no title ever opens — everything
+     the panel says, it says at a glance. */
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lf-ct-head-n {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ct-ink-2);
+}
+
+/* The one grid definition. Both the caption row and every unit row inherit it
+   through .lf-ct-cols and .lf-ct-row, so a column cannot be widened in one
+   place and not the other.
+     14px  the glyph track — fixed, so registrations start on one edge
+     1fr   the registration, which is the only elastic column
+     auto  the age, sized by its own content ("now" through "13m" through "1y") */
+.lf-ct-cols,
+.lf-ct-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.lf-ct-cols {
+  margin: 7px 0 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--ct-rule);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ct-ink-3);
+}
+/* The age caption sits over a right-aligned column, so it is right-aligned
+   too — a heading that does not stand over its own column reads as a
+   heading for something else. */
+.lf-ct-cols > :last-child { justify-self: end; }
+
+.lf-ct-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lf-ct-row { font-size: 11px; line-height: 1.35; }
+
+/* Column 1 — what the unit is doing. Colour comes from the row (the map's own
+   marker palette, inline), shape comes from the glyph. */
+.lf-ct-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.lf-ct-glyph {
+  width: 10px;
+  height: 10px;
+  display: block;
+  overflow: visible;
+}
+
+/* Column 2 — the registration. Tabular figures so plates of equal length line
+   up down the column instead of ragging by a pixel per digit. */
+.lf-ct-reg {
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column 3 — how old the row's claim is. Right-aligned against the panel edge
+   so the ages form a readable column of their own; the meter leads and the
+   number follows, which is the order the eye already reads a signal strength. */
+.lf-ct-age {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 4px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Three tiers, three weights of attention. Live recedes deliberately: on a
+   healthy fleet almost every row is live, and colouring the common case green
+   would leave nothing for the exceptions to stand out against. */
+.lf-ct-age--live    { color: var(--ct-ink-3); }
+.lf-ct-age--delayed { color: #334155; }
+.lf-ct-age--dark    { color: #c2410c; }
+.lf-ct-age--unknown { color: var(--ct-ink-3); opacity: 0.75; }
+
+.lf-ct-more,
+.lf-ct-hint {
+  font-size: 9.5px;
+  color: var(--ct-ink-3);
+}
+.lf-ct-more { margin-top: 6px; }
+.lf-ct-hint {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--ct-rule);
+}
+
+
+/* ── Map type toggle — top left corner ─────────────────────────────────── */
+/* The toggle's footprint, published for StatusRail, which sits inline with it
+   on the same row. It is declared here, beside the padding and font rules that
+   actually decide the size, because a value kept in the other file drifted the
+   first time this button's padding changed. The phone override is in the
+   max-width: 767px block further down. */
+/* "Map" and "Satellite" measured 125px in Inter (2026-10-10). The toggle
+   shows below 1024px only (FleetMap's baseToggle); desktop picks the base map
+   in the tool rail's Maps panel. */
+:root { --map-type-w: 126px; --map-type-h: 28px; }
+
+.map-type-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  background: #fff;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+
+.map-type-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.map-type-btn:hover {
+  background: #f8fafc;
+}
+
+.map-type-btn--active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.map-type-btn + .map-type-btn {
+  border-left: 1px solid #e2e8f0;
+}
+
+/* ── Mock vehicle tooltip ───────────────────────────────────────────────── */
+.mock-tooltip {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  width: 200px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  z-index: 20;
+  font-family: 'Roboto', 'Inter', sans-serif;
+}
+
+.mock-tooltip__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.mock-tooltip__close:hover { color: #475569; }
+
+.mock-tooltip__plate {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.mock-tooltip__driver {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+
+.mock-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.mock-tooltip__lbl {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.mock-tooltip__val {
+  font-size: 11px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.mock-tooltip__status {
+  font-size: 11px;
+  font-weight: 600;
+}
+.mock-tooltip__status--ok      { color: #16a34a; }
+.mock-tooltip__status--idle    { color: #d97706; }
+.mock-tooltip__status--alert   { color: #dc2626; }
+.mock-tooltip__status--offline { color: #9ca3af; }
+
+.mock-tooltip__route-note {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 10px;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Map / Satellite toggle ─────────────────────────────────────────────── */
+.map-type-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  background: #fff;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+
+.map-type-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-family: 'Roboto', 'Inter', sans-serif;
+}
+
+.map-type-btn:hover { background: #f8fafc; }
+
+.map-type-btn--active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.map-type-btn + .map-type-btn {
+  border-left: 1px solid #e2e8f0;
+}
+
+/* Tracking pill: watch list + optional "show tracked only" map filter */
+.tracked-pill { cursor: default; gap: 8px; padding-right: 4px; }
+.tracked-pill__btn {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: transparent;
+  color: #e0f2fe;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tracked-pill__btn:hover { background: rgba(56, 189, 248, 0.18); }
+.tracked-pill__btn--on { background: #38bdf8; border-color: #38bdf8; color: #0f172a; }
+.tracked-pill__btn--on:hover { background: #7dd3fc; }
+/* The way out of tracking, so it is a word and a finger-sized target rather
+   than a 20px ×. Filled, unlike "Show tracked only", because it is the action
+   the pill exists for. */
+.tracked-pill__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.tracked-pill__clear span { font-size: 14px; font-weight: 400; }
+.tracked-pill__clear:hover { background: rgba(255, 255, 255, 0.24); }
+
+/* ── Map type toggle: icons on a phone, words on desktop ─────────────────── */
+.map-type-btn { display: inline-flex; align-items: center; gap: 6px; }
+.map-type-ico { display: none; }
+
+/* ── Critical / Warning chips, opposite the map-type toggle ─────────────── */
+/* The CRITICAL / WARNING chips that lived here are now StatusRail, which
+   covers all six status buckets rather than two and calls the camera-moving
+   `handleFilter`. Its styles are in components/layout/StatusRail.scss. */
+
+@media (max-width: 767px) {
+  /* Icon-only toggle — the words don't fit beside the chips on a phone. */
+  .map-type-ico { display: block; }
+  .map-type-txt { display: none; }
+  .map-type-btn { padding: 9px 12px; }
+
+  /* Narrower without its labels. StatusRail shares this row and starts just
+     past it — see --map-type-w below. */
+  /* 36px: at 33 the two buttons measured 31px, under a thumb's reach. The
+     status chips on the same row read this height too. */
+  :root { --map-type-w: 85px; --map-type-h: 36px; }
+
+  /* 16px off the map's own bottom edge — not off the viewport's.
+   *
+   * This used to read `calc(var(--mobile-nav-h) + 16px + env(safe-area-inset-
+   * bottom))`, to lift the rail clear of the fixed tab bar. That was right
+   * when the map ran the full height of the viewport underneath the bar. It
+   * does not any more: App.scss gives `.app-map-panel` a `margin-bottom` of
+   * --mobile-nav-h below 768px, so the map's border box already STOPS above
+   * the bar, and this rail is `position: absolute` inside it.
+   *
+   * So the nav height was being counted twice, and --safe-bottom with it,
+   * since --mobile-nav-h already includes it. On a 375x812 phone that is
+   * 110 + 110 + 16 + 34 = 270px of empty map below the buttons, with the whole
+   * group shoved up into the middle of the picture.
+   *
+   * 16px is also what the rest of the bottom chrome ASSUMES. The "Close map"
+   * pill sits at `--footer-h + 16 + --map-cam-h + 8` and the four rail panels
+   * at `--footer-h + 16 + --map-bottom-band`, both `position: fixed`, both
+   * written against a camera row one line up from --footer-h + 16. The map's
+   * bottom edge is at --mobile-nav-h, which is that same line — so a plain 16
+   * here is what puts the rail where the pill and the panels already believe
+   * it is. Anything larger opens a gap the pill then floats in the middle of;
+   * anything smaller pushes the buttons under the bar.
+   *
+   * Which means the clearances still hold: buttons 16px above the tab bar, the
+   * pill on the line above them, and every panel opening upward from above the
+   * pill. Nothing down here overlaps anything else. */
+  .map-cam-controls {
+    right: 12px;
+    bottom: 16px;
+  }
+}
+/* ── The pinned card vs the vehicle panel ──────────────────────────────────
+
+   Clicking a marker raises two things: this card, pinned to the map, and the
+   VehicleDetailPanel. On a desktop they do different jobs — the card is a
+   glance at the unit under the cursor, the panel is the full record in its own
+   column, and both fit.
+
+   Below 1024px they collide. The panel is an overlay (a bottom sheet on a
+   phone) and the pinned card paints at z-index 9999 on top of it, so tapping a
+   pin showed a small card OVER the sheet describing the same vehicle. The
+   panel is the better answer at that size — it holds everything the card does
+   and is dismissable — so the card stands down.
+
+   Only the PINNED card. The hover card needs no rule: it is raised by a
+   pointer, and a touch device has none. */
+@media (max-width: 1023px) {
+  .vehicle-tooltip--pinned { display: none !important; }
+}
+
+/* ── Desktop: three of the rail's controls move to the sidebar ──────────────
+   Map layers, Fleets and Units are trees in the side panel at 1024px and up
+   (SidePanel → FleetsTree / MapLayersTree). They are the same state either
+   way — the trees drive the same toggles these menus drive — so this is where
+   the control is offered, not whether it exists.
+
+   1024, not "desktop generally", because that is exactly where the sidebar has
+   a body to put them in: below it the panel is a 56px icon rail or gone
+   altogether, and hiding these there would leave a phone with no way to reach
+   a machine-type filter or a site plan at all.
+
+   The camera buttons stay: the camera is the map's own instrument. Fuel alerts
+   moved too, to Fleets > Fuel > Alerts — its button is hidden and its list
+   opens as a window, in FuelAlertsMenu.scss.
+
+   `display: none` rather than not rendering them: the menus are presentational
+   and keep no state worth preserving, and a rule here keeps the breakpoint
+   beside the one in App.scss that decides the sidebar, rather than a second
+   copy of it in JS. */
+@media (min-width: 1024px) {
+  .map-cam-controls .map-layers,
+  .map-cam-controls .fleets-menu { display: none; }
+
+  /* Units is the exception: its BUTTON goes, its PANEL stays.
+   *
+   * The other two became trees in the sidebar. This one did not, because the
+   * list is already a good one — search, five sortable columns, recency, the
+   * route toggle — and a 260px column is not where it belongs. The sidebar
+   * gets a link that opens this same panel instead (FleetsTree → setUnitsOpen),
+   * so there is one units list in the app rather than two.
+   *
+   * Which leaves the panel anchored to a button that is no longer drawn: it is
+   * `position: absolute; right: calc(100% + 8px); bottom: 0` against a wrapper
+   * that now has zero width, in the bottom-right corner of the map.
+   *
+   * It becomes a WINDOW rather than a modal — see .units-menu__panel--window
+   * in UnitsMenu.scss, which is where its geometry lives with the rest of the
+   * panel's. Only the button-hiding belongs here, beside the two menus that
+   * left. */
+  .map-cam-controls .units-menu__btn { display: none; }
+
+  /* ── And the camera group stands back up ────────────────────────────────
+     The row was a response to crowding: a seven-tall rail on a 450px-high
+     window left every menu panel opening into a sliver, so the three camera
+     buttons turned the corner to buy back 80px. Three of the four menus above
+     them are gone at this width, so the rail is two groups instead of five and
+     the crowding with it. A vertical zoom stack is what every map on the web
+     has; the L was a concession, not a preference.
+
+     Order, not DOM order: read left to right the group is reset · out · in,
+     which puts the zoom pair in their conventional order and the destructive
+     button furthest from the corner the cursor rests in. Read top to bottom it
+     is reset · in · out, because + above − is the convention everywhere a zoom
+     control is stacked. Same three buttons, same markup, one property. */
+  .map-cam-row { flex-direction: column; }
+  /* Reset between the two zooms (operator, 2026-10-08): in, reset, out. */
+  .map-cam-btn--in    { order: 0; }
+  .map-cam-btn--reset { order: 1; }
+  .map-cam-btn--out   { order: 2; }
+
+  /* The rail is four tall now — fuel alerts over the three camera buttons —
+     where the L made it five. 4x34 + 3x6 = 154, so the constant is 152 by the
+     same arithmetic the block above this one sets out. Getting this wrong does
+     not misplace anything: it lets the fuel-alert panel open through the
+     header, which is the one menu still hanging off this rail at this width. */
+  .map-cam-controls {
+    --rail-panel-max-h: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 152px);
+  }
+}
+
+/* A desktop short enough to shrink the buttons: 4x28 + 3x4 = 124, so 122. */
+@media (min-width: 1024px) and (max-height: 560px) {
+  .map-cam-controls {
+    --rail-panel-max-h: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 122px);
+  }
+}
+

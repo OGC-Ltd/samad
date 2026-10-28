@@ -34,7 +34,7 @@
 // sentence (vehicles/:id/brief, fresh per pick) follows underneath as "Today".
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import "./FleetAIInsightCard.css";
+import "./FleetAIInsightCard.scss";
 import { getFleetInsight } from "../../api/fleetInsight";
 import { getVehicleBrief, getVehicleInsight } from "../../api/vehicleBrief";
 import { useApiData } from "../../hooks/useApiData";

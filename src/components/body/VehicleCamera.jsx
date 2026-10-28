@@ -29,7 +29,7 @@ import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import { useFloatingWindow } from "../../hooks/useFloatingWindow";
 import { getVehicleCamera, channelLabel } from "../../api/vehicleCamera";
 import { loadVssPlayer } from "../../lib/vssPlayer";
-import "./VehicleCamera.css";
+import "./VehicleCamera.scss";
 
 /** No first picture, or no new one, for this long reads as "no picture". */
 const STALL_MS = 15_000;

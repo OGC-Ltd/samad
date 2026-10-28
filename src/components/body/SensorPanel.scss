@@ -1,0 +1,4424 @@
+/* Hallmark · component: data-grid · genre: modern-minimal · tone: utilitarian
+ * scope: redesign — All Probes grid + panel gutter (supersedes the 2026-08-08
+ *        legibility + token pass, which this keeps intact)
+ * macrostructure: skipped (component scope)
+ * theme: project-locked — App.scss dark/light tokens, Geist + JetBrains Mono
+ * type scale: 5 steps (11 · 12.5 · 14 · 18 · 26px), floor 11px
+ * states: default · hover · focus-visible · active · disabled · loading ·
+ *         error · empty  (rows, sort headers, density toggle, retry button,
+ *         filter chips, month trigger)
+ *
+ * 2026-09-08 · scope: redesign — Speed + Malfunction window and sort controls.
+ * Both tabs kept a SECOND control row inside the report body (`.ir-toolbar`),
+ * below the insight strip, while Fuel FSL put its day picker in this bar. One
+ * panel, two grammars, and the bar's search and Activity chips were inert on
+ * the incident tabs regardless. The month picker and the sort chips moved up
+ * here into the fuel tab's group shape (label · control · reset), the inert
+ * controls are hidden where they filter nothing, and `.ir-toolbar` is gone.
+ * The window control is fuel's own `.sp4-date-input`, not a re-skinned month
+ * grid: the same element, the same bounds, the same "Today" reset — so the
+ * three tabs now read one day and pick it one way.
+ *
+ * 2026-09-08 · scope: redesign — the Speed + Malfunction TABLES, onto this
+ * file's vocabulary. They shipped with their own (`.ir-table` on App.scss
+ * tokens): different header weight, different row rhythm, a chevron column
+ * Fuel FSL does not have, a grey skeleton where the other tabs spin, and no
+ * caption at all. Now `.sp4-table` / `.sp4-tr` / `.sp4-reg` / `.sp4-num` in a
+ * `.sp4-table-scroll` under a `.sp4-table-sub` caption, with this panel's
+ * loading, error, empty, pager and detail head — the move ProbeHealthPanel
+ * already made, for the reason given at its own block below. New here:
+ * `.sp4-num` (the honestly-named `.sp4-tank`), `.sp4-tr--incident` keyboard
+ * states, `.sp4-tr--static`, `.sp4-table-more`, `.sp4-kind-chip`.
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ * deviation: the new chips carry rgba() washes over token colours rather than
+ *   named tokens of their own — that is this file's established idiom for
+ *   every pill and chip in it, and inventing a parallel token set for three
+ *   rules would be the inconsistency, not the fix.
+ * contrast: pass (40–41, measured both themes) · mobile: pass (34, 49 — 375 /
+ *           1280 / 1440, no page-level horizontal scroll)
+ * motion: skeleton shimmer only, opacity-only, cut under reduced-motion
+ * deviations: none on type — the app moved off Inter to Geist + Space Grotesk;
+ *             tokens scoped to this panel, not a root tokens.css, because the
+ *             project's system already lives in App.scss — except --app-gutter,
+ *             which IS in App.scss because Analytics and Maintenance share it;
+ *             hover/active fills stay raw rgba() to match this file's existing
+ *             idiom rather than introducing a one-off overlay token (gate 48)
+ */
+/* SensorPanel.scss — Sensor Monitor · Single column responsive layout
+   Updated 2026-09-03 · Geist + JetBrains Mono */
+
+/* ── Root ────────────────────────────────────────────────────────────────── */
+.sp4-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  font-family: var(--font-body);
+  background: var(--sp4-bg);
+
+  /* Text tiers.
+     Everything in this panel sits on near-black (#04050a–#06070d), and the
+     greys it used were far below anything readable there: #2e3440 — the colour
+     of every column header, "Recent FSL Transmissions (last 5)" included —
+     lands at roughly 1.5:1, and #3d4554 at roughly 2:1, against the 4.5:1 that
+     normal text needs. Small uppercase headers need MORE contrast than body
+     copy, not less, so they had it exactly backwards.
+
+     The scale keeps the same four-step hierarchy, starting it where text is
+     actually legible. Tier 4 is the floor — nothing in this panel should be
+     dimmer than that. */
+  --sp4-text-1: #f0f4f8;   /* headings, unit regs                     ~17:1 */
+  --sp4-text-2: #c7d1dd;   /* table cells, body copy                  ~11:1 */
+  --sp4-text-3: #9aa7b6;   /* column headers, labels, captions       ~7.5:1 */
+  --sp4-text-4: #7d8b9c;   /* hints and least-important asides       ~5.2:1 */
+
+  /* ── Surfaces and lines ───────────────────────────────────────────────────
+     The text tiers above were already tokens; the SURFACES never were. Every
+     panel background, every border, was written as a literal — #06070d and
+     #0f1118 repeated dozens of times — which is why light mode needed 25
+     separate `.app--light .sp4-x { background: #fff; border-color: #dde1e7 }`
+     patch rules underneath. Each of those is the same two facts restated, and
+     any rule anyone forgot to patch stayed near-black on a white page.
+     Naming the surfaces means the light theme re-points four variables and
+     every consumer follows. */
+  --sp4-bg:      #04050a;  /* the panel canvas                              */
+  --sp4-surface: #06070d;  /* header, tab strip, sticky table head          */
+  --sp4-raised:  #1e2330;  /* chips, scrollbar thumb, inset blocks          */
+  --sp4-line:    #0f1118;  /* default hairline                             */
+  --sp4-line-hi: #2e3440;  /* hover / emphasis edge                        */
+
+  /* Status. The dark tier uses the PASTEL end of each hue deliberately —
+     #22c55e on near-black is a vibrating 4.9:1, while #86efac lands ~11:1 and
+     stays calm. Light mode re-points these to App.scss's own light-tuned
+     accents, which are the darker end of the same hues. Same meaning, opposite
+     direction, because the background inverted. */
+  --sp4-ok:     #86efac;
+  --sp4-crit:   #fca5a5;
+  --sp4-info:   #93c5fd;
+  --sp4-warn:   #f59e0b;
+  --sp4-accent: #3b82f6;   /* active tab underline, focus ring             */
+  /* The edge of an INPUT, which has to be seen rather than merely implied.
+     `--sp4-line-hi` is a hairline BETWEEN rows — it reads at 1.6:1 against the
+     panel, which is fine for a table rule and fails 1.4.11 for the boundary of
+     a control somebody has to find and click. This one is 3.7:1 on the dark
+     panel and 4.7:1 on the light one, so the same value serves both. */
+  --sp4-field-line: #64748b;
+  --sp4-stat:   #a78bfa;   /* the one non-status hue: aggregate stat KPI   */
+
+  /* ── Type scale ───────────────────────────────────────────────────────────
+     Five sizes replacing eleven (7.5, 8, 9, 10, 11, 12, 13, 14, 15, 18). The
+     floor was 7.5px — on the KPI labels, uppercase, letter-spaced, in the
+     third text tier. Uppercase micro-type needs MORE size and contrast than
+     body copy, not less; it had the least of both. */
+  --sp4-label:  11px;    /* uppercase labels, column heads, captions        */
+  --sp4-body:   12.5px;  /* table cells, chips, filter controls — default   */
+  --sp4-strong: 14px;    /* row emphasis, sub-heads, detail values          */
+  --sp4-title:  18px;    /* panel title                                     */
+  --sp4-num:    26px;    /* KPI numerals — the figures the panel exists for */
+
+  --sp4-3xs: 2px;  --sp4-2xs: 4px;  --sp4-xs: 8px;
+  --sp4-sm:  12px; --sp4-md:  16px; --sp4-lg: 20px;
+
+  /* ── Panel gutter ─────────────────────────────────────────────────────────
+     ONE value for every horizontal inset in this panel — header, filter bar,
+     caption, the grid's edge cells, the footnote, and the empty/error blocks.
+     They were nine separate hardcoded 20px (and one stray 18px), which is why
+     the caption used to sit a few pixels inboard of the column it captioned:
+     each was maintained on its own and they drifted.
+
+     It scales with the viewport rather than sitting fixed, so a 284-row grid
+     is not pinned to the bezel on a wide monitor — the body reads as a centred
+     column with air either side — while narrow screens keep the tight 20px
+     that leaves room for the data. Clamped at both ends: below 20px the rows
+     touch the edge, above ~64px the columns start paying for the margin.
+
+     Inherits --maint-gutter when this panel is mounted inside the Maintenance
+     tab, which is the only place it ships today — one source of truth, so
+     Service Status and Sensor Monitor cannot drift apart again. The clamp is
+     the standalone fallback. */
+  --sp4-gutter: var(--maint-gutter, clamp(20px, calc(var(--vw) * 4), 64px));
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.sp4-header {
+  display: flex;
+  align-items: center;
+  /* flex-end, not space-between. With the panel title removed the KPI row is
+     this header's only child, and space-between parks a lone child at the
+     START — so the figures sat hard left under the sub-tabs. */
+  justify-content: flex-end;
+  padding: 12px var(--sp4-gutter);
+  border-bottom: 1px solid var(--sp4-line);
+  flex-shrink: 0;
+  background: var(--sp4-surface);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* .sp4-header-left and .sp4-title removed with the duplicate panel heading —
+   the sub-tab above already names this panel. The --sp4-title SIZE token stays;
+   it is still used by the KPI numerals and the empty-state heading. */
+.sp4-header-kpis {
+  display: flex;
+  gap: 1px;
+  background: var(--sp4-line);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--sp4-line);
+}
+.sp4-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 16px;
+  background: var(--sp4-surface);
+  gap: 1px;
+  min-width: 70px;
+}
+.sp4-kpi-n {
+  font-size: var(--sp4-num);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.sp4-kpi-l {
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sp4-text-3);
+  white-space: nowrap;
+}
+.sp4-kpi--fuel  .sp4-kpi-n { color: var(--sp4-warn); }
+.sp4-kpi--speed .sp4-kpi-n { color: var(--sp4-crit); }
+.sp4-kpi--stat  .sp4-kpi-n { color: var(--sp4-stat); }
+/* Coverage. The total is the headline — it is what the panel is monitoring —
+   so it carries the brightest tier; the live figure is green because it is the
+   one that moves. */
+.sp4-kpi--fleet .sp4-kpi-n { color: var(--sp4-text-1); }
+.sp4-kpi--live  .sp4-kpi-n { color: var(--sp4-ok); }
+
+/* ── Body ────────────────────────────────────────────────────────────────── */
+.sp4-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+/* When showing a detail panel, sp4-body must not clip it */
+.sp4-body > .sp4-detail {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+/* The Repairs tab scrolls too. Its list, and a job opened under its row,
+   ran past the panel's foot and .sp4-body's `overflow: hidden` cut it off
+   with no way down to it (operator, 2026-10-01). */
+.sp4-body > .sp4-repair-jobs {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.sp4-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sp4-line);
+  flex-shrink: 0;
+  background: var(--sp4-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Minus the tab's own 20px, so the first tab's LABEL lands on the gutter
+     rather than its hit area — the label is what the eye lines up against the
+     caption and the first column below it. Never negative: the gutter floor is
+     20px, so this bottoms out at 0. */
+  padding-inline: calc(var(--sp4-gutter) - 20px);
+}
+.sp4-tabs::-webkit-scrollbar { display: none; }
+.sp4-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 20px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--sp4-text-3);
+  font-size: var(--sp4-strong);
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sp4-tab:hover { color: var(--sp4-text-1); }
+.sp4-tab--on { color: var(--sp4-text-1); border-bottom-color: var(--sp4-accent); }
+.sp4-tab-n {
+  background: rgba(255,255,255,0.07);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: var(--sp4-body);
+}
+.sp4-tab--on .sp4-tab-n { background: rgba(59,130,246,0.2); color: var(--sp4-info); }
+.sp4-tabs-hint {
+  margin-left: auto;
+  padding: 0 16px;
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-4);
+  /* Roman, not italic: at 12.5px an oblique body face loses stem contrast and
+     these are UI captions, not prose emphasis. */
+  font-style: normal;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+.sp4-table-scroll {
+  flex: 1;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sp4-raised) transparent;
+  /* Clear the fixed footer nav. This scroller runs to the bottom of the
+     viewport, and the nav floats over its last 64px — so the pagination bar
+     and the "not shown" footnote sat BEHIND the nav even scrolled fully down,
+     with no way to reach them. Padding inside the scroller (rather than a
+     margin on the panel) keeps the rows themselves full-bleed and simply gives
+     the content somewhere to end. */
+  padding-bottom: calc(var(--app-footer-h, 64px) + var(--sp4-md));
+}
+/* One definition, not two. A later block used to re-declare font-size, colour,
+   padding and font-style over the top of this one with !important — so the
+   caption you actually saw came from there, and editing this rule did nothing.
+   The values below are that block's, merged in; the duplicate is gone. */
+.sp4-table-sub {
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-1);
+  /* 20px sides, matching the header above and the grid's edge cells below —
+     this caption sits between the two and was the odd one out at 16px. */
+  padding: 8px var(--sp4-gutter);
+  border-bottom: 1px solid var(--sp4-line);
+  font-style: normal;
+}
+.sp4-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sp4-body);
+  font-family: var(--font-body);
+  min-width: 500px;
+}
+.sp4-table thead th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: var(--sp4-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  /* Was var(--sp4-line-hi) — about 1.5:1 here, which is why "Recent FSL Transmissions
+     (last 5)" and every other column header read as smudges. */
+  color: var(--sp4-text-3);
+  background: var(--sp4-surface);
+  border-bottom: 1px solid var(--sp4-line);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+.sp4-tr {
+  border-bottom: 1px solid var(--sp4-line);
+  cursor: pointer;
+  transition: background .12s;
+}
+.sp4-tr:hover { background: rgba(255,255,255,0.025); }
+.sp4-tr--selected { background: rgba(59,130,246,0.06) !important; }
+.sp4-tr--latest { font-weight: 600; }
+/* row accent borders removed */
+.sp4-table td {
+  padding: 10px 14px;
+  color: var(--sp4-text-2);
+  vertical-align: middle;
+}
+.sp4-td {
+  padding: 10px 14px;
+  color: var(--sp4-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--sp4-body);
+  white-space: nowrap;
+}
+/* ── Grid edge inset ──────────────────────────────────────────────────────
+   The table is full-bleed inside its scroller, so its first column started
+   14px from the panel edge while the header above it starts at 20px — the
+   plate column sat visibly left of everything else on the panel.
+
+   Insetting the EDGE CELLS rather than padding .sp4-table-scroll is
+   deliberate: that scroller is `overflow: auto`, and padding-right on a
+   horizontally scrolling box is dropped by several engines once the content
+   actually overflows — which is exactly when the table is at its widest and
+   the gap matters most. Padding the cells travels with the scroll instead.
+   Row borders and hover fills stay full-bleed, which is what a data grid
+   should do. */
+.sp4-table thead th:first-child,
+.sp4-table tbody td:first-child { padding-left: var(--sp4-gutter); }
+.sp4-table thead th:last-child,
+.sp4-table tbody td:last-child  { padding-right: var(--sp4-gutter); }
+
+.sp4-td--flagged { color: var(--sp4-warn); background: rgba(245,158,11,0.05); }
+.sp4-flag { margin-left: 5px; font-size: var(--sp4-label); color: var(--sp4-warn); }
+.sp4-flag-hint { color: var(--sp4-warn); }
+.sp4-reg {
+  font-weight: 800;
+  color: var(--sp4-text-1) !important;
+  font-family: var(--font-mono);
+  font-size: var(--sp4-body);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.sp4-muted { color: var(--sp4-text-3); font-size: var(--sp4-body); }
+
+/* A measurement cell, for any table on this panel.
+ *
+ * `.sp4-tank` did this job for the fuel table and is named for the column it
+ * was written for, so the incident tables could not honestly borrow it. Same
+ * three facts, generally named: figures line up digit over digit, a number
+ * never wraps mid-value, and a measurement is right-aligned so the eye can
+ * compare a column of them — the alignment follows the reading, not the
+ * header, which is the rule the probe grid already states. */
+.sp4-num {
+  /* LEFT, matching `.sp4-tank` one table over.
+   *
+   * These were right-aligned, which is the textbook treatment for a column of
+   * measurements and was wrong HERE: the fuel table left-aligns every one of
+   * its seven numeric columns, so side by side the incident tables read as a
+   * different grid — values drifting away from the headers that name them,
+   * with a ragged channel of empty cell between. Matching the neighbour beats
+   * being right on your own.
+   *
+   * Label size and the second text tier for the same reason: a measurement on
+   * this panel sits behind the registration that names the row, not level
+   * with it. */
+  text-align: left;
+  font-size: var(--sp4-label);
+  color: var(--sp4-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Column widths are left to the table.
+ *
+ * `.sp4-table` is width:100%, so a browser shares the leftover width across
+ * the columns — every column gets room, which is exactly what the fuel grid
+ * does. An earlier pass handed the whole remainder to one designated column;
+ * that made the other ten hug their content, which is the opposite of the
+ * intent. The scroller takes over when the columns genuinely need more width
+ * than the viewport has.
+ */
+
+/* Incident rows open a detail table, the way fuel rows open a drain detail —
+   but these are also keyboard-reachable, so they need the states a focusable
+   control needs. The fuel table's rows are mouse-only and have never had
+   them; matching that would have been matching a gap. */
+.sp4-tr--incident:focus-visible, .sp4-tr--incident.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: -2px;
+}
+.sp4-tr--incident:active, .sp4-tr--incident.is-active { background: rgba(255,255,255,0.05); }
+/* The detail table's rows go nowhere — one unit's own cases are the end of the
+   drill-down — so they drop the pointer and the hover fill rather than
+   inviting a click that does nothing. */
+.sp4-tr--static { cursor: default; }
+.sp4-tr--static:hover { background: transparent; }
+
+/* "Load more" sits INSIDE the scroller, under the last row, because that is
+   where a reader arrives at the end of a list. Centred on the table's own
+   width rather than pinned to a gutter. */
+.sp4-table-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px var(--sp4-gutter);
+  border-top: 1px solid var(--sp4-line);
+}
+
+/* Fault kinds, as chips rather than a comma-separated sentence — the same
+   treatment the fuel table gives its FSL transmissions two columns over. A
+   unit with four faults was reading as one long wrapped phrase in which no
+   individual fault could be picked out. */
+.sp4-kind-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.sp4-kind-chip {
+  /* Weighted like `.sp4-fsl-chip`, which is the chip this table is read
+     beside: mono, 700, body size, a 5px radius. At label size and 600 in a
+     10%-alpha wash these read as disabled next to the fuel table's saturated
+     refill and drain chips — the same component in two strengths. */
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(148,163,184,0.3);
+  background: rgba(148,163,184,0.16);
+  color: var(--sp4-text-1);
+  font-size: var(--sp4-body);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* A unit that is not reporting at all is the one kind worth colouring: every
+   other channel verdict on that row is a consequence of it. */
+.sp4-kind-chip--silent {
+  border-color: rgba(139,92,246,0.4);
+  background: rgba(139,92,246,0.2);
+  color: var(--sp4-stat);
+}
+
+.app--light .sp4-kind-chip { background: var(--sp4-raised); border-color: var(--sp4-line); }
+.sp4-reading {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+.sp4-reading--warn { background: rgba(245,158,11,0.1); color: var(--sp4-warn); }
+.sp4-reading--crit { background: rgba(239,68,68,0.1);  color: var(--sp4-crit); }
+.sp4-pill {
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: var(--sp4-label);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-body);
+  white-space: nowrap;
+}
+.sp4-pill--inc  { background: rgba(239,68,68,0.12); color: var(--sp4-crit); border: 1px solid rgba(239,68,68,0.25); }
+.sp4-pill--con  { background: rgba(34,197,94,0.1);  color: var(--sp4-ok); border: 1px solid rgba(34,197,94,0.2); }
+.sp4-pill--warn { background: rgba(245,158,11,0.1);  color: var(--sp4-warn); border: 1px solid rgba(245,158,11,0.2); }
+/* No verdict yet — grey, because colouring it would invent one. */
+.sp4-pill--none { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.22); }
+.sp4-engine--off { color: var(--sp4-crit); font-weight: 700; }
+.sp4-engine--on  { color: var(--sp4-ok); font-weight: 700; }
+.sp4-type-tag { font-size: var(--sp4-body); color: var(--sp4-text-2); }
+
+/* ── All-probes grid ─────────────────────────────────────────────────────── */
+/* Numeric-ish cells sit close together across many columns, so the readings
+   are tabular-figure aligned — a column of odometer values that jitters by
+   glyph width is hard to scan for the outlier, which is the whole job here. */
+.sp4-probe-table td { font-variant-numeric: tabular-nums; }
+
+/* The three states carry the meaning of this grid, so they are distinguished
+   by WEIGHT and opacity as well as colour — "absent" has to read as absent at
+   a glance without relying on hue, which also keeps it legible for a
+   colour-blind viewer.
+
+   `td` is in each selector deliberately. `.sp4-table td` already sets a colour
+   at (0,1,1), so a lone state class at (0,1,0) LOSES and every state renders
+   identically — which is exactly what happened first time round, and it fails
+   silently: the markup is right, the rules are present, and the grid just
+   looks uniform. */
+.sp4-probe-table td.sp4-probe--ok     { color: var(--sp4-text-1); }
+.sp4-probe-table td.sp4-probe--fault  { color: var(--sp4-crit); font-weight: 700; }
+.sp4-probe-table td.sp4-probe--absent { color: var(--sp4-text-3); opacity: 0.55; }
+.sp4-probe-table td.sp4-probe--stale  { color: var(--sp4-warn); }
+
+/* The fault tally in the sub-header is running text, not a cell. */
+.sp4-table-sub .sp4-probe--fault { color: var(--sp4-crit); font-weight: 700; }
+
+/* A unit that has gone quiet: its readings are the LAST known ones, not
+   current. Dimming the whole row says that once, rather than repeating a
+   caveat in every cell. */
+.sp4-tr--silent td { opacity: 0.62; }
+.sp4-tr--silent .sp4-reg { opacity: 1; }
+
+/* The pager sits under the grid, on the gutter like everything else. It is not
+   sticky: at 20 rows the last row and the pager are both on screen, and a
+   sticky bar would spend that space on chrome. */
+/* The count under the weighbridge grid — "578 of 626 tickets in Sep 15 – today
+   · FACTORY". It declared no size, so it inherited the panel's default and
+   drew at body weight and body colour: a footnote set like a sentence, sitting
+   under the table it is a footnote to and pulling the eye off it. It is a
+   caption, and takes the caption size and the third text tier the rest of this
+   panel gives captions. */
+.sp4-grid-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px var(--sp4-gutter);
+  border-top: 1px solid var(--sp4-line);
+  font-size: var(--sp4-label);
+  color: var(--sp4-text-3);
+}
+
+.sp4-probe-note {
+  padding: 10px var(--sp4-gutter) 16px;
+  font-size: var(--sp4-label);
+  line-height: 1.5;
+  color: var(--sp4-text-3);
+}
+
+/* ── Column alignment ─────────────────────────────────────────────────────
+   Measurements right, words left. Right-aligned digits put the thousands
+   place in the same pixel on every row, so an outlier in a 284-row column is
+   found by shape rather than by reading — which is the entire reason this
+   grid exists. `.sp4-table thead th` sets `text-align:left`, so the header
+   variants have to carry the element too or they lose on specificity. */
+.sp4-probe-table td.sp4-td--right,
+.sp4-table thead th.sp4-th--right { text-align: right; }
+
+/* The right-hand pair does not wrap.
+
+   These two columns are a DATE and a control, and both broke. `.sp4-td` is the
+   class that carries `white-space: nowrap`, and no cell in the repairs table
+   has it — the cells are classed `sp4-td--left` / `sp4-td--right`, which read
+   like variants of it but are only alignment modifiers. So the cells fell back
+   to normal wrapping, and an ISO date is the worst possible string for that:
+   a browser may break after a hyphen, so "2026-09-21" came apart as "2026-" /
+   "09-21" in a column sized for ten characters.
+
+   Only the right pair, not every cell: the left columns hold a spare-part name
+   and two people's names, which are exactly the things that SHOULD wrap rather
+   than widen the table or be cut.
+
+   `tabular-nums` so the dates form a column instead of ragging — the same
+   thing `.sp4-probe-table td` already does, restated because that rule reaches
+   these cells and this file's other date columns get it from `.sp4-td`. */
+.sp4-probe-table td.sp4-td--right,
+.sp4-table thead th.sp4-th--right {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sp4-probe-table td.sp4-td--left,
+.sp4-table thead th.sp4-th--left  { text-align: left; }
+
+/* ── Sortable headers ─────────────────────────────────────────────────────
+   The th keeps its padding and stickiness; the button is a transparent
+   full-bleed hit area inside it, so the whole header cell is clickable
+   rather than just the word. */
+.sp4-table thead th.sp4-th { padding: 0; }
+.sp4-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  /* Headers are uppercase micro-type; inheriting keeps one definition of that
+     in `.sp4-table thead th` instead of restating size/weight/tracking here. */
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  transition: color .12s var(--sp4-ease, ease), background .12s var(--sp4-ease, ease);
+}
+.sp4-th--right .sp4-sort { justify-content: flex-end; }
+.sp4-table thead th.sp4-th:first-child .sp4-sort { padding-left: var(--sp4-gutter); }
+.sp4-table thead th.sp4-th:last-child  .sp4-sort { padding-right: var(--sp4-gutter); }
+
+.sp4-sort:hover, .sp4-sort.is-hover      { color: var(--sp4-text-1); background: rgba(255,255,255,0.03); }
+.sp4-sort:focus-visible, .sp4-sort.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: -2px;
+  color: var(--sp4-text-1);
+}
+.sp4-sort:active, .sp4-sort.is-active    { background: rgba(255,255,255,0.06); }
+.sp4-sort:disabled, .sp4-sort.is-disabled { opacity: 0.4; cursor: not-allowed; }
+.sp4-sort--on { color: var(--sp4-text-1); }
+
+/* The indicator holds its width in all three positions so the header label
+   does not shift by a glyph when the sort moves to another column. */
+.sp4-sort-ind {
+  display: inline-block;
+  min-width: 1em;
+  font-size: 9px;
+  opacity: 0.35;
+}
+.sp4-sort--on .sp4-sort-ind { opacity: 1; color: var(--sp4-accent); }
+
+/* ── Density ──────────────────────────────────────────────────────────────
+   Compact is not "the same grid, smaller type" — the type size is untouched
+   and only the vertical padding changes, so legibility is identical and
+   roughly twice as many units fit on screen. */
+.sp4-probe-table--comfortable td { padding-top: 10px; padding-bottom: 10px; }
+.sp4-probe-table--compact td     { padding-top: 4px;  padding-bottom: 4px;  }
+
+.sp4-gridbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4-sm);
+  flex-wrap: wrap;
+}
+.sp4-gridbar-tools { display: flex; align-items: center; gap: var(--sp4-xs); }
+/* The filter clause that rides beside the export buttons. Dimmer than the
+   tallies it follows because it qualifies them rather than adding to them —
+   and it must be allowed to wrap: an export note truncated mid-sentence is
+   worse than no note, since the reader is about to bake that filter into a
+   file with no filter control on it. */
+.sp4-gridbar-note {
+  color: var(--sp4-text-4);
+  font-weight: 400;
+  white-space: normal;
+}
+
+.sp4-density {
+  display: inline-flex;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.sp4-density-btn {
+  padding: 3px 9px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  color: var(--sp4-text-3);
+  transition: background .12s, color .12s;
+}
+.sp4-density-btn:hover, .sp4-density-btn.is-hover { color: var(--sp4-text-1); background: rgba(255,255,255,0.04); }
+.sp4-density-btn:focus-visible, .sp4-density-btn.is-focus { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
+.sp4-density-btn:active, .sp4-density-btn.is-active { background: rgba(255,255,255,0.08); }
+.sp4-density-btn--on { background: var(--sp4-raised); color: var(--sp4-text-1); }
+
+/* A button's LABEL never breaks. "Sign off" wrapping to "Sign" over "off"
+   doubles the row height and reads as two controls; every label on this button
+   is two or three short words with the same exposure. */
+.sp4-ghost-btn {
+  white-space: nowrap;
+  padding: 3px 9px;
+  background: none;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  color: var(--sp4-text-3);
+}
+.sp4-ghost-btn:hover, .sp4-ghost-btn.is-hover { color: var(--sp4-text-1); border-color: var(--sp4-text-4); }
+.sp4-ghost-btn:focus-visible, .sp4-ghost-btn.is-focus { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+.sp4-ghost-btn:active, .sp4-ghost-btn.is-active { background: rgba(255,255,255,0.06); }
+
+/* ── Row states ───────────────────────────────────────────────────────────
+   Rows are keyboard-reachable (tabIndex) because opening a unit's readings is
+   a real action, and a grid you can only drive with a mouse excludes anyone
+   on a keyboard. The ring is inset so it is not clipped by the scroll
+   container at the first and last row. */
+.sp4-tr--probe:focus-visible, .sp4-tr--probe.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: -2px;
+}
+.sp4-tr--probe:active, .sp4-tr--probe.is-active { background: rgba(255,255,255,0.05); }
+
+/* ── Loading ──────────────────────────────────────────────────────────────
+   A skeleton in the grid's own shape, not a spinner: it holds the layout so
+   the page does not jump when 284 rows arrive. The shimmer is opacity-only
+   (never a layout property) and is removed wholesale under reduced-motion. */
+.sp4-skel-wrap { padding: 4px var(--sp4-gutter); }
+.sp4-skel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(5, minmax(0, 1fr));
+  gap: var(--sp4-sm);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--sp4-line);
+}
+.sp4-skel-cell {
+  height: 10px;
+  border-radius: 3px;
+  background: var(--sp4-raised);
+  animation: sp4-skel 1.1s var(--sp4-ease, ease-in-out) infinite;
+}
+@keyframes sp4-skel { 0%, 100% { opacity: 0.35 } 50% { opacity: 0.7 } }
+
+/* ── Error / empty ────────────────────────────────────────────────────────
+   Both say what happened and what to do next. An empty grid that only says
+   "no results" leaves the user to guess whether the fleet is fine or the
+   filters are wrong. */
+.sp4-state {
+  padding: 40px var(--sp4-gutter);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp4-xs);
+}
+.sp4-state-title {
+  font-size: var(--sp4-strong);
+  font-weight: 700;
+  color: var(--sp4-text-1);
+}
+.sp4-state-body {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--sp4-body);
+  line-height: 1.55;
+  color: var(--sp4-text-3);
+}
+.sp4-state-btn {
+  margin-top: var(--sp4-2xs);
+  padding: 6px 14px;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 5px;
+  background: var(--sp4-raised);
+  color: var(--sp4-text-1);
+  font-family: inherit;
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+.sp4-state-btn:hover, .sp4-state-btn.is-hover { border-color: var(--sp4-text-4); }
+.sp4-state-btn:focus-visible, .sp4-state-btn.is-focus { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+.sp4-state-btn:active, .sp4-state-btn.is-active { transform: translateY(1px); }
+.sp4-state-btn:disabled, .sp4-state-btn.is-disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Visually hidden, still announced. */
+.sp4-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Slowed, not stopped. A frozen spinner reads as a hung request; the point
+     of the indicator is to say work is still happening. */
+  .sp4-spinner { animation-duration: 2.4s; }
+  .sp4-skel-cell { animation: none; opacity: 0.5; }
+  .sp4-sort, .sp4-density-btn { transition: none; }
+  .sp4-state-btn:active { transform: none; }
+}
+
+/* ── FSL event chips ─────────────────────────────────────────────────────── */
+.sp4-fsl-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sp4-fsl-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: var(--sp4-body);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  cursor: default;
+  line-height: 1.2;
+}
+.sp4-fsl-chip--refill {
+  background: rgba(34,197,94,0.1);
+  color: var(--sp4-ok);
+  border: 1px solid rgba(34,197,94,0.2);
+}
+/* Every drain, confirmed by our own telemetry or not. Red says "suspicious
+   drain": fuel went down and did not come back, and it is worth looking at
+   whether or not we happened to be watching that vehicle. Whether we could
+   corroborate it is in the tooltip, not in the colour. */
+.sp4-fsl-chip--drain {
+  background: rgba(239,68,68,0.1);
+  color: var(--sp4-crit);
+  border: 1px solid rgba(239,68,68,0.2);
+}
+/* Undulation — the level came back, so no fuel left the tank. Amber, not
+   green: nothing was taken, but the reading still moved and the machine may
+   want looking at. */
+.sp4-fsl-chip--settled {
+  background: rgba(245,158,11,0.1);
+  color: var(--sp4-warn);
+  border: 1px solid rgba(245,158,11,0.22);
+}
+/* Not decidable from the telemetry we hold. Neutral on purpose: this is the
+   absence of a verdict, and colouring it either way would invent one. */
+.sp4-fsl-chip--open {
+  background: rgba(148,163,184,0.1);
+  color: #94a3b8;
+  border: 1px solid rgba(148,163,184,0.22);
+}
+.sp4-fsl-time {
+  font-size: var(--sp4-label);
+  font-weight: 500;
+  /* 0.65 knocked an already-small 8px timestamp down to roughly half the
+     contrast of the litre figure above it. These are the transmission times
+     the FSL column exists to show, so they only need to sit BEHIND the value,
+     not disappear. */
+  opacity: 0.85;
+  font-family: var(--font-mono);
+  margin-top: 1px;
+}
+
+/* ── Sensor detail ───────────────────────────────────────────────────────── */
+.sp4-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sp4-raised) transparent;
+  padding-bottom: calc(var(--app-footer-h, 64px) + 16px);
+  /* One surface, edge to edge. Only the head and an empty note painted their
+     own, so the panel's grey canvas showed through everything else — the
+     summary strip, the drain lists and, most visibly, this padding: an 80px
+     grey band under a white "No Fuel Events" note (operator, 2026-10-09). */
+  background: var(--sp4-surface);
+}
+/* ── Detail panel inset ───────────────────────────────────────────────────
+   Everything in here reads --sp4-gutter, the same token the table above it
+   uses for its edge cells. It used to be a hard-coded 18px, which looked fine
+   at the 20px floor and broke everywhere else: the gutter is
+   clamp(20px, 4vw, 64px), so on a wide monitor the row you clicked sat at 64px
+   and the panel that opened started at 18px — the child jumped ~46px left of
+   its parent. Any new block added to the detail panel must use the token, not
+   a number. */
+.sp4-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--sp4-gutter);
+  border-bottom: 1px solid var(--sp4-line);
+  flex-shrink: 0;
+  background: var(--sp4-surface);
+}
+.sp4-detail-reg {
+  font-size: var(--sp4-title);
+  font-weight: 800;
+  color: var(--sp4-text-1);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.sp4-detail-sub { font-size: var(--sp4-body); color: var(--sp4-text-3); margin-top: 2px; }
+
+/* The head is a two-item row — who this is, and what can be done about it —
+   and it had no gap and no shrink rules. `.sp4-detail-actions` is shrink: 0 on
+   a phone, so the title box was the only item able to give way, and as a bare
+   <div> it had min-width: auto: it collapsed to its longest unbreakable word
+   and let the buttons take the rest. Measured at 375px on the sensor readings
+   panel, the title column was 51px wide — the plate broke over two lines, the
+   subtitle over five, the head grew to 138px tall, and the actions ran to
+   x=403, which put the close button 28px past the right edge of the screen
+   where it could not be tapped at all. */
+.sp4-detail-head { gap: 14px; }
+.sp4-detail-titles { flex: 1 1 auto; min-width: 0; }
+.sp4-detail-close {
+  width: 28px; height: 28px;
+  border: 1px solid var(--sp4-raised);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.04);
+  color: var(--sp4-text-3);
+  font-size: var(--sp4-strong);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  font-family: var(--font-body);
+}
+.sp4-detail-close:hover { background: rgba(255,255,255,0.09); color: var(--sp4-text-1); }
+.sp4-detail-table-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* Hidden on the WRAP is right: it is what keeps the pagination bar pinned
+     below the rows instead of scrolling away with them. The rows scroll in
+     .sp4-detail-scroll inside it. */
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* The rows' own scroller.
+ *
+ * The table used to be a direct child of the wrap above, so the wrap's
+ * `overflow: hidden` clipped it — and on a phone this table is wider than the
+ * screen. Five columns of nowrap telemetry need about 430px and a 384px phone
+ * gave them 384, so the last column was cut off at the edge with no way to
+ * scroll to it: the readings were there, drawn, and unreachable.
+ *
+ * Both axes. Horizontal is the bug above; vertical matters because a full page
+ * is 50 rows and the wrap is a fixed-height flex child, so without this the
+ * rows past the fold were clipped exactly the same way. */
+.sp4-detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sp4-raised) transparent;
+  /* A horizontal swipe that runs out of table must not become a browser
+     back-navigation, which is what it does on a phone by default. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.sp4-detail-footer {
+  padding: 8px var(--sp4-gutter);
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-3);
+  border-top: 1px solid var(--sp4-line);
+  flex-shrink: 0;
+}
+
+/* ── States ──────────────────────────────────────────────────────────────
+   Loading, error and empty all occupy the SAME slot — the body of a tab, once
+   the tab strip above it is drawn. They therefore have to sit in the same
+   place, or the panel jolts as it moves between them.
+
+   `flex: 1` is what does it: these render as a direct child of .sp4-body,
+   which is a flex column, so growing to fill the remaining height is what
+   makes centring mean "the middle of the panel" instead of "the middle of a
+   40px-tall box pinned under the tabs". The spinner used to sit hard against
+   the top-left corner while the empty state that replaced it was centred
+   horizontally — two different anchors for the same slot. */
+.sp4-loading {
+  flex: 1;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px var(--sp4-gutter);
+  color: var(--sp4-text-3);
+  font-size: var(--sp4-body);
+}
+.sp4-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.08);
+  border-top-color: var(--sp4-accent);
+  border-radius: 50%;
+  animation: sp4spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes sp4spin { to { transform: rotate(360deg); } }
+.sp4-error {
+  margin: 14px;
+  padding: 12px 14px;
+  font-size: var(--sp4-body);
+  color: var(--sp4-crit);
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.18);
+  border-radius: 8px;
+}
+.sp4-empty-tab {
+  /* Same slot as .sp4-loading above, so the same anchor — see the note there. */
+  flex: 1;
+  min-height: 160px;
+  padding: 32px var(--sp4-gutter);
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-3);
+  text-align: center;
+  /* Roman, not italic: at 12.5px an oblique body face loses stem contrast and
+     these are UI captions, not prose emphasis. */
+  font-style: normal;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.sp4-empty-pending {
+  padding: 10px 14px;
+  font-size: var(--sp4-body);
+  /* A paragraph explaining why a tab is empty — it has to be readable, so it
+     sits at body weight rather than in the caption tier. */
+  color: var(--sp4-text-2);
+  background: rgba(59,130,246,0.05);
+  border: 1px solid rgba(59,130,246,0.15);
+  border-radius: 8px;
+  max-width: 480px;
+  line-height: 1.5;
+  font-style: normal;
+  text-align: left;
+}
+.sp4-empty-pending code {
+  font-family: var(--font-mono);
+  font-size: var(--sp4-body);
+  color: var(--sp4-info);
+  background: rgba(59,130,246,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* ── Mobile responsive ───────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .sp4-header {
+    /* Horizontal inset stays on the gutter at every width — see below. */
+    padding: 10px var(--sp4-gutter);
+    gap: 8px;
+  }
+  .sp4-kpi { padding: 5px 10px; min-width: 55px; }
+  .sp4-kpi-n { font-size: var(--sp4-title); }
+  .sp4-kpi-l { font-size: var(--sp4-label); }
+  .sp4-tab { padding: 8px 12px; font-size: var(--sp4-body); }
+  .sp4-tabs-hint { display: none; }
+  .sp4-table { min-width: 400px; }
+  .sp4-table thead th { font-size: var(--sp4-label); padding: 8px 10px; }
+  .sp4-table td { padding: 8px 10px; font-size: var(--sp4-body); }
+  /* These used to drop the grid's edge inset to 14px to track a header that
+     also dropped to 14px. Both now read --sp4-gutter, which already collapses
+     to its 20px floor on a narrow screen — so the override is not just
+     redundant, it actively broke parity: Service Status floors at 20px, and a
+     14px Sensor Monitor put a visible step between the two sub-tabs at exactly
+     the width where it is most obvious. The vertical padding and type sizes
+     below still tighten on mobile; only the horizontal inset is centralised. */
+  .sp4-td { padding: 8px 10px; font-size: var(--sp4-body); }
+  .sp4-reg { font-size: var(--sp4-body); }
+  .sp4-fsl-chip { font-size: var(--sp4-body); padding: 2px 6px; }
+  /* Vertical padding tightens on mobile; the horizontal inset does NOT — same
+     reasoning as the grid cells above, which were cleaned up in an earlier
+     pass that missed this line. A 14px head under a 20px table is the step the
+     cleanup was meant to remove. */
+  .sp4-detail-head { padding: 12px var(--sp4-gutter); }
+  .sp4-detail-reg { font-size: var(--sp4-strong); }
+}
+
+@media (max-width: 480px) {
+  /* These used to be hidden here, back when the header carried three anomaly
+     KPIs that the tabs already counted. Coverage is not a duplicate of
+     anything, and it is the first thing to know about the panel, so it stays —
+     just tighter. The header wraps, so it takes its own line if it must. */
+  .sp4-table { min-width: 320px; }
+}
+
+/* ── Handsets: the stat cards fill the row ─────────────────────────────────
+ *
+ * These used to SHRINK on a phone — 14px numerals in 4px-padded boxes pushed
+ * to the right-hand end of the header, which read as footnotes rather than the
+ * figures each screen leads with. On a handset the strip now spans the width,
+ * every card takes an equal share, and the numeral goes back up to the size it
+ * has on a desktop. Labels may wrap to two lines rather than being clipped.
+ */
+@media (max-width: 599px) {
+  .sp4-header { justify-content: stretch; }
+  .sp4-header-kpis {
+    flex: 1 1 100%;
+    border-radius: 10px;
+  }
+  .sp4-kpi {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 9px 6px 8px;
+    gap: 3px;
+  }
+  /* A step under the desktop's 26px: the strip still leads the screen, but
+     four 26px numerals read louder than everything else a phone shows. */
+  .sp4-kpi-n { font-size: 21px; }
+  .sp4-kpi-l {
+    font-size: var(--sp4-label);
+    letter-spacing: 0.02em;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.2;
+  }
+}
+
+/* ── Light mode ──────────────────────────────────────────────────────────── */
+/* Same four tiers, re-pointed for a white panel. #9ca3af — what the headers,
+   captions and muted cells all used here — is about 2.6:1 on white, the light
+   theme's version of the same problem. Redefining the variables fixes every
+   rule that reads them, so the per-element colour overrides below are gone. */
+.app--light .sp4-root {
+  --sp4-text-1: #0f172a;   /* ~16:1 */
+  --sp4-text-2: #334155;   /* ~10:1 */
+  --sp4-text-3: #52606f;   /*  ~6:1 */
+  --sp4-text-4: #64748b;   /* ~4.8:1 */
+
+  /* Five surface re-points that stand in for 25 per-element patch rules.
+     These MUST be literals: a custom property cannot reference itself, and
+     `--sp4-line: var(--sp4-line)` resolves to nothing at all — the border
+     disappears rather than inheriting the dark value. */
+  --sp4-bg:      #f0f4f8;
+  --sp4-surface: #ffffff;
+  --sp4-raised:  #f5f7fa;
+  --sp4-line:    #dde1e7;
+  --sp4-line-hi: #cbd5e1;
+
+  /* The dark pastels invert: #86efac is ~1.7:1 on white and #93c5fd ~1.9:1 —
+     both effectively invisible. App.scss already computed the light-tuned
+     counterparts, so point at those rather than re-deriving a second set that
+     can drift from them. */
+  --sp4-ok:     var(--accent-ok,   #15803d);
+  --sp4-crit:   var(--accent-crit, #b91c1c);
+  --sp4-info:   var(--accent-info, #0369a1);
+  --sp4-warn:   var(--accent-warn, #b45309);
+  --sp4-accent: var(--accent-info, #0369a1);
+  /* #a78bfa is ~2.2:1 on white. Same hue, driven down the lightness axis. */
+  --sp4-stat:   #6d28d9;
+}
+.app--light .sp4-header  { background: var(--sp4-surface); border-color: var(--sp4-line); }
+.app--light .sp4-kpi     { background: var(--sp4-surface); }
+/* var(--sp4-ok) is a dark-theme green — about 1.7:1 on white. The coverage figures
+   are the one thing in this header that must stay readable in both themes. */
+.app--light .sp4-kpi--live .sp4-kpi-n { color: var(--sp4-ok); }
+.app--light .sp4-header-kpis { background: var(--sp4-line); border-color: var(--sp4-line); }
+.app--light .sp4-tabs { background: var(--sp4-surface); border-color: var(--sp4-line); }
+.app--light .sp4-tab--on { color: var(--sp4-text-1); }
+.app--light .sp4-table thead th { background: var(--sp4-raised); border-color: var(--sp4-line); }
+.app--light .sp4-tr   { border-color: var(--sp4-line); }
+.app--light .sp4-tr:hover { background: rgba(0,0,0,0.02); }
+.app--light .sp4-reg  { color: var(--sp4-text-1) !important; }
+.app--light .sp4-detail-head { background: var(--sp4-surface); border-color: var(--sp4-line); }
+.app--light .sp4-detail-reg  { color: var(--sp4-text-1); }
+.app--light .sp4-detail-footer { border-color: var(--sp4-line); }
+.app--light .sp4-table-sub { border-color: var(--sp4-line); }
+
+/* Probe grid, light. The interactive fills above are rgba(255,255,255,…) —
+   white on near-black. On a white page those are invisible, so every hover and
+   active state silently stopped existing. Same intent, opposite direction. */
+.app--light .sp4-sort:hover,
+.app--light .sp4-sort.is-hover           { background: rgba(0,0,0,0.04); }
+.app--light .sp4-sort:active,
+.app--light .sp4-sort.is-active          { background: rgba(0,0,0,0.07); }
+.app--light .sp4-density-btn:hover,
+.app--light .sp4-density-btn.is-hover    { background: rgba(0,0,0,0.05); }
+.app--light .sp4-density-btn:active,
+.app--light .sp4-density-btn.is-active   { background: rgba(0,0,0,0.09); }
+.app--light .sp4-ghost-btn:active,
+.app--light .sp4-ghost-btn.is-active     { background: rgba(0,0,0,0.06); }
+.app--light .sp4-tr--probe:active,
+.app--light .sp4-tr--probe.is-active     { background: rgba(0,0,0,0.05); }
+/* `absent` leans on opacity for its recessive read, and opacity over white
+   washes out faster than over black — the colour tier carries more of the
+   work here and the fade is lighter. */
+.app--light .sp4-probe-table td.sp4-probe--absent { opacity: 0.7; }
+.app--light .sp4-tr--silent td { opacity: 0.72; }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.sp4-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px var(--sp4-gutter);
+  border-bottom: 1px solid var(--sp4-line);
+  background: var(--sp4-surface);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.sp4-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+}
+.sp4-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--sp4-text-3);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.sp4-search {
+  width: 100%;
+  padding: 7px 32px 7px 32px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--sp4-raised);
+  border-radius: 8px;
+  color: var(--sp4-text-1);
+  font-size: var(--sp4-body);
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color .15s;
+}
+.sp4-search::placeholder { color: var(--sp4-text-4); }
+.sp4-search:focus { border-color: rgba(59,130,246,0.5); background: rgba(59,130,246,0.05); }
+.sp4-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--sp4-text-3);
+  cursor: pointer;
+  font-size: var(--sp4-body);
+  padding: 2px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s;
+}
+.sp4-search-clear:hover { color: var(--sp4-text-1); }
+.sp4-filter-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--sp4-raised);
+  flex-shrink: 0;
+}
+.sp4-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.sp4-filter-label {
+  font-size: var(--sp4-body);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--sp4-text-3);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+.sp4-filter-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--sp4-raised);
+  background: rgba(255,255,255,0.03);
+  color: var(--sp4-text-3);
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.sp4-filter-chip:hover { background: rgba(255,255,255,0.07); color: var(--sp4-text-1); border-color: var(--sp4-line-hi); }
+/* The chips carry the Sort control now, which the incident report used to own
+   and which shipped with a focus ring. Keyboard reach must not get worse
+   because the control moved, and the bar's other chips never had one — so the
+   ring lands on all of them rather than only on the new ones. */
+.sp4-filter-chip:focus-visible, .sp4-filter-chip.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: 1px;
+}
+.sp4-filter-chip:active, .sp4-filter-chip.is-active { background: rgba(255,255,255,0.12); }
+.app--light .sp4-filter-chip:active,
+.app--light .sp4-filter-chip.is-active { background: var(--sp4-line-hi); }
+
+/* Export sits at the far end of the filter bar — it acts on everything to its
+   left, so it reads as the end of that sentence rather than another filter.
+   margin-left:auto survives the bar's flex-wrap. */
+.sp4-export {
+  margin-left: auto;
+  position: relative;
+}
+.sp4-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--sp4-line-hi);
+  background: rgba(255,255,255,0.04);
+  color: var(--sp4-text-1);
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.sp4-export-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); border-color: var(--sp4-accent); color: var(--sp4-accent); }
+.sp4-export-btn:disabled { opacity: .45; cursor: not-allowed; }
+.sp4-export-btn--on { border-color: var(--sp4-accent); color: var(--sp4-accent); }
+.sp4-export-caret { font-size: 9px; opacity: .7; margin-left: 1px; }
+
+/* Right-aligned to the button: the bar's last element, so a left-aligned menu
+   would hang off the viewport edge. */
+.sp4-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 172px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--sp4-line-hi);
+  background: var(--sp4-raised, #1a1d23);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sp4-export-item {
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sp4-text-2, #c9cdd4);
+  font-size: var(--sp4-body);
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.sp4-export-item:hover { background: rgba(255,255,255,0.08); color: var(--sp4-text-1); }
+/* "All sections" is the different kind of choice, so it gets a rule above it
+   rather than sitting as a fifth peer in the list. */
+.sp4-export-item--all {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--sp4-line);
+  font-weight: 600;
+  color: var(--sp4-text-1);
+  border-radius: 0 0 5px 5px;
+}
+.sp4-filter-chip--on {
+  background: rgba(59,130,246,0.15);
+  border-color: rgba(59,130,246,0.4);
+  color: var(--sp4-info);
+}
+
+/* ── View on map button ──────────────────────────────────────────────────── */
+.sp4-map-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(59,130,246,0.3);
+  border-radius: 6px;
+  background: rgba(59,130,246,0.08);
+  color: var(--sp4-info);
+  font-size: var(--sp4-body);
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.sp4-map-btn:hover {
+  background: rgba(59,130,246,0.18);
+  border-color: rgba(59,130,246,0.5);
+  color: var(--sp4-info);
+}
+.sp4-map-btn--lg {
+  padding: 6px 14px;
+  font-size: var(--sp4-body);
+}
+
+/* ── Detail head actions ─────────────────────────────────────────────────── */
+.sp4-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Light mode additions ────────────────────────────────────────────────── */
+.app--light .sp4-filterbar { background: var(--sp4-surface); border-color: var(--sp4-line); }
+.app--light .sp4-search { background: var(--sp4-raised); border-color: var(--sp4-line); color: var(--sp4-text-1); }
+.app--light .sp4-search:focus { background: var(--sp4-surface); }
+.app--light .sp4-filter-chip { background: var(--sp4-raised); border-color: var(--sp4-line); color: var(--sp4-text-3); }
+.app--light .sp4-filter-chip:hover { background: var(--sp4-line); }
+.app--light .sp4-filter-chip--on { background: rgba(59,130,246,0.1); color: var(--sp4-accent); border-color: rgba(59,130,246,0.3); }
+.app--light .sp4-filter-divider { background: var(--sp4-line); }
+.app--light .sp4-map-btn { background: rgba(59,130,246,0.08); color: var(--sp4-accent); }
+.app--light .sp4-export-btn { background: var(--sp4-raised); border-color: var(--sp4-line); color: var(--sp4-text-1); }
+.app--light .sp4-export-btn:hover:not(:disabled) { background: var(--sp4-line); }
+.app--light .sp4-export-menu { background: #ffffff; border-color: var(--sp4-line); box-shadow: 0 10px 28px rgba(0,0,0,0.14); }
+.app--light .sp4-export-item { color: var(--sp4-text-2); }
+.app--light .sp4-export-item:hover { background: var(--sp4-line); color: var(--sp4-text-1); }
+.app--light .sp4-export-item--all { color: var(--sp4-text-1); border-top-color: var(--sp4-line); }
+
+/* ── Fix italic subtitle → normal white ─────────────────────────────────── */
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+.sp4-detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sp4-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp4-page-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--sp4-raised);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  color: var(--sp4-text-2);
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all .15s;
+}
+.sp4-page-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.09);
+  color: var(--sp4-text-1);
+  border-color: var(--sp4-line-hi);
+}
+/* Was missing entirely: the pager could be reached by Tab and gave no sign of
+   where focus was. Never animated — the ring has to appear the instant focus
+   lands, and `transition: all` above would otherwise fade it in. */
+.sp4-page-btn:focus-visible, .sp4-page-btn.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: 1px;
+  transition: none;
+}
+.sp4-page-btn:active:not(:disabled), .sp4-page-btn.is-active { transform: translateY(1px); }
+.sp4-page-btn:disabled {
+  /* 0.3 took the label below the legibility floor — "disabled" should read as
+     unavailable, not as a blank button. */
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sp4-page-info {
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-3);
+  white-space: nowrap;
+}
+
+/* ── Export / Print buttons ──────────────────────────────────────────────── */
+.sp4-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--sp4-raised);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  color: var(--sp4-text-2);
+  font-size: var(--sp4-body);
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all .15s;
+}
+.sp4-action-btn:hover {
+  background: rgba(255,255,255,0.09);
+  color: var(--sp4-text-1);
+  border-color: var(--sp4-line-hi);
+}
+
+/* ── Fuel drain detail panel ─────────────────────────────────────────────── */
+.sp4-drain-summary {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--sp4-line);
+  flex-shrink: 0;
+  /* The gutter lives on the strip, not on each cell, so the FIRST label starts
+     on the same edge as the plate column of the table you clicked. */
+  padding-inline: var(--sp4-gutter);
+}
+.sp4-drain-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 18px;
+  border-right: 1px solid var(--sp4-line);
+}
+/* Zero the outer edges so the strip's own gutter is the only inset — otherwise
+   the first item sits at gutter + 18px and the alignment is off by an item's
+   worth of padding. */
+.sp4-drain-summary__item:first-child { padding-left: 0; }
+.sp4-drain-summary__item:last-child  { padding-right: 0; border-right: none; }
+.sp4-drain-summary__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--sp4-text-2);
+}
+.sp4-drain-summary__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--sp4-text-1);
+  line-height: 1.2;
+}
+
+.sp4-drain-list {
+  padding: 14px var(--sp4-gutter) 6px;
+  border-bottom: 1px solid var(--sp4-line);
+}
+.sp4-drain-list__heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--sp4-text-2);
+  margin-bottom: 4px;
+}
+.sp4-drain-list__hint {
+  font-size: 11px;
+  color: var(--sp4-text-2);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.sp4-drain-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sp4-line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp4-drain-row:last-child { border-bottom: none; }
+.sp4-drain-row__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sp4-drain-row__time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sp4-text-1);
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
+}
+.sp4-drain-row__vol {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 60px;
+}
+.sp4-drain-row__loc {
+  font-size: 11px;
+  color: var(--sp4-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.sp4-drain-row__engine {
+  padding-left: 2px;
+}
+
+/* Verdict pill */
+.sp4-verdict {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.sp4-verdict--loss    { color: #ef4444; background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.3); }
+.sp4-verdict--settled { color: #22c55e; background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.3); }
+.sp4-verdict--open    { color: #f59e0b; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); }
+/* Undulation — amber, matching the chip. */
+.sp4-verdict--undul   { color: #f59e0b; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); }
+/* No verdict about the fuel at all: still settling, or the probe is broken. */
+.sp4-verdict--none    { color: #94a3b8; background: rgba(148,163,184,.12); border-color: rgba(148,163,184,.3); }
+
+/* Engine state check badge */
+.sp4-engine-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+}
+.sp4-engine-check--off {
+  color: #ef4444;
+  background: rgba(239,68,68,.13);
+  border-color: rgba(239,68,68,.35);
+  /* Pulse to draw attention — this is the key theft signal */
+  animation: sp4-pulse-red 2s ease-in-out infinite;
+}
+.sp4-engine-check--on {
+  color: #22c55e;
+  background: rgba(34,197,94,.1);
+  border-color: rgba(34,197,94,.25);
+}
+.sp4-engine-check--unknown {
+  color: var(--sp4-text-2);
+  background: rgba(255,255,255,.05);
+  border-color: var(--sp4-line);
+}
+.sp4-engine-check--loading {
+  color: var(--sp4-text-2);
+  background: transparent;
+  border-color: transparent;
+  font-style: italic;
+}
+@keyframes sp4-pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  50%       { box-shadow: 0 0 0 4px rgba(239,68,68,.18); }
+}
+
+/* DrainEngineCheck — 4-column incident table */
+.sp4-incident-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.sp4-incident-th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--sp4-text-2);
+  padding: 6px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.sp4-incident-tr {
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.sp4-incident-tr:last-child { border-bottom: none; }
+.sp4-incident-td {
+  vertical-align: top;
+  padding: 12px 14px;
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+.sp4-incident-td:last-child { border-right: none; }
+/* This table is nested inside .sp4-drain-list, which already carries the
+   gutter — so the cells' own 14px would push the first column inboard of the
+   heading and hint directly above it. Flushing the outer edges lines the
+   "Incident" column up with everything else in the panel. */
+.sp4-incident-th:first-child,
+.sp4-incident-td:first-child { padding-left: 0; }
+.sp4-incident-th:last-child,
+.sp4-incident-td:last-child  { padding-right: 0; }
+.sp4-incident-td--incident { min-width: 160px; }
+.sp4-incident-td--details {
+  background: rgba(255,255,255,.02);
+}
+.sp4-incident-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sp4-text-1);
+  margin-bottom: 3px;
+}
+.sp4-incident-vol {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fca5a5;
+  margin-bottom: 5px;
+}
+.sp4-ec-status {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.sp4-ec-status--off {
+  color: #ffffff;
+}
+.sp4-ec-status--on { color: #22c55e; }
+.sp4-ec-range {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sp4-text-1);
+}
+.sp4-ec-duration {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sp4-text-2);
+}
+.sp4-ec-pings {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sp4-text-1);
+  margin-bottom: 3px;
+}
+.sp4-ec-interval {
+  font-size: 11px;
+  color: var(--sp4-text-2);
+  margin-bottom: 3px;
+}
+.sp4-ec-verdict {
+  font-size: 11px;
+  font-weight: 500;
+  color: #f59e0b;
+}
+.sp4-ec-verdict--on { color: #22c55e; }
+.sp4-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--sp4-line);
+  background: rgba(255,255,255,.04);
+  color: var(--sp4-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.sp4-back-btn:hover {
+  background: rgba(255,255,255,.09);
+  color: var(--sp4-text-1);
+}
+.sp4-ec-restart {
+  font-size: 11px;
+  font-weight: 500;
+  color: #22c55e;
+  margin-top: 3px;
+}
+.sp4-ec-odometer {
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.sp4-ec-odometer--still { color: #ef4444; }
+.sp4-ec-odometer--moved { color: #f59e0b; }
+.sp4-ec-odometer--na    { color: var(--sp4-text-2); font-style: italic; }
+.sp4-ec-detail-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sp4-text-1);
+}
+.sp4-post-restart {
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.sp4-post-restart--drain   { color: #ef4444; }
+.sp4-post-restart--refill  { color: #22c55e; }
+.sp4-post-restart--stable  { color: var(--sp4-text-2); }
+.sp4-post-restart--loading { color: var(--sp4-text-2); font-style: italic; }
+
+/* ── Mobile responsive — incident table ──────────────────────────────────── */
+@media (max-width: 767px) {
+  /* ── Horizontal-scroll affordance for the data grids ──────────────────────
+     The grids already scroll sideways and always did — measured on a 375px
+     screen, the probe table is 907px wide inside a 375px scroller and the page
+     itself never scrolls. What was missing is any sign of it: a touch device
+     hides its scrollbar until you drag, so the columns past the fold read as
+     absent rather than off-screen.
+
+     These are scroll shadows. The two `local` gradients are painted in the
+     CONTENT's coordinate space, so they slide away as you scroll; the two
+     `scroll` shadows are pinned to the scroller's edges. Each pair cancels
+     exactly at its end of the travel, so the hint shows only while there is
+     genuinely more grid in that direction — it is a readout of scroll
+     position, not a decoration. `--sp4-bg` is the canvas behind the rows and
+     is fully opaque, which is what lets the cover gradients hide the shadow.
+
+     Purely a background layer, so it cannot intercept a touch, and rows keep
+     painting over it. */
+  .sp4-table-scroll {
+    background:
+      linear-gradient(to right, var(--sp4-bg), transparent) 0 0 / 26px 100% no-repeat local,
+      linear-gradient(to left,  var(--sp4-bg), transparent) 100% 0 / 26px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%,    rgba(0,0,0,.5), transparent) 0 0 / 13px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.5), transparent) 100% 0 / 13px 100% no-repeat scroll;
+  }
+
+  .sp4-incident-table thead { display: none; }
+
+  .sp4-incident-table,
+  .sp4-incident-table tbody,
+  .sp4-incident-tr,
+  .sp4-incident-td { display: block; width: 100%; }
+
+  .sp4-incident-tr {
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .sp4-incident-td {
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    /* Stacked, every cell is its own row, so they all sit flush to the
+       container's gutter rather than each carrying a second inset. */
+    padding: 10px 0;
+  }
+  .sp4-incident-td:last-child { border-bottom: none; }
+
+  .sp4-incident-td--details { background: rgba(255,255,255,.02); }
+
+  /* Label each cell since thead is hidden */
+  .sp4-incident-td:nth-child(1)::before { content: "INCIDENT";       display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sp4-text-2); margin-bottom: 6px; }
+  .sp4-incident-td:nth-child(2)::before { content: "ENGINE STATUS";  display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sp4-text-2); margin-bottom: 6px; }
+  .sp4-incident-td:nth-child(3)::before { content: "PING COVERAGE";  display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sp4-text-2); margin-bottom: 6px; }
+  .sp4-incident-td:nth-child(4)::before { content: "DETAILS";        display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sp4-text-2); margin-bottom: 6px; }
+
+  /* Summary strip — stack on mobile. Keeps the gutter: the shorthand would
+     otherwise reset the padding-inline set above and re-introduce the very
+     misalignment this block is meant to preserve through the wrap. */
+  .sp4-drain-summary {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px var(--sp4-gutter);
+  }
+  .sp4-drain-summary__item { min-width: 80px; }
+
+  /* Detail panel fills the screen on mobile — BELOW the app header.
+     ────────────────────────────────────────────────────────────────────────
+     It used to be `inset: 0`, which put its top edge at the top of the
+     VIEWPORT. On mobile `.app-header-wrap` is `position: fixed` at z-index
+     1000 and this panel is 200, so the first ~56px of the panel — the whole
+     detail head, including the ✕ — was painted underneath the app header.
+     `elementFromPoint` at the middle of the close button returned
+     `sukari-header__top-row`, so the button was not merely hard to see, it was
+     unclickable, and no amount of scrolling could bring it out because a
+     `position: sticky` head sticks to the top of its scroller, which was the
+     part that was covered.
+
+     `--header-h` is the fix and it already existed: AppShell measures the
+     header with a ResizeObserver and publishes it (App.jsx). Worth using
+     rather than a literal — the header is content-driven and measures 53px at
+     320-375px but 56px at 767px, so any hardcoded number is wrong somewhere.
+     The bottom needs no equivalent: the fixed footer nav is already cleared by
+     `padding-bottom: calc(var(--app-footer-h) + 16px)` on the base rule, which
+     works there because nothing inside is sticky to the bottom. */
+  .sp4-detail {
+    position: fixed;
+    top: var(--header-h, 56px);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 200;
+    background: var(--sp4-surface);
+  }
+  /* Ensure header actions always visible on mobile */
+  .sp4-detail-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--sp4-surface);
+  }
+  /* A plate, a sentence and up to four controls do not fit across 375px, and
+     the old rule settled that by pushing the close button off the edge. The
+     head wraps instead.
+
+     `display: contents` on the actions wrapper is what makes that possible
+     without touching the markup: it hands Export / Print / View on Map / close
+     straight to the head as flex items. That is the only way the close button
+     can stay on the TITLE row — top right, where a dismissal belongs — while
+     the verbs below it wrap onto their own line. The wrapper draws no box of
+     its own, so nothing is lost by taking it out of the layout; its 8px gap is
+     replaced by the head’s 10px.
+
+     No forced break is needed after the close button. Flex lines are packed
+     from each item’s hypothetical size before any shrinking, and the title
+     box’s is its subtitle on one line — around 240px — so titles plus close
+     already fill the row and the first verb wraps on its own. If a subtitle is
+     ever short enough that a button fits beside it, that is a row used well,
+     not a regression. */
+  .sp4-detail-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .sp4-detail-actions { display: contents; }
+
+  /* Row one: who this is, then the way out. */
+  .sp4-detail-titles { order: 0; flex: 1 1 auto; min-width: 0; }
+  .sp4-detail-close  { order: 1; flex: 0 0 auto; }
+  /* Then everything that acts, in the order it is written. */
+  .sp4-detail-actions > .sp4-action-btn,
+  .sp4-detail-actions > .sp4-map-btn { order: 2; flex: 0 0 auto; }
+
+  .sp4-detail-close {
+    display: flex !important;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+}
+
+/* ── Print styles ────────────────────────────────────────────────────────── */
+@media print {
+  body > * { display: none !important; }
+  .sp4-print-table { display: table !important; }
+  .sp4-detail { display: block !important; }
+  .sp4-detail-head { display: flex !important; }
+  .sp4-detail-footer { display: none !important; }
+}
+
+/* ── Light mode additions ────────────────────────────────────────────────── */
+.app--light .sp4-page-btn { background: var(--sp4-raised); border-color: var(--sp4-line); color: var(--sp4-text-2); }
+.app--light .sp4-action-btn { background: var(--sp4-raised); border-color: var(--sp4-line); color: var(--sp4-text-2); }
+/* FSL "Tank" column — litres in the tank over the tank's stated capacity.
+   Tabular figures so the numbers line up down the column; muted because it is
+   context for the row, not the finding. Empty when Wialon states no capacity —
+   see tankFor. */
+.sp4-tank {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: var(--sp4-label);
+}
+
+/* Hallmark · component: date-input · genre: modern-minimal · theme: in-project (sp4-* tokens, preserved)
+ * states: default · hover · focus · active · disabled — loading/error/success
+ *         deliberately absent, see the note at the foot of this block
+ * pre-emit critique: P5 H5 E5 S5 R5 V4
+ * contrast: pass — measured in the browser, both themes: text on field 14.2:1
+ *           (dark) / 16.6:1 (light); field border against the panel 4.2:1 /
+ *           4.3:1, which is what `--sp4-field-line` was added for
+ * deviation: none — no new colour literals outside the token block
+ */
+
+/* The day picker — Fuel FSL, Speed, Malfunction, and the Weighbridges tab.
+   Those tabs are scoped to one fleet DAY (Kenyan, matching the server's
+   bucketing) rather than a rolling 24 hours, so the table lines up with a
+   shift and two people opening it an hour apart see the same set. ONE control
+   across them all, because tabs of one panel answering over different spans is
+   how a reader loses track of what they are looking at.
+
+   ── Why this rule is longer than a text input has any right to be ──────────
+
+   `<input type="date">` is not one surface. Blink paints the field, the
+   segments inside it (`::-webkit-datetime-edit-*`), the calendar glyph, and
+   the popup calendar — and only the first of those takes its colour from
+   `color`. The rest follow `color-scheme`, which defaults to the OPERATING
+   SYSTEM's preference and knows nothing about the switch in this app's header.
+
+   That is the whole bug: on a light desktop with the app in dark, the segments
+   and the glyph render near-black on this panel's near-black surface and the
+   control disappears. The reader sees an empty outline where the day should
+   be. The same fix already exists on the analytics window picker; the two now
+   use the same mechanism, and it is stated once here for both.
+
+   `color-scheme` is read off the ROOT element, which AppContext stamps with
+   the app's own choice — so the widget can never be in a different mode from
+   the page around it. There is deliberately NO `filter: invert()` on the
+   glyph: setting `color-scheme: dark` is what makes Blink paint that glyph
+   light in the first place, and a filter on top would invert a white icon
+   back to black, reintroducing the bug on the exact theme it was meant to fix.
+   One mechanism, not two. */
+.sp4-date-input {
+  /* Was `var(--surface-2, …)` / `var(--text-1)` — tokens this panel does not
+     define and App.scss does not either, so both silently fell through: the
+     background to a translucent grey wash and the text to whatever it
+     inherited. The panel has its own scale; use it, and the light theme is
+     handled by the re-points at the bottom of this file for free. */
+  background: var(--sp4-raised);
+  color: var(--sp4-text-1);
+  border: 1px solid var(--sp4-field-line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: var(--sp4-label);
+  font-family: inherit;
+  /* The date reads as three fixed-width segments, so the control does not
+     twitch as the reader steps through days. */
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  /* The file's own idiom — `.12s var(--sp4-ease, ease)` — rather than a new
+     `--sp4-dur` invented for one rule. Colour only, so there is nothing here
+     for reduced-motion to collapse. */
+  transition: border-color .12s var(--sp4-ease, ease),
+              background-color .12s var(--sp4-ease, ease);
+}
+
+/* The theme the widget is painted in, taken from the app rather than the OS.
+   Both directions are stated: a reader on a DARK desktop using the light theme
+   has the mirror-image failure, and `light dark` cannot fix either. */
+:root[data-theme="dark"]  .sp4-date-input { color-scheme: dark; }
+:root[data-theme="light"] .sp4-date-input { color-scheme: light; }
+
+/* The segments, explicitly. `color` above reaches the field; on some Blink
+   builds it does not reach the year/month/day parts, which then keep the UA's
+   own ink. Naming them costs three rules and removes a whole class of
+   "invisible on one machine" report. */
+.sp4-date-input::-webkit-datetime-edit,
+.sp4-date-input::-webkit-datetime-edit-fields-wrapper { color: var(--sp4-text-1); }
+/* The separators sit a tier down, so "09 / 09 / 2026" reads as a date rather
+   than as five equal glyphs. */
+.sp4-date-input::-webkit-datetime-edit-text { color: var(--sp4-text-4); padding: 0 1px; }
+.sp4-date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.75; }
+
+/* ── States ───────────────────────────────────────────────────────────────
+   Hover and active are the same gesture at two depths; focus is the one that
+   has to be unmissable, because this control is reachable by keyboard from
+   the search box beside it and a picker you cannot see you are on is a picker
+   you cannot use. */
+.sp4-date-input:hover,
+.sp4-date-input.is-hover {
+  border-color: var(--sp4-accent);
+  background: var(--sp4-surface);
+}
+.sp4-date-input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+.sp4-date-input:focus-visible,
+.sp4-date-input.is-focus {
+  /* Instant, never animated — a ring that fades in is a ring that is missing
+     at the moment the reader arrives. */
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: 2px;
+  border-color: var(--sp4-accent);
+}
+.sp4-date-input:active,
+.sp4-date-input.is-active { background: var(--sp4-line); }
+.sp4-date-input:disabled,
+.sp4-date-input[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--sp4-line-hi);
+}
+/* No loading / error / success states: this control writes straight to a
+   query param and the TABLE below it owns every one of those three. Styling
+   them here would be three rules nothing can ever set. */
+
+
+/* ── Probe & Sensor Health ────────────────────────────────────────────────
+ *
+ * The historical view, sitting directly above the live probe grid on the same
+ * tab. It has no styles of its own beyond this separator: everything inside it
+ * is this file's own vocabulary — gridbar, filter chips, probe table, pills,
+ * state blocks — because a second visual language on one screen reads as two
+ * products. That also means it follows the light theme for free.
+ */
+/* ── Probe & Sensor Health (the Health tab) ───────────────────────────────
+ *
+ * A TAB, not a band above the grid. It shipped stacked over All Probes and that
+ * was the bug: two dense tables rendered at once, the grid sitting behind this
+ * one, neither able to use the screen. `.sp4-body` is a flex column with
+ * `min-height: 0` and `overflow: hidden`, so a tab view claims the pane by
+ * flexing into it and putting the scroll on one child.
+ *
+ * That reverses the bounded `max-height` this had a moment ago — correctly. As
+ * a section stacked above the grid it had to be bounded or it would push the
+ * page down; as the whole tab it should own the pane like every other view
+ * here. The context changed, so the right answer changed with it.
+ */
+.sp4-probe-health {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* Without this the scroller cannot shrink below its content and the flex
+     column overflows instead of scrolling — the same failure, one level up. */
+  min-height: 0;
+}
+
+/* Ten columns of triage do not fit a phone, so this grid is given its natural
+ * width and the scroller moves sideways. That holds on a tablet and on a desk.
+ * It did NOT hold on a phone: measured at 375px the table resolved to 1,684px,
+ * four and a half screens across, and reading one unit meant panning back and
+ * forth past ten columns to collect ten values. Below 768px the grid therefore
+ * stops being a grid — see "Mobile: one card per row" further down. This
+ * minimum applies above that breakpoint, where sideways scrolling is fine.
+ */
+.sp4-ph-scroll .sp4-table { min-width: 920px; }
+
+/* One line per cell keeps a row scannable... */
+.sp4-probe-health .sp4-table td { white-space: nowrap; }
+
+/* ...except the Action, which is a sentence and the one cell worth reading.
+   Wide enough to break at a phrase rather than a word. */
+.sp4-probe-health .sp4-td--action {
+  white-space: normal;
+  min-width: 210px;
+  overflow-wrap: anywhere;
+}
+
+/* Row one stays visible while the list scrolls under it. */
+.sp4-ph-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sp4-surface);
+}
+
+/* On a phone this screen PAGE-scrolls rather than pane-scrolls: `app-container`
+ * is `flex: 0 1 auto` with only a `min-height`, so the shell grows with its
+ * content and nothing beneath it can be viewport-bounded. Measured at 375px the
+ * flex chain therefore resolved to a 2,312px scroller that did not scroll at
+ * all — the same runaway this section started with, one level up.
+ *
+ * So stop asking for a pane that does not exist here and bound the box
+ * directly. `flex: none` is the part that matters: without it the flex parent
+ * hands back its full content height and max-height never binds.
+ */
+@media (max-width: 767px) {
+  .sp4-ph-scroll {
+    /* Was `flex: none` plus `max-height: min(60vh, 460px)`. A fraction of the
+       viewport is not the space this box actually has: the chrome above it
+       varies by tab, by whether a unit is ticked, and by how many chip rows
+       wrapped. When the fraction came out larger than the room left, the
+       scroller ran off the bottom of a shell that clips — measured on an SE at
+       375 x 667, 262px of the list hung past the end with no way to reach it.
+       Sized by the flex parent instead, it is whatever is left and no more.
+       Below BP.handset none of this applies: there the whole panel scrolls. */
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+/* ── Mobile: the filter bar, the chips and the export bar ──────────────────
+ *
+ * Measured on a 375px screen, signed in, Sensor Monitor open. Three separate
+ * things were wrong and they share one cause: controls sized for a mouse were
+ * handed a phone, and the only adjustment made was a blanket 44px tap floor
+ * (index.scss). A floor raises the height and nothing else, so every short
+ * control came out taller than it was wide.
+ *
+ *   · the search sat at 256px with a stub of empty bar and a stray divider
+ *     beside it, and the Activity group wrapped underneath anyway
+ *   · "All" measured 38 x 44 — the oval this block is mostly here to fix
+ *   · eight Channel chips wrapped to three ragged lines, pushing the grid
+ *     they filter below the fold
+ *   · Refresh / CSV / PDF sat left-packed under a wrapped summary sentence,
+ *     with the rest of the row empty
+ *
+ * Everything below is inside the 768px query. Nothing above it moves.
+ */
+@media (max-width: 767px) {
+  .sp4-filterbar {
+    gap: 8px 10px;
+    align-items: stretch;
+  }
+
+  /* The tick box stays 15px — a checkbox that grows to thumb size is a
+     checkbox that dominates the row it belongs to, and these sit one per
+     unit down a table of hundreds. What grows is the CELL around it, which
+     is the part a thumb actually has to hit and which was the width of the
+     box itself. The box is the drawing; the cell is the target. */
+  .sp4-th--check,
+  .sp4-td--check {
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Full width and its own row. A phone has room for one control across, and a
+     search ending two thirds of the way over leaves a dead stub the reader
+     keeps trying to type into. Weighbridges overrides this — see
+     WeighbridgesScreen.css, where the day picker earns a place on this row. */
+  .sp4-search-wrap { flex: 1 0 100%; min-width: 0; }
+  /* 31px on a phone, from desk padding. It is the control most likely to be
+     aimed at first and the one a mis-tap is most annoying on, because the
+     keyboard has already come up by the time you see you missed. */
+  .sp4-search { min-height: var(--m-field); }
+
+  /* A rule drawn between two STACKED rows is a rule between nothing. */
+  .sp4-filter-divider { display: none; }
+
+  /* Each group takes a row and SCROLLS rather than wrapping.
+     Wrapping is what cost the panel its first rows: Channel's eight chips
+     became three lines, so the table they filter started below the fold and
+     the operator had to scroll to see the effect of the control they had just
+     tapped. One scrolling line is the honest trade — the chips past the edge
+     are off-screen rather than absent, and the bleed below makes that visible
+     by cutting the last one at the panel edge instead of ending it on a
+     margin that reads as "that is all of them". */
+  .sp4-filter-group {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    margin-inline: calc(var(--sp4-gutter) * -1);
+    padding-inline: var(--sp4-gutter);
+  }
+  .sp4-filter-group::-webkit-scrollbar { display: none; }
+  .sp4-filter-label { flex-shrink: 0; }
+
+  /* THE OVAL. --m-chip tall (index.scss) with padding to match, centred as a
+     flex box so the label sits on the middle of that height rather than 4px
+     down from the top of it. The 999px radius resolves to a true capsule:
+     one-word chips read as round-ended pills, "Fuel probe" as a longer one of
+     the same family. */
+  .sp4-filter-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* The line this block was missing.
+       Everything around it was written for a 36px oval — `padding: 0 14px`
+       removes the vertical padding precisely BECAUSE a height was supposed to
+       supply it, and `line-height: 1` centres the label inside that height.
+       Without it, nothing set a height at all and the chip collapsed to its
+       own line box: MEASURED at 375px, 14.5px tall. A third of a thumb, and
+       the reason these read as unreachably small on a phone.
+       `.dr-chip` in DriversScreen.scss reads the same token. */
+    min-height: var(--m-chip);
+    padding: 0 12px;
+    border-radius: 999px;
+    line-height: 1;
+  }
+
+  /* The count beside a tab label was the same fault in miniature — 1px of
+     vertical padding under a 10px radius drew a flat lozenge. A square box
+     makes a single digit a circle and "284" a capsule, which is the shape a
+     count badge is supposed to have. */
+  .sp4-tab-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    line-height: 1;
+  }
+
+  /* ── Refresh · CSV · PDF ───────────────────────────────────────────────
+     Compact buttons the width of their word, at the phone control height.
+     Stretched into equal thirds of a full row they read as the page's main
+     content rather than its tools. */
+  .sp4-gridbar { gap: 8px; }
+  /* The summary wraps inside its own box and the buttons sit beside it when
+     they fit, dropping to their own right-aligned line when they do not. */
+  .sp4-gridbar > span:first-child { flex: 1 1 150px; min-width: 0; }
+  .sp4-gridbar-tools { flex: 0 0 auto; gap: 6px; margin-left: auto; justify-content: flex-end; }
+  .sp4-gridbar-tools .sp4-ghost-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 17px measured, for the same reason as the chips: the padding was
+       zeroed for a height that never came. The phone control height, sized
+       to the word and pushed right — as equal thirds of a full row at 40px
+       they were three slabs that read as the page's main content. */
+    min-height: var(--m-ctl);
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: var(--sp4-body);
+  }
+}
+
+/* ── Repair reporting ────────────────────────────────────────────────────────
+   Selection on the probe table, the three action buttons it reveals, and the
+   form that follows them. Same tokens as everything above: this is a MODE of
+   the probe table, not a second product living inside it.
+
+   Every rule here has a light-theme partner at the foot of this block. The
+   panel's interactive fills are rgba(255,255,255,…) — white over near-black —
+   and left alone on a white page they are invisible rather than merely wrong.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.sp4-th--check,
+.sp4-td--check {
+  width: 34px;
+  padding-right: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+/* accent-color on a NATIVE checkbox rather than a drawn box: it already knows
+   how to take focus, toggle on Space and render indeterminate. All it wants
+   from us is the panel's blue instead of the browser's. */
+.sp4-check {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--sp4-accent);
+  cursor: pointer;
+}
+.sp4-check:disabled { cursor: not-allowed; opacity: 0.4; }
+.sp4-check:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; }
+
+.sp4-selbar { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sp4-selbar-n {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  color: var(--sp4-text-2);
+  white-space: nowrap;
+}
+/* A hairline between the tab's own verbs and the export pair, so "Fix" and
+   "CSV" do not read as one row of equals. */
+.sp4-gridbar-sep { width: 1px; height: 16px; background: var(--sp4-line-hi); }
+
+/* sp4-ghost-btn geometry, with the outcome's colour on the edge. The three are
+   coloured because they are not interchangeable: one of them takes a unit off
+   the road. */
+.sp4-act-btn {
+  padding: 3px 9px;
+  background: none;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  color: var(--sp4-text-2);
+  white-space: nowrap;
+}
+.sp4-act-btn:hover, .sp4-act-btn.is-hover { color: var(--sp4-text-1); border-color: var(--sp4-text-4); }
+.sp4-act-btn:focus-visible, .sp4-act-btn.is-focus { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+.sp4-act-btn:active, .sp4-act-btn.is-active { background: rgba(255,255,255,0.06); }
+.sp4-act-btn--warn { border-color: var(--sp4-warn); color: var(--sp4-warn); }
+.sp4-act-btn--crit { border-color: var(--sp4-crit); color: var(--sp4-crit); }
+
+/* ── The form ─────────────────────────────────────────────────────────────
+   An inline card, not a dialog. Nothing in this app implements a focus trap,
+   so a modal here would be a dead end on a keyboard — and sitting above the
+   table leaves the rows readable while they are being described. */
+.sp4-repair {
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 10px;
+  background: var(--sp4-surface);
+  padding: 14px;
+  margin: 0 0 10px;
+}
+.sp4-repair-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sp4-repair-title {
+  font-family: var(--font-display, inherit);
+  font-size: var(--sp4-strong);
+  font-weight: 700;
+  color: var(--sp4-text-1);
+}
+.sp4-repair-setall { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.sp4-repair-list { display: grid; gap: 8px; }
+.sp4-repair-item {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+}
+.sp4-repair-itemhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+/* The fix date, on the row of the unit it applies to, pushed to the right end
+   of that row — see RepairReportForm for why this placement is the ONE-unit
+   case only. `margin-left: auto` rather than `justify-content: space-between`
+   on the parent: the plate and the fault are a pair and must stay together at
+   the left, which space-between would pull apart the moment a third child
+   appeared.
+
+   `align-items: baseline` on the parent would sit the input's text baseline on
+   the plate's, which drops the box a few pixels below the line it shares. The
+   label and the field are their own baseline group, centred against the plate
+   instead. */
+.sp4-repair-itemdate {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+}
+/* At a phone width the row wraps and this lands on a line of its own, where a
+   right-hand margin would leave it floating in the middle of nowhere. */
+@media (max-width: 599px) {
+  .sp4-repair-itemdate { margin-left: 0; width: 100%; }
+}
+.sp4-repair-reg {
+  font-family: var(--font-display, inherit);
+  font-size: var(--sp4-strong);
+  font-weight: 700;
+  color: var(--sp4-text-1);
+}
+.sp4-repair-fault { font-size: var(--sp4-body); color: var(--sp4-text-3); }
+.sp4-repair-outcomes { display: flex; gap: 6px; flex-wrap: wrap; }
+/* The reason a row is not ready, said where the row is rather than only in the
+   tally by the button — with twelve units open, a count is a search task. */
+.sp4-repair-why { font-size: var(--sp4-label); color: var(--sp4-warn); }
+
+/* Two classes deep, and that is not decoration. These chips reuse
+   .sp4-filter-chip's geometry, and the light theme patches THAT at
+   `.app--light .sp4-filter-chip` — two classes. A single-class `--on` loses to
+   it, which leaves the selected chip on the unselected fill while the colour
+   rule below still flips the label to white: white on near-white, 1.07:1,
+   measured. Matching its weight here and beating it by one below is what keeps
+   the selected outcome visible in both themes. */
+.sp4-filter-chip.sp4-out-chip--on {
+  background: var(--sp4-accent);
+  border-color: var(--sp4-accent);
+  color: #050505;
+}
+.sp4-filter-chip.sp4-out-chip--needs_spare.sp4-out-chip--on { background: var(--sp4-warn); border-color: var(--sp4-warn); }
+.sp4-filter-chip.sp4-out-chip--cannot_fix.sp4-out-chip--on  { background: var(--sp4-crit); border-color: var(--sp4-crit); }
+/* The sign-off's two verdicts. Green and red rather than the neutral the
+   default `--on` gives, because these two are the ONLY pair on this screen
+   where picking the wrong one is a claim about a vehicle's fate. */
+.sp4-filter-chip.sp4-out-chip--fixed.sp4-out-chip--on  { background: var(--sp4-ok);   border-color: var(--sp4-ok); }
+.sp4-filter-chip.sp4-out-chip--failed.sp4-out-chip--on { background: var(--sp4-crit); border-color: var(--sp4-crit); }
+
+/* 4px put an 8px uppercase label within a hair of the control under it —
+   "titles touching text areas". 8 is the next step on this file's scale
+   (2 / 4 / 8 / 12 / 16 / 20) and the first one that reads as a gap. */
+.sp4-field { display: grid; gap: var(--sp4-xs); }
+.sp4-label {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: var(--sp4-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sp4-text-4);
+}
+.sp4-input,
+.sp4-textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--sp4-text-1);
+  font-family: var(--font-body, inherit);
+  font-size: var(--sp4-body);
+  width: 100%;
+  box-sizing: border-box;
+}
+.sp4-textarea { min-height: 46px; resize: vertical; line-height: 1.45; }
+.sp4-input:focus-visible,
+.sp4-textarea:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+
+/* The estimate picker in the dialog head, sized to sit in a row of chips.
+ *
+ * `color-scheme` is doing the load-bearing work. The browser paints the
+ * calendar icon and the whole dropdown from THAT property and not from the
+ * surrounding CSS, so a date input on a near-black panel ships a
+ * black-on-black icon and then opens a blinding white calendar. There is no
+ * selector that reaches inside that popup; declaring the scheme is the only
+ * way to tell the platform which half of the theme it is in.
+ *
+ * The width is the other half: `.sp4-input` is `width: 100%`, which is right
+ * for a box that holds a sentence and wrong for one that holds ten characters
+ * — stretched across the head it reads as an empty text field somebody forgot
+ * to label. `max-width` keeps it inside the strip when it wraps to its own
+ * line on a phone (see the 2825 media block).
+ */
+.sp4-input--date {
+  color-scheme: dark;
+  width: auto;
+  min-width: 9.5rem;
+  max-width: 100%;
+  padding: 4px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.app--light .sp4-input--date { color-scheme: light; }
+
+/* The estimate in the Repairs table, for the rows that have NOT slipped.
+ *
+ * Plain text and not a pill, deliberately. An overdue job wears
+ * `.sp4-pill--inc` and is the only thing in the column that should catch an
+ * eye scanning for trouble; giving every dated row a chip would leave the one
+ * that matters with nothing to stand out against. These three tones only
+ * separate "today" and "tomorrow" from "some time next month".
+ *
+ * Tabular numerals so a column of dates lines up on the digits rather than
+ * drifting by the width of a 1. */
+/* The Fix date reads "2026-09-21 · in 4 days", and the half that must not
+   come apart is the date: a browser may break after a hyphen, so it split as
+   "2026-" / "09-21 · in 4 days". Held whole, which also matches the overdue
+   variant of this same cell — that one renders as .sp4-pill and has never
+   been able to wrap, so the column already widens for it. */
+.sp4-est {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--sp4-text-2);
+}
+.sp4-est--warn { color: var(--sp4-warn, #f59e0b); font-weight: 600; }
+.sp4-est--ok   { color: var(--sp4-text-2); }
+.sp4-est--none { color: var(--sp4-text-3); }
+
+/* The amber token is mid-tone by design (see the outcome chips above) and
+   carries on white; it is re-pointed in light to #b45309 there, so this needs
+   no second value — only the neutrals flip. */
+.app--light .sp4-est,
+.app--light .sp4-est--ok   { color: var(--sp4-text-2); }
+.app--light .sp4-est--none { color: var(--sp4-text-3); }
+
+/* The trip note's `margin-top: 10px` is gone: it was standing in for the body
+   gap above, and keeping both would separate it from the list by 22px while
+   every other pair in the dialog sat at 12. */
+.sp4-repair-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+/* margin-right:auto so the pending count sits at the far left of the footer,
+   in reading order ahead of the button it explains rather than crowding it. */
+.sp4-repair-pending {
+  margin-right: auto;
+  font-size: var(--sp4-label);
+  color: var(--sp4-warn);
+}
+.sp4-submit-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--sp4-accent);
+  border-radius: 5px;
+  background: var(--sp4-accent);
+  color: #050505;
+  font-family: inherit;
+  font-size: var(--sp4-label);
+  font-weight: 700;
+  cursor: pointer;
+}
+.sp4-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sp4-submit-btn:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; }
+
+/* ── Banners ──────────────────────────────────────────────────────────────
+   `--ok` is the ONLY one that means the handlers were told. Everything else
+   says the report is safe and the email is not — which is the live production
+   answer today, since the box carries no mail credentials. */
+.sp4-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  font-size: var(--sp4-body);
+  line-height: 1.45;
+}
+.sp4-banner--ok   { border: 1px solid var(--sp4-ok);   color: var(--sp4-ok); }
+.sp4-banner--warn { border: 1px solid var(--sp4-warn); color: var(--sp4-warn); }
+.sp4-banner--crit { border: 1px solid var(--sp4-crit); color: var(--sp4-crit); }
+.sp4-banner-x {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.sp4-banner-x:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.sp4-empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-3);
+}
+
+/* ── Repair reporting, light ─────────────────────────────────────────────── */
+.app--light .sp4-repair        { background: var(--sp4-surface); border-color: var(--sp4-line-hi); }
+.app--light .sp4-repair-item   { background: rgba(0,0,0,0.02);   border-color: var(--sp4-line-hi); }
+.app--light .sp4-input,
+.app--light .sp4-textarea      { background: #fff; border-color: var(--sp4-line-hi); color: var(--sp4-text-1); }
+.app--light .sp4-act-btn:active,
+.app--light .sp4-act-btn.is-active { background: rgba(0,0,0,0.06); }
+.app--light .sp4-gridbar-sep   { background: var(--sp4-line-hi); }
+/* The fills are mid-tone: near-black text reads on them over a dark page and
+   stops reading on a light one. The LABEL flips, the fill does not — the
+   colour is what identifies the outcome, so it has to stay put. The tokens
+   re-point themselves in light (#3b82f6 -> #0369a1, #f59e0b -> #b45309), which
+   is what carries these to 5.0, 5.0 and 6.5:1 rather than needing a second
+   palette here. Three classes, to clear `.app--light .sp4-filter-chip--on`. */
+.app--light .sp4-filter-chip.sp4-out-chip--on {
+  background: var(--sp4-accent);
+  border-color: var(--sp4-accent);
+  color: #fff;
+}
+.app--light .sp4-filter-chip.sp4-out-chip--needs_spare.sp4-out-chip--on { background: var(--sp4-warn); border-color: var(--sp4-warn); }
+.app--light .sp4-filter-chip.sp4-out-chip--cannot_fix.sp4-out-chip--on  { background: var(--sp4-crit); border-color: var(--sp4-crit); }
+.app--light .sp4-filter-chip.sp4-out-chip--fixed.sp4-out-chip--on  { background: var(--sp4-ok);   border-color: var(--sp4-ok); }
+.app--light .sp4-filter-chip.sp4-out-chip--failed.sp4-out-chip--on { background: var(--sp4-crit); border-color: var(--sp4-crit); }
+/* The sign-off's two verdicts. Green and red rather than the neutral the
+   default `--on` gives, because these two are the ONLY pair on this screen
+   where picking the wrong one is a claim about a vehicle's fate. */
+.sp4-filter-chip.sp4-out-chip--fixed.sp4-out-chip--on  { background: var(--sp4-ok);   border-color: var(--sp4-ok); }
+.sp4-filter-chip.sp4-out-chip--failed.sp4-out-chip--on { background: var(--sp4-crit); border-color: var(--sp4-crit); }
+.app--light .sp4-submit-btn { color: #fff; }
+
+/* Hallmark · component: dialog + combobox · genre: modern-minimal
+ * theme: in-project (SensorPanel sp4 tokens, preserved) · pre-emit: P5 H5 E5 S5 R5 V4
+ * states — the DIALOG: default · hover · focus-visible · active · disabled ·
+ *   loading (busy → "Filing…", every control disabled) · error (.sp4-modal-err,
+ *   and .sp4-repair-why per row). SUCCESS IS NOT IN HERE — the dialog closes and
+ *   ProbeHealthPanel's banner reports what became of the email, because a tick
+ *   inside a dialog that is about to vanish is a tick nobody reads.
+ * states — the PICKER (.sp4-pick-*): default · hover · focus-within · active
+ *   (the option under the pointer OR the arrows, one class, so the two input
+ *   methods cannot disagree) · disabled · loading · error (data-state) ·
+ *   success (data-state — the border steps up one grey, quietly, because twelve
+ *   answered fields down a batch report must not each ask to be looked at).
+ *
+ * 2026-09-16 · the SIGN-OFF dialog (`.sp4-modal--narrow`) joins this block.
+ *   One component behind two doors — the Repairs tab and the tracking line —
+ *   replacing an inline card in each, which is what this app built before it
+ *   had a focus trap. 460px rather than 760: one unit and three fields, and at
+ *   the wider size the textareas run to a measure nobody writes prose across.
+ *   states: default · hover · focus-visible · active · disabled (busy) ·
+ *     loading ("Closing…") · error (kept OPEN with the note intact — a 409
+ *     here means somebody closed it first, and losing the sentence would be
+ *     the second loss in a row) · discard-armed (a dirty Escape or backdrop
+ *     press asks before throwing the note away). Success is not a state: the
+ *     dialog closes and the ladder it was opened from lands on its end rung.
+ *   contrast: pass — title 18.20, labels 5.79, close 8.22, submit 5.54,
+ *     chosen verdict chip 14.52, part line 8.22.
+ *   focus: `data-autofocus` on the note. The trap took the first focusable,
+ *     which is the close ×, and React's own autoFocus prop cannot be found in
+ *     the DOM because React never renders the attribute.
+ * contrast: pass — danger 10.60/6.47, close 8.22/6.44, pending 9.37/5.02,
+ *   why 9.09/4.81, field placeholder 5.30/4.76, list group head 6.41/6.44,
+ *   option 11.16/15.43, escape row 6.41/6.44, caret 7.53/6.44
+ *   (dark/light, alpha composited against the whole ancestor chain)
+ */
+
+/* ── The report dialog ───────────────────────────────────────────────────────
+   The repair form was an inline card until the app grew a focus trap
+   (hooks/useFocusTrap.js). It is now a dialog, and it follows the overlay
+   grammar MapOverlay already established for the fuel-incident window —
+   `position: fixed` with `inset: 0` at z-index 4000 over a 55% scrim.
+
+   Fixed positioning is safe from inside the panel tree, and that is not an
+   accident: src/lib/appZoom.js picks `zoom` over `transform: scale()` on the
+   app root PRECISELY so the root does not become a containing block for
+   `position: fixed`. No portal is needed, and adding one would break the
+   theme class this dialog inherits.
+
+   Every rule here has a light-theme partner at the foot of this block. The
+   panel's interactive fills are rgba(255,255,255,…) — white over near-black —
+   and left alone on a white page they are invisible rather than merely wrong.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.sp4-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/*
+ * The page behind goes soft, not just dark.
+ *
+ * `backdrop-filter` is already this project's idiom — FleetMap and FleetsMenu
+ * lean on it for their floating panels — so this is reaching for something the
+ * app owns rather than introducing a dependency on one dialog's behalf.
+ *
+ * 4px, which is the "a little" end of it: enough that the table underneath
+ * stops competing for the eye, not so much that a technician loses track of
+ * which unit they were looking at while they describe it. FleetMap's own
+ * scale runs 2–16px and its dense-content panels sit at 4–6.
+ *
+ * The scrim stays at 0.55 rather than being lightened to "show off" the blur.
+ * Its job is guaranteeing contrast for the dialog against whatever happens to
+ * be behind it, and blur does not do that job — it removes detail, not
+ * luminance. Both, or the dialog is only legible over dark table rows.
+ *
+ * Behind @supports so a browser without it keeps the plain scrim rather than
+ * silently dropping the line.
+ */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sp4-modal-overlay {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Blur behind text is a known trigger for some vestibular and low-vision
+   readers, and the OS setting that says so is the one to honour. The scrim
+   deepens to carry the separation the blur was doing. */
+@media (prefers-reduced-transparency: reduce) {
+  .sp4-modal-overlay {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.72);
+  }
+}
+
+/* Three rows: a head and a foot that do not move, and a list between them that
+   scrolls. This is the whole reason the card became a dialog — a twelve-unit
+   report is taller than the screen, and on the card the submit button and the
+   count of what was still missing were below the fold. */
+.sp4-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(88vh, 900px);
+  background: var(--sp4-surface);
+  border: 1px solid var(--sp4-line-hi);
+  /* 6px, not 12 (operator, 2026-10-08: "the border radius are an overkill"). */
+  border-radius: 6px;
+  /* No shadow on dialogs (operator, 2026-10-08): the scrim and the border
+     already set it apart. */
+  box-shadow: none;
+  overflow: hidden;
+}
+/* The sign-off is one unit and three fields. At 760px its textareas run to a
+   measure nobody wants to write prose across, and the dialog reads as a batch
+   form that has lost its list. */
+.sp4-modal--narrow { width: min(460px, 100%); }
+
+/* The form is the flex parent of the scrolling body, so it has to pass the
+   height through. `min-height: 0` is what actually lets the body scroll —
+   without it a flex child refuses to shrink below its content and the whole
+   dialog grows past the viewport instead. */
+.sp4-repair-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sp4-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--sp4-line-hi);
+}
+
+.sp4-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  /* The dialog owns the scroll; a wheel that reaches the end of this list must
+     not carry on into the table behind the scrim. */
+  overscroll-behavior: contain;
+  /*
+   * The body SPACES ITS OWN CHILDREN, and it did not before.
+   *
+   * The first dialog in here put everything inside `.sp4-repair-list`, which
+   * has its own gap, so the body never needed one — and the one block that sat
+   * outside that list, the trip note, was given a hand-written `margin-top` to
+   * cover for it. The next dialog stacked three fields straight into the body
+   * and they came out touching: a label sitting on the bottom edge of the
+   * textarea above it, twice.
+   *
+   * `align-content: start` because this is a scroll container: without it the
+   * rows stretch to fill the height whenever the content is shorter than the
+   * dialog, which spaces a two-field form out like a form letter.
+   */
+  display: grid;
+  align-content: start;
+  gap: var(--sp4-sm);
+}
+
+.sp4-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-top: 1px solid var(--sp4-line-hi);
+}
+
+/* Full width so the error takes its own line above the buttons rather than
+   squeezing them off the end of the row. */
+.sp4-modal-err { flex: 1 0 100%; margin: 0 0 4px; }
+
+/* margin-left:auto pushes the × to the far edge past the "set all" strip. */
+.sp4-modal-x {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  color: var(--sp4-text-3);
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.sp4-modal-x:hover, .sp4-modal-x.is-hover { color: var(--sp4-text-1); background: rgba(255,255,255,0.06); }
+.sp4-modal-x:focus-visible, .sp4-modal-x.is-focus { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+.sp4-modal-x:active, .sp4-modal-x.is-active { transform: translateY(1px); }
+.sp4-modal-x:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* The list inside the dialog already has the dialog's padding. */
+.sp4-modal .sp4-repair-head { margin-bottom: 0; }
+
+/* ── The spare-part picker ───────────────────────────────────────────────
+   This was a `<select>`, and the thing that ended it is not visible in any
+   stylesheet: the option popup is drawn by the BROWSER, outside the page, and
+   no rule here ever reached it. `color-scheme: dark` could tint it and that
+   was the whole extent of the control we had — on a near-black dialog it still
+   opened a light-grey column with an OS highlight bar, twenty-three rows long,
+   overhanging the dialog it belonged to.
+
+   So the list is ours now, and every rule below exists because the native
+   control could not be told any of it: the group heads stay put while the list
+   scrolls, the matched run of the query is bolded, the list flips above the
+   field when the dialog body would clip it, and the whole thing carries the
+   panel's own tokens on both themes.
+
+   `.sp4-pick-field` deliberately repeats `.sp4-input`'s fill, border and radius
+   rather than composing with it — the input inside is bare, and a field that
+   inherited half its look from one class and half from another is the harder
+   of the two things to keep true. */
+.sp4-pick { position: relative; }
+
+.sp4-pick-field {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 4px;
+  /* min-width: 0 so a long part name shrinks the input rather than pushing the
+     caret off the end of a 10px-padded dialog at 375. */
+  min-width: 0;
+}
+.sp4-pick-field:hover, .sp4-pick-field.is-hover { border-color: var(--sp4-text-4); }
+/* The whole field takes the ring, not the bare input inside it — the caret is
+   part of the control and a ring around two thirds of it reads as a mistake. */
+.sp4-pick-field:focus-within, .sp4-pick-field.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: 1px;
+}
+.sp4-pick-field[data-open="true"] { border-color: var(--sp4-accent); }
+/* Answered: the border steps up to the one grey that clears 4.3:1 against the
+   dialog. Quiet on purpose — twelve green fields down a batch report would be
+   twelve things asking to be looked at, and none of them need to be. */
+.sp4-pick-field[data-state="success"] { border-color: var(--sp4-field-line); }
+.sp4-pick-field[data-state="error"]   { border-color: var(--sp4-crit); }
+.sp4-pick-field[data-state="loading"] { opacity: 0.6; }
+
+.sp4-pick-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  padding: 7px 0 7px 9px;
+  color: var(--sp4-text-1);
+  font-family: var(--font-body, inherit);
+  font-size: var(--sp4-body);
+  text-overflow: ellipsis;
+}
+/* A token, not a literal. The last time this placeholder was written as a
+   colour it was overridden by a later `.app--light` rule of equal specificity
+   and the prompt started reading as an answer in one theme only; `--sp4-text-4`
+   is re-declared per theme, so there is nothing here to lose that fight. */
+.sp4-pick-input::placeholder { color: var(--sp4-text-4); opacity: 1; }
+.sp4-pick-input:disabled { color: var(--sp4-text-4); cursor: not-allowed; }
+
+.sp4-pick-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  background: none;
+  border: 0;
+  color: var(--sp4-text-3);
+  cursor: pointer;
+}
+.sp4-pick-caret:hover, .sp4-pick-caret.is-hover { color: var(--sp4-text-1); }
+.sp4-pick-caret:active, .sp4-pick-caret.is-active { transform: translateY(1px); }
+.sp4-pick-caret:disabled { cursor: not-allowed; }
+.sp4-pick-field[data-open="true"] .sp4-pick-caret svg { transform: rotate(180deg); }
+
+/* The list. `max-height` is set inline from the measured room inside the
+   dialog body, so this only carries the floor. */
+.sp4-pick-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  overflow-y: auto;
+  /* The list owns its own wheel: reaching its end must not carry on into the
+     dialog body and take the field out from under the cursor. */
+  overscroll-behavior: contain;
+  /* No padding at the top: the sticky group head has to be able to sit flush
+     against the border, or the options scroll up through the 4px gap above
+     it. The head's own padding is the breathing room. */
+  padding: 0 4px 4px;
+  background: var(--sp4-raised);
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 4px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+.sp4-pick-list--up { top: auto; bottom: calc(100% + 4px); }
+
+/* Sticky, which is the one thing the `<optgroup>` could never be: scrolling
+   past "Likely for this fault" used to lose the only piece of information the
+   ranking was carrying. */
+.sp4-pick-grouphead {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 8px 8px 4px;
+  background: var(--sp4-raised);
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  /* 11px, where the form's own `.sp4-label` is 8px. The field labels sit alone
+     above a field; this one competes with 12.5px option text two pixels below
+     it inside a scrolling column, and at 8px it stopped being read. */
+  font-size: var(--sp4-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sp4-text-3);
+}
+
+.sp4-pick-opt {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: var(--sp4-text-2);
+  font-size: var(--sp4-body);
+  line-height: 1.35;
+  cursor: pointer;
+}
+/* One highlight, driven by `active` — the pointer sets it on enter and the
+   arrows set it on press, so the mouse and the keyboard can never disagree
+   about which row Enter would take. That is why there is no `:hover` rule. */
+.sp4-pick-opt--active, .sp4-pick-opt.is-hover, .sp4-pick-opt.is-active {
+  background: rgba(255,255,255,0.08);
+  color: var(--sp4-text-1);
+}
+.sp4-pick-opt--on { color: var(--sp4-text-1); }
+.sp4-pick-tick { flex: 0 0 11px; color: var(--sp4-accent); font-size: 11px; }
+/* Weight, not a highlight swatch: the row already carries a fill when active,
+   and a third surface inside it is unreadable on whichever theme it was not
+   tuned for. */
+.sp4-pick-hit { color: var(--sp4-text-1); font-weight: 700; }
+
+/* The escape hatch, kept apart from the catalogue by a hairline so choosing it
+   is never a slip of one row — but only when there IS a catalogue above it to
+   be kept apart from. A query that matches nothing leaves this row alone in
+   the list, and a rule drawn across the top of a one-row list is a divider
+   between it and nothing. */
+.sp4-pick-opt--new {
+  border-radius: 0 0 4px 4px;
+  color: var(--sp4-text-3);
+}
+.sp4-pick-group:not(:first-child) .sp4-pick-opt--new {
+  margin-top: 4px;
+  border-top: 1px solid var(--sp4-line-hi);
+  padding-top: 8px;
+}
+.sp4-pick-opt--new b { color: var(--sp4-text-1); font-weight: 700; }
+
+/* ── Discard ──────────────────────────────────────────────────────────────
+   Armed, never instant: this button only ever appears after a first dismissal
+   of a form with something typed in it, and it is the one control here that
+   destroys work. Outlined rather than filled — a filled red in the corner
+   where "File report" normally sits would be pressed by muscle memory. */
+.sp4-danger-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--sp4-crit);
+  border-radius: 4px;
+  background: none;
+  color: var(--sp4-crit);
+  font-family: inherit;
+  font-size: var(--sp4-label);
+  font-weight: 700;
+  cursor: pointer;
+}
+.sp4-danger-btn:hover, .sp4-danger-btn.is-hover { background: rgba(239,68,68,0.12); }
+.sp4-danger-btn:focus-visible, .sp4-danger-btn.is-focus { outline: 2px solid var(--sp4-crit); outline-offset: 2px; }
+.sp4-danger-btn:active, .sp4-danger-btn.is-active { transform: translateY(1px); }
+
+/* The outcome chips are three short verbs and must never break across two
+   lines — the group wraps instead of the label. */
+.sp4-out-chip { white-space: nowrap; }
+
+/* ── The dialog on a phone ────────────────────────────────────────────────
+   A full sheet, not a centred card. The form is the longest thing on this
+   screen and every pixel spent on a scrim margin is a pixel off the list; the
+   same call MobileVehicleSheet and the fuel-incident window already make. */
+@media (max-width: 640px) {
+  .sp4-modal-overlay { padding: 0; }
+  .sp4-modal {
+    width: 100%;
+    max-height: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+  .sp4-modal-head, .sp4-modal-body, .sp4-modal-foot { padding: 10px 12px; }
+  /* Two rows on a phone: title and close above, "set all" below.
+     All three sit on one row at desktop widths and the head is 52px. At 375
+     the three chips wrap, and because the × is pushed right by `margin-left:
+     auto` it was carried down with them — landing on a FOURTH row, at the
+     bottom-right of the header, a full 130px from the title it closes. Order
+     puts it back beside the title and costs the desk layout nothing. */
+  .sp4-modal-head .sp4-repair-setall { flex: 1 0 100%; order: 1; }
+  .sp4-modal-x { order: 0; }
+  /* The footer's buttons take the full row on a phone, where the pending
+     count would otherwise squeeze "File report" to a two-line label. */
+  .sp4-modal-foot .sp4-repair-pending { flex: 1 0 100%; margin: 0 0 4px; }
+}
+
+/* Motion-cut project: the dialog appears, it does not arrive. */
+
+/* ── The report dialog, light ─────────────────────────────────────────────── */
+.app--light .sp4-modal {
+  background: var(--sp4-surface);
+  border-color: var(--sp4-line-hi);
+  box-shadow: none;
+}
+.app--light .sp4-modal-x:hover,
+.app--light .sp4-modal-x.is-hover { background: rgba(0,0,0,0.06); }
+.app--light .sp4-pick-field { background: #fff; border-color: var(--sp4-line-hi); }
+/* White, not `--sp4-raised`: this sits on top of a white dialog and has to read
+   as the nearer of two surfaces, which on a light theme is the shadow's job
+   rather than the fill's. */
+.app--light .sp4-pick-list {
+  background: var(--sp4-surface);
+  box-shadow: 0 12px 32px rgba(15,23,42,0.18);
+}
+.app--light .sp4-pick-grouphead { background: var(--sp4-surface); }
+.app--light .sp4-pick-opt--active,
+.app--light .sp4-pick-opt.is-hover,
+.app--light .sp4-pick-opt.is-active { background: rgba(3,105,161,0.10); }
+
+/* Hallmark · component: progress-tracker · genre: modern-minimal
+ * theme: in-project (SensorPanel sp4 tokens, preserved) · pre-emit: P5 H5 E5 S5 R5 V4
+ * macrostructure: skipped (component scope)
+ * states — a DISPLAY component, so the eight are positions, not pointer
+ *   states: todo · done · current · current-ok (fixed) · current-crit (failed)
+ *   · skipped-rung · loop (the history list) · absent (renders null, because
+ *   most units have never been reported and a card announcing that would be
+ *   the loudest thing on a healthy unit's page). Hover, focus, active and
+ *   disabled are absent because nothing here is operable — the stage CONTROL
+ *   is `.sp4-stage-set` on the Repairs tab, built out of `.sp4-filter-chip`,
+ *   which carries all four already.
+ * orientation: horizontal from 620px of CARD width, vertical below — a
+ *   container query, not a media query, so a narrow column gets the vertical
+ *   form even on a wide screen. Measured: 4 x 353px columns at a 1294px card,
+ *   every label on one line; 333px card at 375px viewport falls to vertical
+ *   with no overflow. Connector centred on the dots to 0.5px in both.
+ * contrast: pass — name 17.89/15.53 current, 8.08/5.60 todo; blurb and meta
+ *   8.08/5.60; note 12.80/9.01; head and part 8.08/5.60; history 8.08/5.60;
+ *   "now" chip 5.54/5.37 accent, 14.50/4.54 ok, 10.73/5.85 crit
+ *   (dark/light, alpha composited against the whole ancestor chain)
+ * responsive: vertical at every width — no breakpoint, nothing to disagree.
+ *   375px: no horizontal overflow, card 317px, every text node wraps.
+ */
+
+/* ── The repair tracking line ─────────────────────────────────────────────────
+ *
+ * A vertical timeline: a rail down the left, one dot per rung, the stage and
+ * its date to the right. Vertical at EVERY width — the horizontal draft needed
+ * 93px per label at 375 and "Spare outsourced" does not fit in 93px, so the
+ * choice was truncating the stage that matters most or keeping two layouts
+ * honest for one component. See the note at the head of RepairTrackingLine.
+ *
+ * The rail is drawn by the DOT'S OWN ::after, not by a border on the row.
+ * A border would run the full height of a row whose text has wrapped onto
+ * three lines and then stop dead at the next row's padding, leaving a visible
+ * seam at every join. The ::after starts under the dot and runs to the bottom
+ * of the row, so the segments meet.
+ */
+.sp4-track {
+  /* The ladder's orientation is decided by THIS CARD's width, not the
+     window's — see the container query below. */
+  container-type: inline-size;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 8px;
+  padding: var(--sp4-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+.sp4-track-head {
+  display: flex; align-items: baseline; gap: var(--sp4-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp4-sm);
+}
+.sp4-track-title {
+  font-size: var(--sp4-body); font-weight: 600;
+  color: var(--sp4-text-2);
+}
+.sp4-track-part {
+  font-size: var(--sp4-label);
+  color: var(--sp4-text-3);
+  /* min-width:0 so a long catalogue name wraps inside the flex row instead of
+     pushing the card wider than the detail panel that holds it. */
+  min-width: 0; overflow-wrap: anywhere;
+}
+/* A slipped estimate, and the only red in this header. The weight carries it
+   as much as the colour does — `--sp4-crit` is a mid-tone that reads on both
+   themes (it re-points in the light block), so no `.app--light` twin is
+   needed, but colour alone would not survive a monochrome print or a reader
+   who cannot separate it from the neutral beside it. */
+.sp4-track-part--late {
+  color: var(--sp4-crit, #ef4444);
+  font-weight: 700;
+}
+
+.sp4-track-list { list-style: none; margin: 0; padding: 0; }
+
+.sp4-track-row { display: flex; gap: var(--sp4-sm); }
+/* The gap between rungs belongs to the BODY, not to the row.
+   On the row it sits OUTSIDE the rail's stretched height — a flex item
+   stretches to the content box, not through the padding — so the line stopped
+   dead 16px above the next dot, once per join, all the way down. Measured
+   gapToNextDot: 16px before this moved, 2px after. */
+.sp4-track-row:not(:last-child) .sp4-track-body { padding-bottom: var(--sp4-sm); }
+/* Compact: only the current rung explains itself. A rung to come is its name
+   on a hollow dot; a rung passed is its name and its date. */
+.sp4-track-row--todo .sp4-track-blurb,
+.sp4-track-row--todo .sp4-track-meta,
+.sp4-track-row--done .sp4-track-blurb { display: none; }
+.sp4-track-row--todo .sp4-track-name { font-weight: 500; }
+
+.sp4-track-rail {
+  position: relative;
+  flex: 0 0 auto;
+  width: 10px;
+  /* The dot's own line height, so the dot sits on the stage name's baseline
+     rather than at the top of a row whose note has wrapped. */
+  padding-top: 4px;
+}
+.sp4-track-dot {
+  display: block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--sp4-line-hi);
+  background: var(--sp4-bg);
+}
+/* The connector hangs off the RAIL, not off the dot.
+   The dot is a fixed 14px box; the rail is the full extent of the rung in
+   whichever direction the ladder runs — stretched to the row's height when
+   vertical, to the grid cell's width when horizontal. Anchoring to it lets one
+   mechanism serve both orientations, and the horizontal override below only
+   has to swap which pair of edges is pinned. */
+.sp4-track-connector {
+  position: absolute;
+  /* left 4 centres a 2px line under a 10px dot; top 16 clears the dot with a
+     2px breath; bottom -2 pushes it the same 2px into the next dot. */
+  left: 4px; top: 16px; bottom: -2px;
+  width: 2px;
+  background: var(--sp4-line-hi);
+}
+.sp4-track-connector--filled {
+  background: var(--sp4-accent);
+  transform-origin: top center;
+  animation: sp4-track-fill-vertical 520ms cubic-bezier(.22,.8,.24,1) both;
+  animation-delay: calc(var(--track-index) * 150ms + 240ms);
+}
+
+@keyframes sp4-track-fill-vertical {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes sp4-track-node-in {
+  from { opacity: 0; transform: scale(.55); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.sp4-track-body { min-width: 0; flex: 1 1 auto; }
+.sp4-track-name {
+  display: flex; align-items: center; gap: var(--sp4-2xs);
+  flex-wrap: wrap;
+  font-size: var(--sp4-strong);
+  font-weight: 600;
+  color: var(--sp4-text-3);
+  overflow-wrap: anywhere;
+}
+/* No `--todo` colour rule, and that is the point: dimming an unreached rung
+   further would put it back on `--sp4-text-4` and back under AA. The ramp is
+   already three steps — todo keeps text-3, done steps to text-2, current to
+   text-1 — and the hollow dot plus the words "Not yet" carry the rest. */
+.sp4-track-now {
+  font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 2px 6px; border-radius: 999px;
+  /* The panel's own ground, not #fff. White on `--sp4-accent` measured 3.68:1
+     on dark — a fail at 9.5px, and the two toned variants below already spell
+     their text with `--sp4-bg`, so this was also the odd one out. */
+  background: var(--sp4-accent); color: var(--sp4-bg);
+}
+/* text-3, not text-4, and the same for the meta line below.
+   `--sp4-text-4` is the token for "least-important aside", and measured 4.14:1
+   on the light theme once this card's own 2% fill is composited over the
+   panel — a fail. Neither of these is an aside: the blurb is what separates
+   two stages a reader would otherwise guess between, and the meta is the date
+   the whole component exists to show. */
+.sp4-track-blurb {
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-3);
+  margin-top: 2px;
+}
+.sp4-track-meta {
+  font-size: var(--sp4-label);
+  color: var(--sp4-text-3);
+  margin-top: var(--sp4-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.sp4-track-note {
+  margin: var(--sp4-2xs) 0 0;
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* ── The three node states ───────────────────────────────────────────────────
+ *
+ * DONE and CURRENT are both filled; only the ring and the weight separate
+ * them, because a technician scanning this needs "where is it now" in one
+ * glance and "what has already happened" in two. TODO is hollow and dimmed —
+ * and it is the DEFAULT above, so a stage the code forgot to classify reads as
+ * not-yet-reached rather than as done. That is the safe direction to fail in.
+ */
+.sp4-track-row--done .sp4-track-dot,
+.sp4-track-row--current .sp4-track-dot { border-color: var(--sp4-text-3); background: var(--sp4-text-3); }
+.sp4-track-dot {
+  animation: sp4-track-node-in 360ms cubic-bezier(.22,.8,.24,1) both;
+  animation-delay: calc(var(--track-index) * 150ms);
+}
+.sp4-track-row--done .sp4-track-name   { color: var(--sp4-text-2); }
+
+.sp4-track-row--current .sp4-track-name  { color: var(--sp4-text-1); }
+.sp4-track-row--current .sp4-track-blurb { color: var(--sp4-text-3); }
+.sp4-track-row--current .sp4-track-dot {
+  border-color: var(--sp4-accent); background: var(--sp4-accent);
+  /* A ring rather than a bigger dot: growing it would shift the rail's
+     centre and bend the line at that rung. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp4-accent) 28%, transparent);
+}
+
+/* The two ends colour themselves, but only once they are actually reached —
+   a `todo` selector would paint the aimed-at "Fixed" green before anybody has
+   fixed anything. */
+.sp4-track-row--ok.sp4-track-row--current .sp4-track-dot,
+.sp4-track-row--ok.sp4-track-row--done .sp4-track-dot { border-color: var(--sp4-ok); background: var(--sp4-ok); }
+.sp4-track-row--ok.sp4-track-row--current .sp4-track-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp4-ok) 28%, transparent); }
+.sp4-track-row--crit.sp4-track-row--current .sp4-track-dot,
+.sp4-track-row--crit.sp4-track-row--done .sp4-track-dot { border-color: var(--sp4-crit); background: var(--sp4-crit); }
+.sp4-track-row--crit.sp4-track-row--current .sp4-track-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp4-crit) 28%, transparent); }
+.sp4-track-row--crit.sp4-track-row--current .sp4-track-name { color: var(--sp4-crit); }
+.sp4-track-row--crit .sp4-track-now { background: var(--sp4-crit); color: var(--sp4-bg); }
+.sp4-track-row--ok .sp4-track-now   { background: var(--sp4-ok);   color: var(--sp4-bg); }
+/* A stage passed WITHOUT standing on it (no spare was outsourced before the
+   fix): amber dot, and amber line in and out, so the bypass reads at a glance
+   (operator, 2026-10-01). After the general rules so it wins over them. */
+.sp4-track-row--skipped.sp4-track-row--done .sp4-track-dot { border-color: var(--sp4-warn); background: var(--sp4-warn); }
+.sp4-track-row--skipped .sp4-track-name { color: var(--sp4-warn); }
+.sp4-track-connector--filled.sp4-track-connector--skipped { background: var(--sp4-warn); }
+
+/* ── Horizontal, once there is room for it ───────────────────────────────────
+ *
+ * The ladder runs ACROSS on desktop and laptop, and DOWN when it cannot.
+ *
+ * A CONTAINER QUERY, not a media query, and that is the whole trick. What
+ * decides whether four labels fit is the width of THIS CARD — which is the
+ * detail panel minus two gutters, and on this screen that is nowhere near the
+ * window's width. A `@media (min-width: 900px)` would have flipped every
+ * instance the moment the WINDOW passed 900px, including one sitting in a
+ * narrow column, and the harness next door would have lied about it.
+ *
+ * 620px is measured, not chosen: four rungs need about 130px of label each
+ * before "Spare outsourced" breaks onto a second line, plus the card's own
+ * padding. Below that the horizontal form would truncate the stage that
+ * matters most, so it stops being offered rather than being squeezed.
+ *
+ * Four columns exactly, because STAGE_ORDER is four rungs and the fork at the
+ * end is folded onto the last one — see trackingLine() in api/repairs.js. A
+ * repeat(auto-fit) here would silently reflow into two rows of two the day a
+ * fifth rung appeared, which is the wrong failure: the line would still look
+ * fine and would no longer be a line.
+ */
+@container (min-width: 620px) {
+  .sp4-track-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .sp4-track-row { display: block; }
+  /* The vertical rhythm's gap belongs to nothing here — the columns are the
+     rhythm — and left on, it would pad the card's foot by 16px. */
+  .sp4-track-row:not(:last-child) .sp4-track-body { padding-bottom: 0; }
+  /* Keeps a long label off its neighbour's dot. */
+  .sp4-track-body { padding-right: var(--sp4-md); }
+
+  .sp4-track-rail {
+    display: block;
+    width: 100%;
+    height: 14px;
+    padding-top: 0;
+    margin-bottom: var(--sp4-xs);
+  }
+  /* Out of flow, pinned to the cell's left edge: the dots then sit on a single
+     baseline across the card no matter how tall any one label grows. */
+  .sp4-track-dot { position: absolute; left: 0; top: 0; }
+  .sp4-track-connector {
+    /* The dot is `box-sizing: border-box` and therefore 10px overall, not 14 —
+       its centre sits 4.5px from the rail's edge in BOTH orientations. So
+       top 4 puts the 2px line through the dot rather than 2.5px under it, and
+       left 12 leaves the same 2px breath after the dot that the vertical form
+       leaves below it. right 2 leaves that breath before the next cell's dot,
+       which sits at its own left edge. */
+    left: 12px; right: 2px; top: 4px;
+    bottom: auto; width: auto; height: 2px;
+  }
+  .sp4-track-connector--filled {
+    transform-origin: left center;
+    animation-name: sp4-track-fill-horizontal;
+  }
+}
+
+@keyframes sp4-track-fill-horizontal {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp4-track-dot,
+  .sp4-track-connector--filled {
+    animation: none;
+  }
+}
+
+/* ── The sign-off, on the ladder ──────────────────────────────────────────── */
+.sp4-track-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4-xs);
+  flex-wrap: wrap;
+  margin-top: var(--sp4-sm);
+  padding-top: var(--sp4-sm);
+  border-top: 1px solid var(--sp4-line-hi);
+}
+/* The same row shape as the sign-off below it, one rung up: where the job is
+   now, and the two stages it can be moved to. Sits ABOVE "Close this job"
+   because moving is the reversible one, and a control that ends a ticket
+   should not be the first one under the ladder. */
+.sp4-track-move {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4-xs);
+  flex-wrap: wrap;
+  margin-top: var(--sp4-sm);
+  padding-top: var(--sp4-sm);
+  border-top: 1px solid var(--sp4-line-hi);
+}
+/* Disabled here means "this is where the job already is", which the `--on`
+   chip is already saying — so it reads as the current answer rather than as a
+   control that has been taken away. */
+.sp4-track-move .sp4-filter-chip:disabled { cursor: default; opacity: 1; }
+.sp4-track-move .sp4-filter-chip:disabled:not(.sp4-filter-chip--on) { opacity: 0.55; }
+
+/* A stage the job went past WITHOUT (no spare outsourced before Fixing): lit,
+   in amber, like its dot and line on the tracking ladder. */
+.sp4-filter-chip.sp4-filter-chip--skipped,
+.app--light .sp4-filter-chip.sp4-filter-chip--skipped {
+  background: color-mix(in srgb, var(--sp4-warn) 14%, transparent);
+  color: var(--sp4-warn);
+  border-color: color-mix(in srgb, var(--sp4-warn) 45%, transparent);
+}
+.sp4-track-move-error {
+  flex: 1 0 100%;
+  font-size: var(--sp4-body);
+  color: var(--sp4-crit);
+}
+
+.sp4-track-mark-label {
+  font-size: var(--sp4-label);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sp4-text-3);
+  margin-right: var(--sp4-2xs);
+}
+/* The destructive twin of `.sp4-ghost-btn`, matching `.sp4-act-btn--crit`
+   next door: the border and the ink carry it, never a filled red button —
+   nothing here deletes anything, it records an outcome. */
+.sp4-ghost-btn--crit { border-color: var(--sp4-crit); color: var(--sp4-crit); }
+.sp4-ghost-btn--crit:hover,
+.sp4-ghost-btn--crit.is-hover { color: var(--sp4-crit); border-color: var(--sp4-crit); }
+
+/* ── The loop list ───────────────────────────────────────────────────────── */
+.sp4-track-history {
+  margin-top: var(--sp4-sm);
+  padding-top: var(--sp4-sm);
+  border-top: 1px solid var(--sp4-line-hi);
+}
+.sp4-track-history-head {
+  display: block;
+  font-size: var(--sp4-label);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sp4-text-3);
+  margin-bottom: var(--sp4-2xs);
+}
+.sp4-track-history-list {
+  list-style: none; margin: 0; padding: 0;
+  font-size: var(--sp4-body); color: var(--sp4-text-3);
+}
+.sp4-track-history-list li { padding: 2px 0; overflow-wrap: anywhere; }
+.sp4-track-history-list b { color: var(--sp4-text-2); font-weight: 600; }
+
+/* ── The stage control on the Repairs tab ─────────────────────────────────── */
+.sp4-stage-set { display: flex; align-items: center; gap: var(--sp4-2xs); flex-wrap: wrap; }
+.sp4-stage-set-label {
+  font-size: var(--sp4-label); color: var(--sp4-text-3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* ── Assignment control on the Repairs tab ───────────────────────────────── */
+.sp4-assignment { min-width: 230px; }
+.sp4-assignment-current {
+  display: block; color: var(--sp4-text-2); font-size: var(--sp4-body);
+  margin-bottom: var(--sp4-2xs);
+}
+.sp4-assignment-actions {
+  display: flex; align-items: center; gap: var(--sp4-2xs); flex-wrap: wrap;
+}
+.sp4-assignment-select {
+  width: 190px; min-height: 32px; padding: 5px 9px;
+  border: 1px solid var(--sp4-field-line); border-radius: 5px;
+  background: var(--sp4-raised); color: var(--sp4-text-1);
+  color-scheme: dark; font: inherit; font-size: var(--sp4-body);
+  line-height: 1.25; font-weight: 600;
+}
+.sp4-assignment-select option {
+  background: var(--sp4-raised); color: var(--sp4-text-1);
+  font-weight: 500;
+}
+.app--light .sp4-assignment-select,
+.app--light .sp4-assignment-select option {
+  background: #fff; color: #172033; color-scheme: light;
+}
+.sp4-assignment-select:focus-visible {
+  outline: 2px solid var(--sp4-accent); outline-offset: 1px;
+}
+.sp4-assignment-select:disabled { opacity: 0.6; }
+
+/* ── The tracking line, light ─────────────────────────────────────────────── */
+/* The only literal fill in the block above — white on near-black, and so
+   invisible on a white panel. Everything else is a token and flips with the
+   theme by itself. */
+.app--light .sp4-track { background: rgba(15, 23, 42, 0.02); }
+
+/* ── The tracking line inside the unit detail panel ───────────────────────────
+   The panel sets its own rhythm with `var(--sp4-gutter)` — the head that
+   carries the close button and the footer both use it. The card takes the same
+   inset so its left edge starts where the table does and its right edge ends
+   under the close button, which is the alignment the ladder was asked for.
+   A contextual rule rather than a margin on the component: the component does
+   not know where it is, and the container is what places it. */
+.sp4-detail > .sp4-track { margin: var(--sp4-sm) var(--sp4-gutter); }
+
+/* Hallmark · component: toast · genre: modern-minimal
+ * theme: in-project (SensorPanel sp4 tokens, preserved) · pre-emit: P5 H5 E5 S5 R5 V4
+ * states: default · hover · focus-visible · active (the dismiss button) ·
+ *   ok · warn · crit (the tone edge) · auto-dismissed (ok only, 6s, in
+ *   ProbeHealthPanel). No disabled and no loading: the toast only ever exists
+ *   AFTER the write has returned, so there is no pending state for it to have.
+ * contrast: pass — body text 10.16/10.35, dismiss button 6.41/6.44
+ *   (dark/light, alpha composited against the whole ancestor chain)
+ */
+
+/* ── The filed-report toast ───────────────────────────────────────────────────
+ *
+ * This was a `.sp4-banner` — a full-bleed strip across the panel, carrying a
+ * sentence long enough ("the mail service is not configured on the server")
+ * to run two lines at desktop width and push the whole table down. It shouted
+ * at a person who had just finished a task and wanted to see the table again.
+ *
+ * A toast instead: corner-anchored, capped at 380px, over the panel rather
+ * than inside its flow, so nothing moves when it arrives or leaves.
+ *
+ * WHAT IT DOES NOT DO IS AUTO-DISMISS ON ANYTHING BUT SUCCESS. A tick that
+ * fades is fine — the work is done and recorded. "Filed, but nobody was
+ * emailed" is an instruction to go and tell somebody, and an instruction that
+ * removes itself after four seconds is worse than no instruction: the
+ * technician half-reads it and carries on. Those stay until dismissed. The
+ * timing lives in ProbeHealthPanel; this block only has to not fight it.
+ *
+ * `position: fixed` is safe from inside the panel tree for the reason the
+ * report dialog gives: appZoom.js picks `zoom` over `transform: scale()` on
+ * the app root precisely so the root is not a containing block for fixed.
+ */
+.sp4-toast {
+  position: fixed;
+  right: var(--sp4-md);
+  /* AT THE BOTTOM, and only as far up as something down there forces it.
+     This read `calc(var(--app-footer-h, 64px) + var(--sp4-md))`, and
+     --app-footer-h is declared nowhere in this app — so every screen got the
+     64px fallback whether or not it had a bar to clear. On desktop there is no
+     bottom bar at all, which left the toast hovering 80px up with nothing
+     underneath it. --mobile-nav-h is the token that actually tracks this: 0 on
+     desktop, 76px + the safe area under the tab bar's breakpoint, 56px + safe
+     area on a short screen. One expression, right on all three. */
+  bottom: calc(var(--mobile-nav-h, 0px) + var(--sp4-md));
+  /* Above the report dialog's 4000: the dialog closes on a successful file,
+     but a toast that could ever be painted behind a scrim is a toast nobody
+     reads. */
+  z-index: 4100;
+  width: min(380px, calc(100vw - 2 * var(--sp4-md)));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp4-xs);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sp4-line-hi);
+  background: var(--sp4-raised);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  font-size: var(--sp4-body);
+  line-height: 1.45;
+  color: var(--sp4-text-2);
+}
+/* The tone is a 3px edge, not a tinted fill and not coloured body text.
+   The sentence has to be READ — it names what did not happen — and coloured
+   running text at 12.5px is the first thing to lose on a projector or a
+   sunlit windscreen. */
+.sp4-toast::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 8px 0 0 8px;
+  background: var(--sp4-text-4);
+}
+.sp4-toast--ok::before   { background: var(--sp4-ok); }
+.sp4-toast--warn::before { background: var(--sp4-warn); }
+.sp4-toast--crit::before { background: var(--sp4-crit); }
+
+.sp4-toast-text { min-width: 0; overflow-wrap: anywhere; }
+
+.sp4-toast-x {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--sp4-text-3);
+  font-size: var(--sp4-strong);
+  line-height: 1;
+  cursor: pointer;
+}
+.sp4-toast-x:hover, .sp4-toast-x.is-hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sp4-text-1);
+}
+.sp4-toast-x:active, .sp4-toast-x.is-active { border-color: var(--sp4-line-hi); }
+.sp4-toast-x:focus-visible, .sp4-toast-x.is-focus {
+  outline: 2px solid var(--sp4-accent);
+  outline-offset: 1px;
+}
+
+/* Motion-cut project: the toast appears, it does not slide in. */
+
+@media (max-width: 560px) {
+  /* Full width less the gutter, and clear of the footer nav. */
+  .sp4-toast { left: var(--sp4-md); right: var(--sp4-md); width: auto; }
+}
+
+/* ── Toast, light ────────────────────────────────────────────────────────── */
+.app--light .sp4-toast {
+  background: var(--sp4-surface);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+}
+.app--light .sp4-toast-x:hover,
+.app--light .sp4-toast-x.is-hover { background: rgba(15, 23, 42, 0.07); }
+
+/* ── An escalated repair job ───────────────────────────────────────────────
+   The daily sweep raises a job that has gone quiet or sailed past its own
+   date, and records it on the job's trail WITHOUT moving the stage — see
+   `escalationOf` in api/repairs. So the badge is the only place this shows on
+   the board, and an escalation nobody can see is the failure the sweep exists
+   to prevent.
+
+   It sits beside the fault, not the stage: on an open row the stage is three
+   clickable chips, and a badge among them reads as a fourth. */
+.rj-esc {
+  margin-left: 8px;
+  letter-spacing: 0.02em;
+  vertical-align: baseline;
+}
+/* Raised more than once and still open. A second escalation must not arrive
+   looking like the first — the same rule the feed's severity follows. */
+.rj-esc--again {
+  font-weight: 800;
+  box-shadow: 0 0 0 1px var(--sp4-crit) inset;
+}
+
+
+/* ── Handsets: one card per row ─────────────────────────────────────────────
+ *
+ * Every grid on this screen is wider than a phone — the probe grid resolves to
+ * 1,684px at 375px wide, the repairs grid to about 1,100px. Sideways scrolling
+ * was the earlier answer and it is the wrong one at this width: a row is 54px
+ * tall and ten columns away from itself, so reading one unit is a pan, and
+ * tapping the right one is aiming at a strip you cannot see the whole of.
+ *
+ * 599px, NOT the 767px the rest of the mobile chrome uses — see BP.handset in
+ * hooks/useBreakpoint. A tablet keeps the table: an iPad mini has 744px across
+ * and 1,133px down, which is enough to read a grid and scroll it sideways, and
+ * a card list there would be spreading ten short values over a screen that had
+ * room for all of them at once.
+ *
+ * On a handset each row becomes a card instead: the registration is its title,
+ * every other cell is a label/value line beneath it, and the whole card is the
+ * tap target the row already was. Nothing scrolls sideways.
+ *
+ * The header row is HIDDEN rather than restyled, which is only safe because
+ * none of these headers is a control — there is no sort button in any thead on
+ * this screen (checked: no .sp4-sort in any panel's markup). Its text is not
+ * lost: lib/tableLabels copies each column head onto the cells under it as
+ * `data-label`, and the ::before below draws it. A cell that somehow arrives
+ * without one simply shows its value, which is the old behaviour.
+ */
+@media (max-width: 599px) {
+  .sp4-table-scroll { overflow-x: hidden; }
+  .sp4-table,
+  .sp4-ph-scroll .sp4-table,
+  .sp4-probe-table--comfortable { min-width: 0; display: block; }
+
+  .sp4-table > thead { display: none; }
+
+  .sp4-table > tbody { display: block; }
+  /* Two columns of fields, not twelve stacked lines. Single-column measured
+     401px per unit at 375px wide, so one card filled the panel's window and
+     scanning the fleet meant scrolling one unit at a time. The values here are
+     short — "9m ago", "0 L · 0%", a state pill — and pair comfortably. The
+     title and the Action sentence span both tracks. */
+  .sp4-table > tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    position: relative;          /* the select box is pinned to this box */
+    padding: 4px 0 8px;
+    border-bottom: 1px solid var(--sp4-line);
+  }
+  .sp4-table > tbody > tr:last-child { border-bottom: none; }
+
+  .sp4-table > tbody > tr > td,
+  .sp4-table > tbody > tr > td.sp4-td {
+    /* Label above value, not beside it: at half a phone wide a label and a
+       state pill on one line wrap into a ragged two-line cell anyway, and the
+       ragged version puts the label's tail under the value. */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    /* The edge inset from the desktop grid, both sides, on every cell — as
+       cards these are all first and last in their own row. */
+    padding: 5px var(--sp4-gutter);
+    text-align: left;
+    /* nowrap is right for a column 210px wide and wrong for a value with half
+       a phone to itself; the Action sentence is the whole point of this. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* The title and the Action sentence run the full width. */
+  .sp4-table > tbody > tr > td.sp4-reg,
+  .sp4-table > tbody > tr > td:has(> .sp4-reg),
+  .sp4-table > tbody > tr > td.sp4-td--action { grid-column: 1 / -1; }
+
+  .sp4-table > tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-size: var(--sp4-label);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sp4-text-3);
+  }
+  /* An unlabelled cell — the select box, the view-on-map button — keeps its
+     value full width rather than opening a gap where a label would be. */
+  .sp4-table > tbody > tr > td[data-label=""]::before,
+  .sp4-table > tbody > tr > td:not([data-label])::before { content: none; }
+
+  /* The registration is the card's heading, not its first field. Two shapes
+     across these panels: the probe and repairs grids wrap the plate in a span
+     inside a plain cell, alongside the tracker id; the fuel grid puts the
+     class on the cell itself. Both are the title. */
+  .sp4-table > tbody > tr > td.sp4-reg,
+  .sp4-table > tbody > tr > td:has(> .sp4-reg) {
+    display: block;
+    padding-top: 9px;
+    padding-right: 52px;         /* clear of the pinned select box */
+    font-size: var(--sp4-strong);
+    text-align: left;
+  }
+  .sp4-table > tbody > tr > td.sp4-reg::before,
+  .sp4-table > tbody > tr > td:has(> .sp4-reg)::before { content: none; }
+
+  /* The tick box rides on the title line instead of taking a line of its own,
+     where an unlabelled checkbox reads as a stray mark. Its 44px cell (above)
+     becomes a 44px corner, which is the same target. */
+  .sp4-table > tbody > tr > td.sp4-td--check {
+    position: absolute;
+    top: 4px;
+    right: calc(var(--sp4-gutter) - 10px);
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  /* The Action sentence is the one cell worth reading in full, so it drops the
+     label/value split and runs the width of the card. */
+  .sp4-probe-health .sp4-td--action,
+  .sp4-table > tbody > tr > td.sp4-td--action {
+    display: block;
+    min-width: 0;
+    text-align: left;
+    white-space: normal;
+    color: var(--sp4-text-1);
+  }
+  .sp4-table > tbody > tr > td.sp4-td--action::before {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* Selection has to read without the row outline a table gave it. */
+  .sp4-table > tbody > tr.sp4-tr--selected {
+    box-shadow: inset 3px 0 0 var(--sp4-accent, #3b82f6);
+  }
+
+  /* ── One scroller, at the panel root ──────────────────────────────────
+   *
+   * The probe grid used to have its own bounded scroll box, capped at a share
+   * of the viewport. On an iPhone SE (375 x 667) that cap put the LIST BELOW
+   * THE SHELL: measured on the Probes tab, the panel chrome — KPIs, search,
+   * activity chips, sub-tabs, the summary and export bar, the bulk-action row
+   * that appears once a unit is ticked, then Channel and State — ended at
+   * y=475, the scroller was 454px tall, and 475 + 454 = 929 in a 667px window.
+   * Its parent section was 297px with `overflow: visible`, so the bottom 262px
+   * of the list simply hung past the end of an app shell whose every level is
+   * `overflow: hidden` and whose document does not scroll. The list could not
+   * be reached at all — three quarters of one card and then nothing.
+   *
+   * A cap that fits would leave about 116px of a 667px screen for the data,
+   * with 58% of the phone spent on filters. So the fix is not a smaller number
+   * here: below 768px the PANEL scrolls instead of the grid. The chrome scrolls
+   * away, the cards get the whole screen, and there is exactly one scrolling
+   * box on the screen rather than one nested in another.
+   *
+   * Above 768px nothing changes: the header stays put and the grid scrolls
+   * under it, which is what a mouse and a tall window want.
+   */
+  .sp4-root {
+    overflow-y: auto;
+    /* A card list this long behind a fixed footer nav: without this, flinging
+       past the end scrolls the shell behind it. */
+    overscroll-behavior-y: contain;
+    /* The footer nav floats over the last 64px. This used to sit on the grid's
+       own scroller, which is no longer the thing that scrolls. */
+    padding-bottom: calc(var(--app-footer-h, 64px) + var(--sp4-md));
+  }
+  /* Every box between the root and the rows now takes its content's height
+     rather than a share of a viewport it no longer fills. `overflow: hidden`
+     on these was what clipped the overspill into invisibility. */
+  .sp4-root .sp4-body,
+  .sp4-root .sp4-probe-health {
+    flex: none;
+    overflow: visible;
+  }
+  .sp4-root .sp4-table-scroll {
+    flex: none;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+}
+
+
+/* ── Handsets: grids that stay grids ───────────────────────────────────────
+ *
+ * The card layout above suits a list read one unit at a time. Some lists are
+ * read DOWN a column — probe state, case status — and a card per row breaks
+ * that up. A scroller marked `.sp4-keep-table` keeps its table on a phone:
+ * header row shown, one line per row, the columns scrolling sideways, and the
+ * cell marked `.sp4-td--pin` (with its `.sp4-th--pin` head) held at the left
+ * edge so a row never loses its registration.
+ *
+ * `.sp4-root` in every selector is there for weight: it outranks each card
+ * rule above whatever order the sheets load in.
+ */
+@media (max-width: 599px) {
+  .sp4-root .sp4-table-scroll.sp4-keep-table,
+  .sp4-root .sp4-keep-table {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .sp4-root .sp4-keep-table .sp4-table {
+    display: table;
+    width: max-content;
+    min-width: 100%;
+  }
+  .sp4-root .sp4-keep-table .sp4-table > thead { display: table-header-group; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody { display: table-row-group; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr {
+    display: table-row;
+    padding: 0;
+  }
+  .sp4-root .sp4-keep-table .sp4-table > thead > tr > th,
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td,
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td:has(> .sp4-reg) {
+    display: table-cell;
+    position: static;
+    grid-column: auto;
+    width: auto;
+    height: auto;
+    padding: 9px 10px;
+    font-size: var(--sp4-body);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .sp4-root .sp4-keep-table .sp4-table > thead > tr > th { position: sticky; top: 0; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--right { text-align: right; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td::before,
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td:has(> .sp4-reg)::before { content: none; }
+
+  /* The tick box keeps the 44px target it has at tablet width. */
+  .sp4-root .sp4-keep-table .sp4-table > thead > tr > th.sp4-th--check,
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--check {
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    text-align: center;
+  }
+  /* A sentence, so it wraps — at a width that breaks on a phrase. */
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--action {
+    white-space: normal;
+    min-width: 200px;
+    max-width: 240px;
+  }
+
+  .sp4-root .sp4-keep-table .sp4-table > thead > tr > th.sp4-th--pin,
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--pin {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    box-shadow: inset -1px 0 0 var(--sp4-line);
+    /* Capped, and allowed to wrap: some units are named like
+       "West Sugar - 864022086612164", and at its natural width that one name
+       made the pinned column 388px — wider than the phone, so nothing else in
+       the row could be seen. */
+    min-width: 96px;
+    max-width: 136px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* The last five FSL transmissions stay on one line, like every other cell. */
+  .sp4-root .sp4-keep-table .sp4-fsl-events { flex-wrap: nowrap; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--pin .sp4-reg {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--pin .sp4-muted {
+    font-size: var(--sp4-label);
+  }
+  /* The head keeps whatever fill its row has — it is already opaque, and
+     naming a token here painted it a different grey from its neighbours in
+     the light theme. */
+  .sp4-root .sp4-keep-table .sp4-table > thead > tr > th.sp4-th--pin { z-index: 2; }
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr > td.sp4-td--pin { background: var(--sp4-bg); }
+  /* Repairs: the stage chips and the assignment buttons stay on one line.
+     Wrapped, they stacked three deep and made each job a 100px row. */
+  .sp4-root .sp4-keep-table .sp4-stage-set,
+  .sp4-root .sp4-keep-table .sp4-assignment-actions { flex-wrap: nowrap; }
+  /* A selected row keeps its tint under the pinned cell. */
+  .sp4-root .sp4-keep-table .sp4-table > tbody > tr.sp4-tr--selected > td.sp4-td--pin {
+    background: linear-gradient(rgba(59,130,246,0.06), rgba(59,130,246,0.06)), var(--sp4-bg);
+  }
+}
+
+/* ── Handsets: the filters, folded ──────────────────────────────────────────
+ *
+ * See FilterBar.jsx for why, and BP.handset for why 599 rather than 767 — a
+ * tablet has the height to show the bar. Only the folded shape lives here;
+ * wider than this, that component renders the plain `.sp4-filterbar` these
+ * rules never touch.
+ */
+@media (max-width: 599px) {
+  .sp4-filterbar--collapsible {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--sp4-gutter);
+  }
+
+  /* Search and the button share ONE row. The rule above this block gives the
+     search `flex: 1 0 100%` so it does not end two-thirds of the way over with
+     a dead stub beside it — and the Filters button is exactly the thing that
+     stub wanted. Two 40px rows become one, which on a 667px screen is the
+     difference between the first unit at 439px and at 391px. */
+  .sp4-filterbar--collapsible .sp4-search-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .sp4-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: var(--m-ctl);
+    padding: 0 14px;
+    border: 1px solid var(--sp4-line-hi);
+    border-radius: 999px;
+    background: var(--sp4-raised);
+    color: var(--sp4-text-2);
+    font-family: var(--font-body);
+    font-size: var(--sp4-body);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .sp4-filters-toggle:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+  .sp4-filters-toggle--open {
+    color: var(--sp4-text-1);
+    border-color: var(--sp4-accent);
+  }
+  /* How many filters are narrowing the list while the drawer is shut. A
+     collapsed filter is an invisible one, and a reader who cannot see that
+     State is set to "Not working" reads a partial fleet as the whole fleet. */
+  .sp4-filters-toggle__n {
+    display: grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--sp4-accent);
+    color: #fff;
+    font-size: var(--sp4-label);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* `hidden` does the hiding, so the drawer is only laid out when it is open —
+     a bare `display: flex` here would beat the attribute and the drawer would
+     never shut. */
+  .sp4-filters-drawer:not([hidden]) {
+    display: flex;
+    flex: 1 0 100%;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 2px;
+  }
+  /* Each group keeps the scrolling chip strip it already had; what changes is
+     that the groups stack instead of competing for one line. */
+  .sp4-filters-drawer .sp4-filter-group { width: 100%; }
+}
+
+/* ── Phones: small controls, thumb-sized ───────────────────────────────────
+ * Measured at 375px: the day pickers were 24px tall and the rows' Map button
+ * 25px. Both grow to the phone scale (index.scss); the text does not change.
+ */
+@media (max-width: 767px) {
+  .sp4-date-input { min-height: var(--m-field); padding: 6px 10px; }
+  .sp4-map-btn    { min-height: var(--m-ctl); padding: 4px 10px; }
+}
+
+/* Amber text on its own amber wash was 4.2:1 on the light sheet. */
+.app--light .sp4-pill--warn { color: #92400e; }
+
+/* The grids' scrollbar thumb is --sp4-raised, which the light theme re-points
+   to #f5f7fa — near-white on white, so a grid wider than its box scrolled
+   sideways with no visible sign that it could. A mid slate thumb instead. */
+.app--light .sp4-table-scroll { scrollbar-color: #a3aebd transparent; }
+
+/* ══ Sensor Monitor on the Fuel report's margins ═════════════════════════════
+ * Hallmark · redesign 2026-10-03 · scope: Sensor Monitor body (all five tabs)
+ * genre: modern-minimal · theme: in-project --sp4-* tokens, preserved
+ * pre-emit critique: P5 H4 E4 S5 R5 V3 (V low by design: the point is that this
+ *   page and the Fuel report now share one margin rule)
+ *
+ * The bands (header, filter bar, tabs) already ran on --sp4-gutter. What did
+ * not: the tables were full-bleed, so their rules and the open row's wash ran
+ * to the bezel, and the Repairs "All jobs" bar had no inset at all — it sat
+ * against the left edge. The Fuel report keeps everything inside the gutter
+ * and boxes its tables (`.frv-table`: a hairline frame, 10px radius), so every
+ * edge on the page is the same edge. Same here, scoped by `--monitor` so the
+ * Fuel report, which shares these sp4 classes, is untouched.
+ *
+ * Tablet and desk only. Under 768 this panel page-scrolls and its phone
+ * layouts (cards, the pinned-column `.sp4-keep-table`) carry their own edges.
+ */
+@media (min-width: 768px) {
+  /* The box. Every table on this page is inside a `.sp4-keep-table`: the
+     scroller itself on Probes and Repairs, an inner wrapper on Fuel FSL and
+     Malfunction (where the toolbar and states share the outer scroller). */
+  .sp4-root--framed .sp4-keep-table {
+    margin: var(--sp4-md) var(--sp4-gutter) 0;
+    border: 1px solid var(--sp4-line-hi);
+    border-radius: 10px;
+    overflow: auto;
+    /* Grow to its rows and no further: a short list is a short box, not a
+       frame with empty space to the foot of the screen. */
+    flex: 0 1 auto;
+    min-height: 0;
+    background: var(--sp4-surface);
+  }
+  .app--light .sp4-root--framed .sp4-keep-table { border-color: var(--sp4-line); }
+
+  /* Where the box IS the scroller, it clears the footer nav with its margin
+     rather than with padding inside it, which would show as a blank band at
+     the bottom of the frame. */
+  .sp4-root--framed .sp4-table-scroll.sp4-keep-table {
+    margin-bottom: calc(var(--app-footer-h, 64px) + var(--sp4-md));
+    padding-bottom: 0;
+  }
+
+  /* Where the box sits INSIDE the scroller, the box becomes the thing that
+     scrolls, so the sticky head stays a sticky head: the outer turns into a
+     column that hands the box whatever height is left. */
+  .sp4-root--framed .sp4-table-scroll:not(.sp4-keep-table):has(> .sp4-keep-table) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sp4-root--framed .sp4-table-scroll:not(.sp4-keep-table):has(> .sp4-keep-table) > :not(.sp4-keep-table) {
+    flex: none;
+  }
+
+  /* Edge cells: the inset that put the first column on the gutter now lives
+     in the margin, so inside the frame the cells take the grid's own 14px. */
+  .sp4-root--framed .sp4-keep-table .sp4-table thead th:first-child,
+  .sp4-root--framed .sp4-keep-table .sp4-table tbody td:first-child { padding-left: 14px; }
+  .sp4-root--framed .sp4-keep-table .sp4-table thead th:last-child,
+  .sp4-root--framed .sp4-keep-table .sp4-table tbody td:last-child { padding-right: 14px; }
+  .sp4-root--framed .sp4-keep-table .sp4-table thead th.sp4-th:first-child .sp4-sort { padding-left: 14px; }
+  .sp4-root--framed .sp4-keep-table .sp4-table thead th.sp4-th:last-child .sp4-sort { padding-right: 14px; }
+  .sp4-root--framed .sp4-keep-table .sp4-table tbody tr:last-child { border-bottom: 0; }
+  /* ...but not the opened job's cell: it is one cell across the whole row and
+     its card is inset by the card's own margin below. Caught by the
+     first-child rule above, it was inset twice. */
+  .sp4-root--framed .sp4-keep-table .sp4-table tbody .aud-detail-row > td { padding-left: 0; padding-right: 0; }
+
+  /* An opened repair job: on the frame's 14px, not the page gutter it used
+     to be measured from, so its card lines up with the first column above. */
+  .sp4-root--framed .sp4-keep-table .aud-detail {
+    left: 14px;
+    margin-left: 14px;
+    width: calc(100cqw - 28px);
+  }
+
+  /* Repairs, focused on one job: the back bar on the gutter like every other
+     bar on the page. It sat at 0 — "All jobs" against the screen edge. */
+  .sp4-root--framed .rj-focus-bar {
+    margin: 0;
+    padding: 12px var(--sp4-gutter) 0;
+  }
+}
+
+/* ── Coverage figures: the Fuel report's strip ───────────────────────────────
+ * Hallmark · component: KPI strip · genre: modern-minimal · theme: the app's own
+ * states: static (read-only figures; hover/focus/active/disabled/loading/error/
+ *   success n/a — the tiles are not controls, the title attribute is the hint)
+ * pre-emit critique: P4 H5 E5 S4 R5 V4
+ *
+ * Operator, 2026-10-03: the three coverage tiles were the panel's 26px/900
+ * numerals in 70px-wide padded boxes, a size louder than the Fuel report's
+ * strip on the page next to it in the nav. They now take that strip's exact
+ * measure — 18px/800 tabular figures, 10px labels, 6px × 14px tiles — and no
+ * shadow: one hairline frame with hairline dividers, flat on the header.
+ * Same specificity as `.frp-root`, so the phone rule's 21px does not win here
+ * either and the two strips match at every width. */
+.sp4-root--framed .sp4-header-kpis { box-shadow: none; }
+.sp4-root--framed .sp4-kpi { padding: 6px 14px; box-shadow: none; }
+.sp4-root--framed .sp4-kpi-n { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.sp4-root--framed .sp4-kpi-l { font-size: 10px; }
+/* One card size across the figure strips (operator, 2026-10-13: "fix the stats
+   card to be of the same size as those in the logbook", for Fuel Report,
+   Weighbridges and Maintenance). The Logbook's card measures 140 by 60: its
+   140px floor and the room for a third line under the label. The figure and
+   label centre in that height where there is no third line. Desktop and
+   tablet; the phone strip shares the width out equally (rule above). */
+@media (min-width: 600px) {
+  .sp4-root--framed .sp4-kpi,
+  .frp-root .sp4-kpi { min-width: 140px; min-height: 60px; justify-content: center; }
+}
+
+/* ── Repairs: the opened job, no accent edge ─────────────────────────────────
+ * Hallmark · component: repair job detail row · states: open (n/a otherwise)
+ * pre-emit critique: P4 H4 E5 S4 R5 V4
+ *
+ * Operator, 2026-10-03: the opened job carried Audit's 3px blue inset down its
+ * left side (`.aud-detail-row > td`, AuditScreen.scss). Inside the boxed table
+ * that edge ran along the frame's own border, a second, coloured rule beside
+ * the hairline. The open row already says which job this is (its tint and the
+ * card under it), so here the edge comes off. Audit keeps it. */
+.sp4-root--framed .sp4-table tbody .aud-detail-row > td { box-shadow: none; }
+
+/* `.sp4-root--framed` (was `--monitor`, renamed 2026-10-03 when Weighbridges
+   took the same treatment): every rule below scoped to it is the "framed"
+   page — bands on the panel ground, hairlines between the gutters, tables
+   boxed on the gutter, the Fuel report's KPI measure. Sensor Monitor and
+   Weighbridges wear it. */
+/* ── The bands stop at the gutter ────────────────────────────────────────────
+ * Hallmark · redesign 2026-10-03 · scope: Sensor Monitor header bands
+ * pre-emit critique: P4 H5 E5 S4 R5 V4
+ *
+ * Operator: "remove the white that has stretched to the far right and left".
+ * The KPI header, the search/activity bar, the tab strip, the State row and
+ * the table captions were each a white slab from screen edge to screen edge,
+ * closed by a full-width hairline — while the content in them, and the boxed
+ * table below, sat on the gutter. Now the bands are the panel's own ground
+ * (no fill) and each closing hairline is drawn only between the gutters, as a
+ * 1px background line: it paints under the children, so the active tab's 2px
+ * underline still lies over it. The KPI tiles, search field and chips keep
+ * their own surfaces. Phones keep their full-bleed bands. */
+@media (min-width: 768px) {
+  .app--light .sp4-root--framed .sp4-header,
+  .app--light .sp4-root--framed .sp4-filterbar,
+  .app--light .sp4-root--framed .sp4-tabs,
+  .app--light .sp4-root--framed .sp4-table-sub,
+  .app--light .sp4-root--framed .sp4-detail-head,
+  .sp4-root--framed .sp4-detail-head,
+  .sp4-root--framed .sp4-header,
+  .sp4-root--framed .sp4-filterbar,
+  .sp4-root--framed .sp4-tabs,
+  .sp4-root--framed .sp4-table-sub {
+    border-bottom: 0;
+    background-color: transparent;
+    background-image: linear-gradient(var(--sp4-line), var(--sp4-line));
+    background-repeat: no-repeat;
+    background-size: calc(100% - 2 * var(--sp4-gutter)) 1px;
+    background-position: center bottom;
+  }
+  /* The tab's own -1px pulled its underline onto the strip's border; with no
+     border the underline sits inside the strip, over the drawn line. */
+  .sp4-root--framed .sp4-tab { margin-bottom: 0; }
+  /* The search field and the filter chips were "raised" (#f5f7fa) on a white
+     band; on the panel ground (#f0f4f8) that is no step at all. They take the
+     card surface instead, as the KPI tiles do, and keep their hover / pressed
+     / on fills. */
+  .app--light .sp4-root--framed .sp4-search,
+  .app--light .sp4-root--framed .sp4-date-input,
+  .app--light .sp4-root--framed .sp4-filter-chip:not(.sp4-filter-chip--on) { background: var(--sp4-surface); }
+  .app--light .sp4-root--framed .sp4-filter-chip:not(.sp4-filter-chip--on):hover { background: var(--sp4-raised); }
+  .app--light .sp4-root--framed .sp4-filter-chip:not(.sp4-filter-chip--on):active { background: var(--sp4-line-hi); }
+}
+
+/* ── Table pager: Prev · Page n of N · a–b of N · Next ───────────────────────
+ * Hallmark · component: pager (TablePager.jsx) · genre: modern-minimal · theme: sp4 tokens
+ * states: default · hover · focus-visible · active (pressed) · disabled (first /
+ *   last page) · (loading / error / success: n/a — an in-memory slice; the
+ *   tables' own states cover the data)
+ * pre-emit critique: P4 H5 E5 S4 R5 V4
+ *
+ * Operator, 2026-10-03: pagination on Probes, Fuel FSL, Speed, Malfunction and
+ * Repairs. The Drivers roster's and Weighbridges grid's pager, fifteen rows a
+ * page: centred under the boxed table on the gutter, two fixed-width buttons
+ * that stay put at either end (disabled, not removed) so clicking through
+ * never moves the target under the pointer. Shown only when there is a
+ * second page.
+ *
+ * Every table in the app pages with it (operator, 2026-10-12: "the
+ * pagination should be consistent across all pages"), including ones outside
+ * an .sp4-root — User accounts, the Service Status grid, the halted-units
+ * window — so each token carries the light theme's value as its fallback.
+ */
+.sp4-tpager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px var(--sp4-gutter, 16px);
+}
+.sp4-tpager__info {
+  font-size: 12.5px;
+  color: var(--sp4-text-3, #52606f);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sp4-tpager__btn {
+  min-width: 76px;
+  padding: 5px 12px;
+  border: 1px solid var(--sp4-line, #dde1e7);
+  border-radius: 6px;
+  background: var(--sp4-surface, #ffffff);
+  color: var(--sp4-text-2, #334155);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+.sp4-tpager__btn:hover:not(:disabled) {
+  background: var(--sp4-raised, #f5f7fa);
+  border-color: var(--sp4-line-hi, #cbd5e1);
+  color: var(--sp4-text-1, #0f172a);
+}
+.sp4-tpager__btn:active:not(:disabled) { transform: translateY(1px); background: var(--sp4-line, #dde1e7); }
+.sp4-tpager__btn:focus-visible { outline: 2px solid var(--sp4-accent, #2563eb); outline-offset: 1px; transition: none; }
+.sp4-tpager__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Probes and Repairs: the box IS the scroller and cleared the footer nav with
+   its own margin. With a pager under it, the pager does the clearing, so the
+   two sit together instead of the footer gap opening between them. */
+@media (min-width: 768px) {
+  .sp4-root--framed .sp4-table-scroll.sp4-keep-table:has(+ .sp4-tpager) { margin-bottom: 0; }
+  .sp4-root--framed .sp4-table-scroll.sp4-keep-table + .sp4-tpager {
+    padding-bottom: calc(var(--app-footer-h, 64px) + var(--sp4-md));
+  }
+}
+/* Phones: thumb-sized buttons, and the range dropped so "Page 1 of 4" fits
+   between them at 320px. */
+@media (max-width: 767px) {
+  .sp4-tpager { gap: 10px; }
+  .sp4-tpager__btn { min-width: 0; padding: 9px 14px; font-size: 13px; }
+  .sp4-tpager__range { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp4-tpager__btn { transition: none; }
+  .sp4-tpager__btn:active:not(:disabled) { transform: none; }
+}
+
+/* ── Sensor Monitor tables: one card, the roster's grid ──────────────────────
+ * Hallmark · redesign 2026-10-08 · scope: Maintenance › Sensor Monitor tables
+ *   (Probes, Fuel FSL, Speed, Malfunction, Repairs)
+ * component: data grid + pager · states: row default · hover · active (pressed) ·
+ *   focus-visible · selected; pager default · hover · focus-visible · active ·
+ *   disabled; (loading / error / empty: the tabs' own states, unchanged)
+ * pre-emit critique: P4 H5 E5 S4 R5 V4
+ *
+ * Operator: "redesign the tables in maintenance page". They were boxed on the
+ * gutter (2026-10-03) but the pager floated under the box on the page ground,
+ * a second object, and the rows used the panel's generic hairline and inks.
+ * Now the five tables read as the Weighbridges ticket grid the operator signed
+ * off today:
+ *   · table and pager are ONE card: the box squares its foot and the pager
+ *     closes it with a hairline above, side borders and the bottom corners;
+ *   · a #f5f7fa head band, 11px/700 tracked caps in the label tier;
+ *   · rows at least 40px, cells 12.5px in the cell tier, #e6e9ee row lines,
+ *     figures tabular so a column of numbers lines up digit over digit;
+ *   · hover is a 2.5% ink wash on the cells (pinned cells included), a
+ *     pressed row deepens it, keyboard focus is a 2px accent edge;
+ *   · the card is as tall as its rows: a short page is a short card.
+ * Weighbridges keeps its own card (`.wb-grid-card`), so it is left out. */
+.sp4-root--framed:not(.wb-root) {
+  --sp4-grid-line: var(--sp4-line);
+  --sp4-grid-head: var(--sp4-raised);
+  --sp4-grid-row: 40px;
+}
+.app--light .sp4-root--framed:not(.wb-root) { --sp4-grid-line: #e6e9ee; }
+
+/* Counts in the Fuel FSL table: refills in the ok ink, drains in the crit
+   ink, a zero in neither. */
+/* Element-qualified so the table's own cell ink (`.sp4-table td`) does not
+   win; the framed grid below leaves these cells out of its ink rule. */
+.sp4-table td.sp4-count { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--sp4-text-3); }
+.sp4-table td.sp4-count--ok   { color: var(--sp4-ok); }
+.sp4-table td.sp4-count--crit { color: var(--sp4-crit); }
+
+@media (min-width: 768px) {
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table thead th {
+    background: var(--sp4-grid-head);
+    border-bottom: 1px solid var(--sp4-grid-line);
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    color: var(--sp4-text-3);
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr {
+    border-bottom-color: var(--sp4-grid-line);
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr > td {
+    height: var(--sp4-grid-row);
+    padding-top: 9px;
+    padding-bottom: 9px;
+    box-sizing: border-box;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* The cell ink, except where a cell carries its own (the FSL counts). */
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr > td:not(.sp4-count) { color: var(--sp4-text-2); }
+  /* An opened repair job is one cell holding a card: no row height on it. */
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.aud-detail-row > td { height: auto; }
+
+  /* Hover on the cells, not the row, so the opaque pinned plate washes with
+     the rest instead of staying a white notch. */
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:not(.sp4-tr--static):hover { background: transparent; }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:not(.sp4-tr--static):hover > td {
+    background-color: color-mix(in srgb, var(--sp4-text-1) 2.5%, var(--sp4-surface));
+    transition: background-color 120ms var(--ease-out, ease-out);
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:not(.sp4-tr--static):active > td {
+    background-color: color-mix(in srgb, var(--sp4-text-1) 5%, var(--sp4-surface));
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:focus-visible { outline: none; }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:focus-visible > td {
+    background-color: color-mix(in srgb, var(--sp4-accent) 7%, var(--sp4-surface));
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr.sp4-tr:focus-visible > td:first-child {
+    box-shadow: inset 2px 0 0 var(--sp4-accent);
+  }
+
+  /* One card: the box squares its foot where a pager follows... */
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table:has(+ .sp4-tpager) {
+    margin-bottom: 0;
+    border-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  /* ...and the pager is its foot row: same frame, a hairline above, the
+     bottom corners. It clears the footer nav with its margin, so the gap
+     opens under the card rather than inside it. */
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table + .sp4-tpager,
+  .sp4-root--framed:not(.wb-root) .sp4-table-scroll.sp4-keep-table + .sp4-tpager {
+    margin: 0 var(--sp4-gutter) calc(var(--app-footer-h, 64px) + var(--sp4-md));
+    padding: 10px 14px;
+    border: 1px solid var(--sp4-line-hi);
+    border-top: 1px solid var(--sp4-grid-line);
+    border-radius: 0 0 10px 10px;
+    background: var(--sp4-surface);
+  }
+  .app--light .sp4-root--framed:not(.wb-root) .sp4-keep-table + .sp4-tpager {
+    border-color: var(--sp4-line);
+    border-top-color: var(--sp4-grid-line);
+  }
+  /* Inside an outer scroller (Fuel FSL, Speed, Malfunction) the card is as
+     tall as its rows instead of being handed the rest of the screen. */
+  .sp4-root--framed:not(.wb-root) .sp4-table-scroll:not(.sp4-keep-table):has(> .sp4-keep-table) {
+    overflow-y: auto;
+  }
+  .sp4-root--framed:not(.wb-root) .sp4-table-scroll:not(.sp4-keep-table) > .sp4-keep-table {
+    flex: none;
+    max-height: none;
+  }
+  /* Where the box IS the scroller (Probes, Repairs) it was allowed to shrink
+     into whatever height the header left, and a page of fifteen scrolled
+     inside a letterbox. It never goes shorter than its rows now; when the
+     window is shorter than the card, the panel's body scrolls instead. */
+  .sp4-root--framed:not(.wb-root) .sp4-table-scroll.sp4-keep-table { flex: none; }
+  .sp4-root--framed:not(.wb-root) > .sp4-body,
+  .sp4-root--framed:not(.wb-root) .sp4-body:has(.sp4-keep-table) { overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp4-root--framed:not(.wb-root) .sp4-keep-table .sp4-table > tbody > tr > td { transition: none; }
+}
+
+/* ── Fuel FSL's day, in the detail sidebar (shared/DetailSidebar) ────────────
+ * Operator, 2026-10-20: a Fuel FSL unit opens beside the list in the Drivers
+ * page's panel. The panel scrolls and frames it, so the detail draws no frame,
+ * no scroller and no phone sheet of its own (the rule above makes it a fixed
+ * sheet under 768px; the panel already is one there), and its blocks take the
+ * panel's inset instead of the page gutter. */
+.sp4-detail.sp4-detail--panel {
+  --sp4-gutter: 0px;
+  position: static;
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  padding-bottom: 0;
+  background: none;
+  z-index: auto;
+}
+.sp4-detail--panel .sp4-drain-summary { margin-top: 14px; }
+/* A probe unit's readings in the sidebar: Export and Print under the unit,
+   the table scrolling sideways inside the panel, never the panel itself. */
+.sp4-detail-panel-actions { display: inline-flex; gap: 6px; margin-top: 8px; }
+.sp4-detail--panel .sp4-detail-table-wrap { flex: none; margin-top: 14px; border-radius: 10px; }
+.sp4-detail--panel .sp4-detail-scroll { flex: none; }
+/* Four reading columns fit the 420px sidebar; the grids' 500px floor would
+   scroll them sideways. */
+.sp4-detail--panel .sp4-print-table { min-width: 0; }
+.sp4-detail--panel > .rtl, .sp4-detail--panel > [class*="tracking"] { margin-top: 14px; }
+
+/* Reporting a repair from the unit's sidebar (ProbeReportActions): the three
+   outcome buttons that used to sit over a ticked batch in the toolbar. */
+.sp4-probe-report { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Report a repair: label and buttons on one line under the progress card,
+   sentence case like the card's own title. */
+.sp4-report {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp4-xs) var(--sp4-sm);
+  padding: var(--sp4-sm) 0;
+}
+.sp4-report-title { font-size: var(--sp4-body); font-weight: 600; color: var(--sp4-text-2); }
+.sp4-report .sp4-probe-report { gap: var(--sp4-xs); }
+@media (max-width: 767px) {
+  .sp4-probe-report .sp4-act-btn { min-height: var(--m-ctl, 40px); flex: 1 1 auto; }
+}
+
+/* No telemetry in the past hour: an icon first, so a silent unit reads as a
+   state, then the words and when it was last heard from. */
+.sp4-empty-tab.sp4-empty-tab--silent {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+}
+.sp4-detail--panel .sp4-empty-tab--silent { flex: none; min-height: 140px; padding: 24px 0; }
+.sp4-silent-icon { font-size: 28px; line-height: 1; color: var(--sp4-crit, #ef4444); }

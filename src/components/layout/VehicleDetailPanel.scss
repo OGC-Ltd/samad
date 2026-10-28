@@ -1,0 +1,663 @@
+/* VehicleDetailPanel — corporate right panel */
+
+.vdp {
+  --vdp-navy:   #0f2542;
+  --vdp-ink:    #12181f;
+  --vdp-ink2:   #4a545e;
+  --vdp-mut:    #6b757f;
+  --vdp-faint:  #66717d;  /* 4.9:1 on white; #9aa3ad was 2.6:1 */
+  --vdp-border: #dfe4ea;
+  --vdp-hair:   #eceff3;
+  --vdp-red:    #b91c1c;
+
+  width: 0;
+  flex-shrink: 0;
+  background: #fff;
+  border-left: 1px solid var(--vdp-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
+  font-family: 'Roboto', 'Inter', sans-serif;
+  color: var(--vdp-ink);
+}
+
+/* Width comes from App.scss, which owns how the shell's columns share the row —
+   360 on a desktop, 340 on a laptop, 320 on a tablet. It was pinned at 360
+   here, which is how a 1024px screen ended up with a 320px sidebar, a 360px
+   panel and 344px of map. */
+.vdp--open { width: var(--vdp-w, 360px); }
+
+/* ── Header ── */
+.vdp-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--vdp-hair);
+  flex-shrink: 0;
+}
+
+.vdp-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.vdp-title {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;            /* take the free space, then shrink before the buttons do */
+}
+
+.vdp-plate {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--vdp-ink);
+  min-width: 0;
+  line-height: 1.2;
+  /* Long unit names ("CIVIL - Menengai - EXCAVATOR 07") wrap to two lines
+     instead of running under the header buttons. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vdp-tag { flex-shrink: 0; margin-top: 3px; }
+
+.vdp-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.vdp-tag--danger { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.vdp-tag--warn   { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+/* Idling is cyan across the app (--accent-idling, lib/vehicleMap IDLING_COLOR). */
+.vdp-tag--idle   { color: #0e7490; background: #ecfeff; border-color: #a5f3fc; }
+.vdp-tag--ok     { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.vdp-tag--muted  { color: #475569; background: #f8fafc; border-color: #e2e8f0; }
+
+.vdp-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid var(--vdp-border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--vdp-mut);
+  flex-shrink: 0;
+}
+.vdp-close:hover { background: #f5f7fa; color: var(--vdp-ink); }
+
+/* Probe hold: the unit is awaiting a fuel probe repair, so fuel theft alerts
+   on it are paused. Amber, like the warn tag: a state to know, not an alarm. */
+.vdp-hold {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 6px 9px;
+  border: 1px solid #fde68a;
+  border-radius: 7px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.vdp-hold .ti { font-size: 14px; margin-top: 1px; }
+
+.vdp-subtitle {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--vdp-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Tabs ── */
+.vdp-tabs {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--vdp-hair);
+  flex-shrink: 0;
+}
+
+.vdp-tab {
+  padding: 11px 0 9px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--vdp-mut);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color .15s, border-color .15s;
+}
+.vdp-tab:hover { color: var(--vdp-ink); }
+.vdp-tab--active {
+  color: var(--vdp-ink);
+  font-weight: 500;
+  border-bottom-color: var(--vdp-navy);
+}
+
+/* ── Body ── */
+.vdp-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.vdp-block {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--vdp-hair);
+  flex-shrink: 0;
+}
+.vdp-block--last { border-bottom: none; }
+
+.vdp-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.vdp-block-head .vdp-block-title { margin-bottom: 0; }
+
+.vdp-block-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vdp-ink);
+  margin-bottom: 12px;
+}
+
+.vdp-meta {
+  font-size: 11px;
+  color: var(--vdp-faint);
+}
+.vdp-meta--alert { color: var(--vdp-red); font-weight: 500; }
+
+/* A heading inside a section ("Overspeed events"), in the same small capitals
+   as FUEL RATE / FUEL DOWN above the figures */
+.vdp-sub-title {
+  margin: 16px 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vdp-mut);
+}
+
+.vdp-live {
+  font-size: 10px;
+  font-weight: 500;
+  color: #166534;
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* ── Buttons ── */
+.vdp-btn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 3px;
+  border: 1px solid var(--vdp-border);
+  background: #fff;
+  color: var(--vdp-ink2);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.vdp-btn:hover { background: #f5f7fa; color: var(--vdp-ink); }
+
+/* ── Figures ──
+   One grid for every set of figures in the panel — the four readings on
+   Overview, a day's nine, Safety's three — so they all read alike: label over
+   value, hairlines between, in one frame. The hairlines are the grid's gap
+   showing its background through. */
+.vdp-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--vdp-hair);
+  border: 1px solid var(--vdp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.vdp-kpis--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.vdp-kpi {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #fff;
+}
+.vdp-kpis--3 .vdp-kpi { padding: 9px 10px 10px; }
+
+.vdp-kpi-lbl {
+  font-size: 11.5px;
+  color: var(--vdp-mut);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vdp-kpis--3 .vdp-kpi-lbl { font-size: 11px; }
+
+.vdp-kpi-val {
+  /* 16px, was 20px. At 20 this was the LARGEST text in the whole panel —
+     bigger than .vdp-plate at 19px, which is the vehicle's own name and the
+     heading everything here hangs off. A statistic shouting louder than the
+     title of the thing it describes is the wrong order, and it reads worst on
+     the tiles whose value is a WORD rather than a number: "Reporting" at 20px
+     is a banner announcement about a GPS box behaving normally.
+     16 keeps a clear step above the 12.5px body and the 11.5px label — the
+     value is still plainly the emphasis — and puts it back under the plate. */
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vdp-ink);
+  margin-top: 3px;
+  line-height: 1.2;
+  /* Kept: the four tiles sit in a 2x2 grid, so "4,944 km" above "613 h" must
+     hold its digit widths or the column visibly shifts as the odometer ticks. */
+  font-variant-numeric: tabular-nums;
+}
+
+.vdp-kpi-sub {
+  font-size: 11px;
+  color: var(--vdp-faint);
+  margin-top: 2px;
+}
+
+/* Three to a row: a step down, so "KSh 12,540" fits a third of the panel */
+.vdp-kpis--3 .vdp-kpi-val { font-size: 14px; }
+.vdp-kpi-val--na { color: var(--vdp-faint); font-weight: 400; }
+
+.vdp-kpi--alert .vdp-kpi-val,
+.vdp-kpi--alert .vdp-kpi-sub { color: var(--vdp-red); }
+.vdp-kpi--warn .vdp-kpi-val,
+.vdp-kpi--warn .vdp-kpi-sub { color: #b45309; }
+
+/* ── Chart ── */
+.vdp-chart { display: block; }
+
+/* Interactive fuel & overspeed chart. `pan-y` keeps a vertical swipe
+   scrolling the panel while a horizontal one scrubs the chart. */
+.vdp-chart--live { cursor: crosshair; touch-action: pan-y; user-select: none; outline: none; border-radius: 4px; }
+.vdp-chart--live:focus-visible { box-shadow: 0 0 0 2px #93c5fd; }
+.vdp-chart--dragging { cursor: ew-resize; }
+.vdp-run { cursor: zoom-in; }
+
+.vdp-readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--vdp-ink2, var(--vdp-ink));
+  font-variant-numeric: tabular-nums;
+}
+.vdp-readout-vals { display: flex; flex-wrap: wrap; gap: 4px 10px; flex: 1; min-width: 0; }
+.vdp-readout-vals b { color: var(--vdp-ink); font-weight: 600; }
+.vdp-readout-hint { color: var(--vdp-faint); }
+.vdp-readout-run { color: var(--vdp-red); font-weight: 500; }
+.vdp-readout-reset {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  min-height: 22px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vdp-ink);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+@media (max-width: 720px) { .vdp-readout-reset { min-height: 30px; padding: 0 10px; } }
+
+/* ── Key / value list: label left, value right, a hairline between rows ── */
+.vdp-kv {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.vdp-kv > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--vdp-hair);
+  font-size: 12.5px;
+}
+.vdp-kv > div:first-child { padding-top: 0; }
+.vdp-kv > div:last-child { padding-bottom: 0; border-bottom: 0; }
+
+.vdp-kv dt { color: var(--vdp-mut); }
+
+.vdp-kv dd {
+  margin: 0;
+  color: var(--vdp-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vdp-kv--danger { color: var(--vdp-red) !important; font-weight: 500; }
+
+.vdp-note {
+  margin-top: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--vdp-ink2);
+  background: #f7f9fb;
+  border: 1px solid var(--vdp-border);
+  border-left: 3px solid #2f855a;
+  border-radius: 4px;
+}
+
+.vdp-empty {
+  font-size: 12.5px;
+  color: var(--vdp-faint);
+}
+
+/* Safety's overspeed list, in the Alerts list's rows (AlertsFeed.scss) */
+
+
+/* ── Events table (Trips) ── */
+.vdp-events {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.vdp-events tr { border-bottom: 1px solid #f3f5f7; }
+.vdp-events tr:last-child { border-bottom: none; }
+
+.vdp-ev-time {
+  padding: 8px 0;
+  width: 46px;
+  color: var(--vdp-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.vdp-ev-dot { width: 18px; padding: 8px 6px; }
+.vdp-ev-dot span {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.vdp-ev-label { color: var(--vdp-ink2); }
+
+/* ── Mobile hidden ── */
+/* ── Small screens ─────────────────────────────────────────────────────────
+
+   The panel used to be `display: none` below 768px, which meant tapping a pin
+   on a phone did nothing at all — the map's single most-used interaction had
+   no result on the devices most likely to be standing next to the vehicle.
+
+   It becomes a bottom sheet instead. Same component, same content; only the
+   edge it enters from changes. Height is capped at 78vh so the map stays
+   visible above it and the sheet is recognisably OVER something rather than a
+   new page. */
+@media (max-width: 767px) {
+  .vdp {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: auto;
+    /* Collapsed state is zero HEIGHT here, not zero width. */
+    height: 0;
+    max-height: 78vh;
+    /* Above the map, not just above the tab bar.
+     *
+     * 320 cleared the tab bar (300) and nothing else, so the sheet opened
+     * correctly sized and correctly placed and was then painted over for its
+     * whole height: below 768px FleetMap.scss lifts `.map-layer` to z-index 700
+     * (800 once visible) so the map can sit over the mobile chrome. The only
+     * part of the sheet that showed was the strip below the map's bottom edge.
+     *
+     * 1300 clears every control the map puts on a phone — the layer itself
+     * (800), the "Close map" pill (900) and the cluster tooltip (1200) — and
+     * stays under the header's own menus (2000) and the account and admin
+     * overlays (2500+), which are whole pages and should cover this. */
+    z-index: 1300;
+    border-left: none;
+    border-top: 1px solid var(--vdp-border);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 28px rgba(15, 23, 42, 0.22);
+    transition: height 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .vdp--open {
+    width: auto;
+    height: 78vh;
+    /* Clears the home indicator without eating into the content. */
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* A grab handle, so the top edge reads as a sheet that can be dismissed
+     rather than a panel that has covered the screen. */
+  .vdp--open .vdp-header::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: -6px auto 10px;
+    border-radius: 999px;
+    background: #cbd5e1;
+  }
+
+  .vdp-header { padding: 14px 16px 10px; }
+
+  /* Tap targets: these were 24-28px squares built for a mouse. */
+  .vdp-close,
+  .vdp-nav-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* The tab strip scrolls rather than wrapping — five wrapped tabs took a
+     third of the sheet before any content showed. */
+  .vdp-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .vdp-tabs::-webkit-scrollbar { display: none; }
+  .vdp-tab { flex: 0 0 auto; }
+}
+
+/* Landscape phone: 78vh of a 380px-tall viewport is 296px and the sheet ends
+   up taller than the map it is describing. It takes the side instead. */
+@media (max-width: 1023px) and (max-height: 560px) and (orientation: landscape) {
+  .vdp {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    height: auto;
+    max-height: none;
+    width: 0;
+    border-radius: 0;
+    border-top: none;
+    border-left: 1px solid var(--vdp-border);
+    transition: width 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .vdp--open { width: min(340px, 52vw); height: auto; }
+  .vdp--open .vdp-header::before { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vdp { transition: none; }
+}
+
+/* ── Live-data additions ── */
+.vdp-btn:disabled { opacity: .5; cursor: not-allowed; }
+.vdp-ev-detail { color: var(--vdp-faint); }
+.vdp-kv dd { max-width: 60%; }
+
+/* ── Date controls, range filter, chart legend ── */
+.vdp-date {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--vdp-ink2);
+  font: inherit;
+  font-size: 12px;
+}
+.vdp-date:focus { outline: none; border-color: var(--vdp-navy); }
+
+.vdp-range {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vdp-hair);
+}
+.vdp-presets { display: flex; gap: 6px; }
+.vdp-chip {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--vdp-ink2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.vdp-chip:hover { background: #f5f7fa; }
+.vdp .vdp-chip.vdp-chip--active { background: var(--vdp-navy); border-color: var(--vdp-navy); color: #fff; }
+.vdp-dates { display: flex; align-items: center; gap: 6px; }
+.vdp-dates .vdp-date { flex: 1; min-width: 0; }
+.vdp-date-sep { font-size: 12px; color: var(--vdp-faint); }
+.vdp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vdp-mut);
+  cursor: pointer;
+}
+
+.vdp-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--vdp-mut);
+}
+.vdp-legend span { display: flex; align-items: center; gap: 5px; }
+.vdp-legend-line { width: 14px; height: 2px; background: #f59e0b; display: inline-block; }
+.vdp-legend-speed { width: 14px; height: 1.5px; background: #0ea5e9; display: inline-block; }
+.vdp-legend-dot  { width: 7px; height: 7px; border-radius: 50%; background: var(--vdp-red); display: inline-block; }
+
+/* ── Header: tracked-vehicle navigation + quick actions ── */
+.vdp-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 8px; }
+.vdp-nav { display: flex; align-items: center; gap: 4px; }
+.vdp-nav-btn {
+  width: 26px; height: 26px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--vdp-ink2);
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.vdp-nav-btn:hover { background: #f5f7fa; color: var(--vdp-ink); }
+.vdp-nav-count {
+  min-width: 42px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--vdp-mut);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vdp-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+.vdp .vdp-action {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--vdp-ink2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vdp .vdp-action:hover:not(:disabled) { background: #f5f7fa; color: var(--vdp-ink); }
+.vdp .vdp-action:disabled { opacity: .5; cursor: not-allowed; }
+.vdp .vdp-action--on {
+  background: var(--vdp-navy);
+  border-color: var(--vdp-navy);
+  color: #fff;
+}
+.vdp .vdp-action--on:hover:not(:disabled) { background: #1b3456; color: #fff; }
+
+/* Departed / Destination under the subtitle */
+.vdp-trip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.vdp-trip-row { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.vdp-trip-lbl {
+  font-size: 11px;
+  color: var(--vdp-faint);
+}
+.vdp-trip-val {
+  font-size: 12.5px;
+  color: var(--vdp-ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Phones: Track / Playback / Report were 28px tall. */
+@media (max-width: 767px) {
+  .vdp .vdp-action { height: 38px; font-size: 13px; }
+}

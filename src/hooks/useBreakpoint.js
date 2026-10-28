@@ -3,7 +3,7 @@
  *
  * ## Why a hook and not just CSS
  *
- * Most of the layout IS done in CSS — see `src/index.css` for the breakpoint
+ * Most of the layout IS done in CSS — see `src/index.scss` for the breakpoint
  * tokens these names mirror. What CSS cannot do is change component BEHAVIOUR:
  * the vehicle panel has to be an inline column on a desktop and a dismissable
  * overlay on a tablet, the sidebar has to start collapsed below a certain
@@ -25,7 +25,7 @@
 
 import { useEffect, useState } from 'react';
 
-// Keep in step with the `--bp-*` tokens in index.css. Both exist because CSS
+// Keep in step with the `--bp-*` tokens in index.scss. Both exist because CSS
 // cannot read a JS constant and JS cannot read a media query's breakpoint.
 export const BP = {
   /* A HANDSET, which is not the same question as `mobile`.

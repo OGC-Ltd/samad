@@ -10,7 +10,7 @@
 //     Everything Tailwind emits is therefore additive utility classes only.
 //
 //  2. The colour scale maps onto the app's OWN theme tokens (declared on
-//     .app--dark / .app--light in App.css) instead of shipping Tailwind's
+//     .app--dark / .app--light in App.scss) instead of shipping Tailwind's
 //     palette. `bg-card` resolves to var(--color-card), so a shadcn component
 //     follows the existing theme toggle for free — no `dark:` variants, no
 //     second source of truth for colour, nothing to keep in sync.

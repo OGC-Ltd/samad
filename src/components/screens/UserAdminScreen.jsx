@@ -36,7 +36,7 @@ import { useWayBack } from "../../hooks/useWayBack";
 import ErrorBoundary from "../shared/ErrorBoundary";
 import UserAdminPanel from "../body/UserAdminPanel";
 import UserGroupsPanel from "../body/UserGroupsPanel";
-import "./UserAdminScreen.css";
+import "./UserAdminScreen.scss";
 
 export default function UserAdminScreen() {
   const { setUserAdminOpen } = useAppActions();

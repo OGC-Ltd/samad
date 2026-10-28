@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import { usePermissions } from "../../hooks/usePermissions";
-import "./DownloadReportButton.css";
+import "./DownloadReportButton.scss";
 
 export default function DownloadReportButton({
   onGenerate,

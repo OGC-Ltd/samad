@@ -1,0 +1,393 @@
+/* The layers menu.
+ *
+ * Deliberately DARK in both themes, like every other control that sits over the
+ * map: the basemap is hybrid satellite imagery, which is dark whichever theme
+ * the app is in, and a light panel over it is a white hole. Same reasoning, and
+ * the same values, as .map-cam-btn and the legend it replaces.
+ */
+
+.map-layers {
+  position: relative;
+  /* The rail is pointer-events:none so the map keeps its gestures between the
+     buttons; this wrapper has to take them back for the panel. */
+  pointer-events: auto;
+  display: flex;
+}
+
+/* The trigger IS a .map-cam-btn — same size, same skin, same rail. It is a map
+   control and it should not announce itself as a different kind of thing. */
+.map-layers__btn {
+  position: relative;
+}
+.map-layers__btn--on {
+  border-color: rgba(22, 163, 74, 0.45);
+  --chip-ink: #15803d;
+}
+.map-layers__btn--open {
+  --chip: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.22);
+}
+/* How many layers are on, while the panel is shut. Without it the button says
+   nothing about the state it controls. */
+  /* ONE circle, always the same size. The DIGITS give way, not the disc.
+   *
+   * The first fix at this was `aspect-ratio: 1`, which kept it round by
+   * letting it grow — 16px at one digit, 19.4 at two, 24 at three. Round, but
+   * four badges on one rail then sat at three different sizes depending on
+   * what each happened to be counting, which reads as a rail that cannot keep
+   * its own geometry.
+   *
+   * So the box is fixed and the type steps down instead. `data-digits` carries
+   * the length from the component, because CSS cannot measure its own text —
+   * the alternative is guessing from a width, which is what produced the
+   * growing disc.
+   *
+   * NOTE: this badge is declared four times — fleets-menu__flagcount,
+   * fuel-alerts__count, units-menu__count, map-layers__count — identical but
+   * for its tint. They belong on one class; until they are, a change to the
+   * shape has to be made in all four. */
+  /* Placed OUTWARD, not upward.
+   *
+   * These four buttons stack in `.map-cam-controls`, a column with a 6px gap,
+   * and the column is right-aligned against open map. So there is exactly 6px
+   * above a button — pushing the badge up put the layers counter onto the fuel
+   * alerts button above it — and unlimited room to its right.
+   *
+   * `right: -12px` puts the disc's left edge at x 27 on a 34px button. The
+   * 17px glyph centred inside ends at 25.5, so the two never share a pixel
+   * whatever their heights. `top: -3px` keeps the disc 4px clear of the button
+   * above inside that 6px gap.
+   *
+   * NOTE: this badge is declared four times — fleets-menu__flagcount,
+   * fuel-alerts__count, units-menu__count, map-layers__count — identical but
+   * for its tint, and a fifth time in FleetMap.scss for short viewports. They
+   * belong on one class; until they are, a change has to be made in all five. */
+.map-layers__count {
+  position: absolute;
+  top: -3px;
+  right: -12px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #4ade80;
+  color: #06210f;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Two digits in the same disc, then three. Measured to fit inside 20px with
+   air at the sides. The disc is fixed, so the type is the only thing that
+   can give — and it gives from a smaller starting point than the old badge
+   used, because a counter is read as a magnitude at a glance, not parsed. */
+.map-layers__count[data-digits="2"] { font-size: 8px; letter-spacing: -0.02em; }
+.map-layers__count[data-digits="3"] { font-size: 7px;   letter-spacing: -0.04em; }
+/* Four digits is not a badge any more — no fleet here reaches it, and if one
+   does the number wants somewhere with room rather than a smaller font. */
+.map-layers__count[data-digits="4"] { font-size: 6px;     letter-spacing: -0.06em; }
+
+
+/* Opens to the LEFT: the rail sits just inside the right-hand panel, so there
+   is nothing to the right of it. `bottom: 0` grows the panel upward from the
+   button, away from the footer nav. */
+.map-layers__panel {
+  position: absolute;
+  right: calc(100% + 8px);
+  bottom: 0;
+  z-index: 451;
+  width: 232px;
+  /* Never wider or taller than the column between the rails — the same
+     --safe-w every floating window is now capped against (useFloatingWindow). */
+  max-width: var(--safe-w, calc(calc(var(--vw) * 100) - 24px));
+  /* Bounded by the room above the button, not just by the map column —
+     --rail-panel-max-h is defined next to the rail geometry it comes from,
+     in FleetMap.scss. Falls back to --safe-h where it is not set. */
+  max-height: var(--rail-panel-max-h, var(--safe-h, calc(calc(var(--vh) * 100) - 160px)));
+  overflow-y: auto;
+  padding: 10px;
+  /* White, as the tool rail beside it (MapToolRail.scss .mtr-card). */
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: #475569;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.5;
+  scrollbar-width: thin;
+}
+
+.map-layers__title {
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.map-layers__layer + .map-layers__layer { margin-top: 3px; }
+
+/* One row per layer: switch, name, and whatever the layer is doing. */
+.map-layers__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.map-layers__row:hover { background: #f1f5f9; }
+.map-layers__row:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -1px;
+}
+
+/* A real switch, not a tick. The control is "is this layer drawn", which is a
+   state you leave set — a checkbox reads as an answer to a question. */
+.map-layers__switch {
+  flex: 0 0 auto;
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 140ms ease;
+}
+.map-layers__switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 140ms ease, background 140ms ease;
+}
+.map-layers__row[aria-checked="true"] .map-layers__switch {
+  background: #16a34a;
+}
+.map-layers__row[aria-checked="true"] .map-layers__switch::after {
+  transform: translateX(11px);
+  background: #ffffff;
+}
+
+.map-layers__label { flex: 1; min-width: 0; }
+
+/* "loading…" / "failed" — the layer's own state, on the layer's own row rather
+   than inside its name. */
+.map-layers__note {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+.map-layers__row[aria-checked="true"] .map-layers__note { color: #dc2626; }
+
+/* Switch and key on one line. The switch takes the room it needs for its
+   label; the strip takes what is left and never pushes the row taller. */
+.map-layers__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.map-layers__head .map-layers__row { flex: 1 1 auto; min-width: 0; }
+
+/* The colours, inline. Wraps rather than scrolls — a survey with a dozen
+   categories takes a second line ONCE, where the labelled block took six. */
+.map-layers__strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  flex: 0 1 auto;
+  max-width: 45%;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  /* 24px of target on a phone, without 24px of row: the padding above plus
+     this floor, absorbed by the row's own height. */
+  min-height: 22px;
+  transition: background 0.15s ease;
+}
+.map-layers__strip:hover { background: #f1f5f9; }
+.map-layers__strip:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.map-layers__strip[aria-expanded="true"] { background: #e2e8f0; }
+
+/* The key — shown only under a layer that is switched ON, because colours for
+   geometry nobody is drawing are furniture, not information. */
+.map-layers__key {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 1px 0 5px;
+  padding: 6px 7px 7px 12px;
+  border-left: 2px solid #e2e8f0;
+  margin-left: 13px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #475569;
+}
+.map-layers__keyrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-layers__swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  border: 1px solid var(--zone-color);
+  background: color-mix(in srgb, var(--zone-color) 22%, transparent);
+}
+/* Spans both columns: it explains why zone names are absent when zoomed out, so
+   a deliberately withheld label does not read as a broken one. */
+.map-layers__hint {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 9.5px;
+  font-weight: 400;
+  color: #64748b;
+  white-space: normal;
+}
+
+/* On a phone the rail sits in the bottom-RIGHT corner, so a panel opening to
+   its left has nowhere to go — it would start off the left edge of the button
+   and run past the right edge of the screen. It opens UPWARD instead.
+ *
+ * Anchored `right: 0`, not `left: 0`. Left-anchoring measured 186px off the
+ * right edge of a 375px screen: the panel started at the wrapper's left (x=329)
+ * and ran to 561, so 46px of a 232px panel was reachable. Anchoring the right
+ * edge to the button's right grows it back INTO the screen.
+ *
+ * Height is bounded by what is actually above the button — the header is fixed
+ * too, and a tall panel opening upward would disappear under it. `dvh` rather
+ * than `vh` because mobile browser chrome makes `vh` an overestimate exactly
+ * when the space is tightest. */
+/* ── On a phone, pinned to the viewport ────────────────────────────────────
+ *
+ * These panels used to open upward from their own button, capped at
+ * `100dvh - header - footer - 140px`. That constant assumes the panel's bottom
+ * edge sits a fixed distance off the floor — and the bottom edge is the
+ * BUTTON, which climbs the rail every time a control is added to it. The
+ * units menu is what exposed this: measured at 375x812, its panel was 501px
+ * tall with its top at y=69, opening 42px behind a header that ends at 111.
+ * The three older panels share the flaw and are saved only by having little
+ * content; a fleet with more zones or more open incidents reaches it too.
+ *
+ * The fix is the one the landscape rule below already used, applied at every
+ * phone width: detach the panel from its button and pin it to the VIEWPORT.
+ * Its bottom edge is now a constant, so `100dvh - header - footer - 24px` is
+ * exactly the band between the header and the nav, and no button count can
+ * make it wrong.
+ *
+ * Still `max-height`, not `top` + `bottom`: a three-row layers panel must stay
+ * three rows tall, not stretch to fill 600px of empty band.
+ *
+ * Must live in this file rather than beside the rail in FleetMap.scss: that
+ * stylesheet loads FIRST, so a grouped rule there would lose the cascade.
+ */
+@media (max-width: 767px) {
+  .map-layers__panel {
+    position: fixed;
+    /* rail inset + the button + the gap the desktop panel already uses */
+    right: calc(12px + 34px + 8px);
+    left: auto;
+    /* Clear of the close pill and the camera row — see --map-bottom-band
+       where it is defined, in FleetMap.scss. */
+    bottom: calc(var(--footer-h, 64px) + 16px + var(--map-bottom-band, 0px));
+    width: min(232px, calc(calc(var(--vw) * 100) - 54px - 12px));
+    max-height: calc(calc(var(--vh) * 100) - var(--header-h, 57px) - var(--footer-h, 64px) - 24px - var(--map-bottom-band, 0px));
+    max-height: calc(100dvh - var(--header-h, 57px) - var(--footer-h, 64px) - 24px - var(--map-bottom-band, 0px));
+  }
+}
+
+/* The rail shrinks its buttons to 28px below 560px tall, so the panel follows
+   them 6px right — otherwise it overhangs the rail it opens beside. */
+@media (max-width: 767px) and (max-height: 560px) {
+  .map-layers__panel {
+    right: calc(12px + 28px + 8px);
+    width: min(232px, calc(calc(var(--vw) * 100) - 48px - 12px));
+  }
+}
+
+
+/* From the left tool rail (MapToolRail): the panel opens to the right of the
+   button, top-aligned with it, instead of up and to the left. */
+.map-layers--rail { display: block; }
+.map-layers--rail .map-layers__panel {
+  right: auto;
+  bottom: auto;
+  left: calc(100% + 10px);
+  top: -6px;
+}
+.map-layers--rail .map-layers__count {
+  top: -7px;
+  right: -9px;
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+/* Base map choice (rail only): two radio rows above the layers. */
+.map-layers__bases { display: flex; flex-direction: column; gap: 2px; }
+.map-layers__base {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.map-layers__base:hover { background: #f1f5f9; }
+.map-layers__base--on { color: #0f172a; font-weight: 600; }
+.map-layers__radio {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #94a3b8;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.map-layers__base--on .map-layers__radio {
+  border-color: #16a34a;
+  background: radial-gradient(circle, #16a34a 0 3px, transparent 3.5px);
+}
+.map-layers__base-note { margin-top: 4px; padding-top: 0; border-top: 0; color: #b45309; font-size: 10.5px; }
+.map-layers__title--gap { margin-top: 10px; }

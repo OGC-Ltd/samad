@@ -22,7 +22,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { addDays, addMonths, daysBetween, monthGrid, rangeFromClicks } from '../../lib/dayRange';
-import './DateRangePicker.css';
+import './DateRangePicker.scss';
 
 // Keys are calendar dates, so they are read and printed in UTC
 const DAY = new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', timeZone: 'UTC' });

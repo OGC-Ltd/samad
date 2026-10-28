@@ -9,7 +9,7 @@ import { useFloatingWindow } from "../../hooks/useFloatingWindow";
 import { cumulativeM, km, legProgress, legsOf } from "../../lib/playbackLegs";
 import { MAX_RANGE_DAYS, addDays, daysBetween, daysOf, parseSpan, spanKey } from "../../lib/playbackRange";
 import RangeCalendar from "./RangeCalendar";
-import "./RoutePlayback.css";
+import "./RoutePlayback.scss";
 
 const pad = (n) => String(n).padStart(2, "0");
 

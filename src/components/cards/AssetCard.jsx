@@ -1,6 +1,6 @@
 // Driver stat card for the vehicle detail panel (live driver + duty status).
 
-import "./AssetCard.css";
+import "./AssetCard.scss";
 import { ONLINE_COLORS } from "../../lib/vehicleMap";
 
 // Amber here read as "speeding" on a vehicle that is standing still. Driving

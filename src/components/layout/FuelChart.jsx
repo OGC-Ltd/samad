@@ -40,7 +40,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FUEL_EVENT_KINDS, FUEL_EVENT_ORDER } from '../../lib/fuelEpisodes';
 import { zoomView, panView, isWholeDay, wheelPixels, zoomFactor } from '../../lib/chartView';
-import './FuelChart.css';
+import './FuelChart.scss';
 
 const HHMM = new Intl.DateTimeFormat('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false });
 const DDMM = new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short' });

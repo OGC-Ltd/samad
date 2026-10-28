@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 // The pager's styles live with the Sensor Monitor's; imported here so a
 // screen outside it (User accounts, the halted-units window) gets them too.
-import "./SensorPanel.css";
+import "./SensorPanel.scss";
 
 /** Rows to a page, the roster's step. */
 export const PAGE_STEP = 15;

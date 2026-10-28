@@ -36,7 +36,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../../services/api";
 import { useFloatingWindow } from "../../hooks/useFloatingWindow";
-import "./HubArrivals.css";
+import "./HubArrivals.scss";
 
 const TZ = "Africa/Nairobi";
 const HHMM = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: TZ });

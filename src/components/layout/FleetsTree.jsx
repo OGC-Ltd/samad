@@ -41,7 +41,7 @@ import { useMapLayers } from '../../context/MapLayersContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { fleetTypeOptions, isInTransit } from '../../lib/vehicleMap';
 import { TreeCountsMasked, MASKED_COUNT } from './SideTree';
-import './FleetsTree.css';
+import './FleetsTree.scss';
 
 /** Chips shown before "N more" (operator, 2026-10-13: "on the Fleets we only
  *  show 3, the rest should be under more"). */

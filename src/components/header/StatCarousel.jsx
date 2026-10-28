@@ -7,7 +7,7 @@
 // direction (wheel, trackpad, or touch swipe). The clone is aria-hidden so
 // screen readers see each button once.
 import { Children, useLayoutEffect, useRef, useState } from "react";
-import "./StatCarousel.css";
+import "./StatCarousel.scss";
 
 export default function StatCarousel({ children }) {
   const viewportRef = useRef(null);

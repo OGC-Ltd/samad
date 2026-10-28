@@ -1,6 +1,6 @@
 // Per-vehicle traffic conditions card.
 
-import "./TrafficCard.css";
+import "./TrafficCard.scss";
 import { getTrafficHighlights } from "../../api/traffic";
 import { useApiData } from "../../hooks/useApiData";
 import LoadError from "../shared/LoadError";

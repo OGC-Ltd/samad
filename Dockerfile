@@ -4,7 +4,7 @@
 # /api/v1. It listens on 8080 inside the container and is meant to sit behind
 # Traefik (see docker-compose.yml); it publishes no port of its own.
 #
-#   docker compose build --build-arg APP_COMMIT=$(git rev-parse --short HEAD)
+#   docker compose build --build-arg APP_COMMIT=$(git rev-parse --short HEAD) --build-arg APP_VERSION=1.0
 #
 # The Google Maps key (satellite, terrain and traffic layers) arrives as a
 # BuildKit secret, so it is never written into a layer or the image history.
@@ -23,7 +23,8 @@ COPY index.html vite.config.js postcss.config.js tailwind.config.js ./
 COPY public ./public
 COPY src ./src
 ARG APP_COMMIT=""
-ENV APP_COMMIT=${APP_COMMIT} NODE_OPTIONS=--max-old-space-size=1536
+ARG APP_VERSION=dev
+ENV APP_COMMIT=${APP_COMMIT} APP_VERSION=${APP_VERSION} NODE_OPTIONS=--max-old-space-size=1536
 RUN --mount=type=secret,id=google_maps_key,env=VITE_GOOGLE_MAPS_API_KEY,required=false \
     npm run build
 
@@ -33,7 +34,8 @@ WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/*.go ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/samad-server . \
+ARG APP_VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${APP_VERSION}" -o /out/samad-server . \
  && mkdir -p /out/data
 
 # ── what runs: no shell, no package manager, not root ─────────────────────

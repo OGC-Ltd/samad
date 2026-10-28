@@ -8,7 +8,7 @@
    Items render inline in a single row and auto-scroll in a continuous,
    non-interactive loop (like a news ticker). */
 import { useLayoutEffect, useRef, useState } from "react";
-import "./FilterStrip.css";
+import "./FilterStrip.scss";
 import { productKey, vehiclesCarrying, emptyVehicles, plantVehicles } from "./StatKpis";
 
 const COLOR = { ok: "#22c55e", warn: "#f59e0b", warning: "#f59e0b", crit: "#ef4444", critical: "#ef4444" };

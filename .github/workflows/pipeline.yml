@@ -8,7 +8,12 @@
 # Pull requests run every check and build the image without pushing it.
 # main waits for an approval on the
 # "production" environment, then deploys the image it just built and
-# scanned, pinned by digest. The box runs deploy/deploy.sh, which backs up
+# scanned, pinned by digest.
+#
+# Versions: every production deploy is 0.1 above the last (1.0, 1.1, … 1.9,
+# 2.0). The image job reads the newest vX.Y tag and builds the next number
+# into the app and the server; a successful deploy tags the commit with it.
+# A build that is never deployed takes no number. The box runs deploy/deploy.sh, which backs up
 # the production database, migrates, waits for health and rolls back on
 # failure.
 #
@@ -212,10 +217,20 @@ jobs:
       attestations: write
     outputs:
       ref: ${{ steps.ref.outputs.ref }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0   # the version tags
+      - name: Version (newest deployed + 0.1, from 1.0)
+        id: version
+        run: |
+          last=$(git tag -l 'v[0-9]*.[0-9]' | sed 's/^v//' | sort -t. -k1,1n -k2,2n | tail -1)
+          if [ -z "$last" ]; then next=1.0
+          else n=$(( ${last%.*} * 10 + ${last#*.} + 1 )); next="$(( n / 10 )).$(( n % 10 ))"; fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "Version $next (last deployed: ${last:-none})" >> "$GITHUB_STEP_SUMMARY"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -223,6 +238,7 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             type=sha,prefix=sha-,format=short
+            type=raw,value=v${{ steps.version.outputs.version }},enable=${{ github.event_name == 'push' }}
             type=ref,event=branch
             type=ref,event=pr
       - name: Build (for the scan)
@@ -232,7 +248,9 @@ jobs:
           load: true
           push: false
           tags: samad:scan
-          build-args: APP_COMMIT=${{ github.sha }}
+          build-args: |
+            APP_COMMIT=${{ github.sha }}
+            APP_VERSION=${{ steps.version.outputs.version }}
           secrets: |
             google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha
@@ -272,7 +290,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: APP_COMMIT=${{ github.sha }}
+          build-args: |
+            APP_COMMIT=${{ github.sha }}
+            APP_VERSION=${{ steps.version.outputs.version }}
           secrets: |
             google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha
@@ -303,7 +323,8 @@ jobs:
       environment: production
       target: prod
       image: ${{ needs.image.outputs.ref }}
+      version: ${{ needs.image.outputs.version }}
     permissions:
-      contents: read
+      contents: write   # the version tag
       packages: read
     secrets: inherit

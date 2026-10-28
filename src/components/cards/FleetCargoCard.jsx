@@ -19,7 +19,7 @@
 // reads 0 — and 0 is the honest answer, with `siloCount` there to say whether
 // that means "measured empty" or "nothing recorded".
 
-import "./FleetCargoCard.css";
+import "./FleetCargoCard.scss";
 import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import { useDashboardSummary } from "../../hooks/useDashboardSummary";
 import { iconForCargo } from "../../utils/cargoIcons";

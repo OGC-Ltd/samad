@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePlaceName } from "../../hooks/usePlaceName";
-import "./WeatherCard.css";
+import "./WeatherCard.scss";
 
 const CONDITIONS = {
   sunny:         { icon: "☀️",  label: "Sunny",          warning: null },

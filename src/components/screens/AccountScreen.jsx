@@ -50,7 +50,7 @@ import { firstMessage, isMissingEndpoint } from "../../lib/formErrors";
 import { uniqueRoles as distinctRoles, roleNames } from "../../lib/accountRoles";
 import LoadError from "../shared/LoadError";
 import { pushState, enablePush, disablePush } from "../../lib/pushNotifications";
-import "./AccountScreen.css";
+import "./AccountScreen.scss";
 
 const MIN_LENGTH = 12;
 

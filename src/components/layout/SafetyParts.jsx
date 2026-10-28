@@ -19,7 +19,7 @@
  * here derives a number the panel did not already compute.
  */
 
-import './SafetyParts.css';
+import './SafetyParts.scss';
 
 const HHMM = new Intl.DateTimeFormat('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false });
 

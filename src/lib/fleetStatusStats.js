@@ -25,7 +25,7 @@ import { matchesFilter } from './vehicleMap';
  * was counting was the one whose whole point is a state you cannot see from a
  * marker's position.
  *
- * The value is `--accent-idling` (index.css, App.css) rather than IDLING_COLOR
+ * The value is `--accent-idling` (index.scss, App.scss) rather than IDLING_COLOR
  * itself, and the two are the light and mid weights of one cyan. This column
  * is not painted the same way the markers are: StatusRail FILLS the active
  * chip with it and sets white text, and SidePanel prints the count in it on

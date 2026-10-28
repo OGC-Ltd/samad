@@ -57,7 +57,7 @@ export const LEAVE_GRACE_MS = 3 * 60_000;
 /**
  * The fence feature of a site plan, or null if the survey has none.
  *
- * `category: "perimeter"` is what tools/kml-to-site.mjs stamps on the largest
+ * `category: "perimeter"` is what the KML converter stamps on the largest
  * ring, and it is stamped on exactly one feature per file.
  */
 export function perimeterOf(featureCollection) {

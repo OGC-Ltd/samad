@@ -4,7 +4,7 @@
 import { useCompanies } from '../../context/AppContext';
 import { useFleetLiveShared } from '../../context/FleetLiveContext';
 import { matchesFilter } from '../../lib/vehicleMap';
-import './MobileCompanyProfile.css';
+import './MobileCompanyProfile.scss';
 
 // Weather hook — same as SidePanel
 import { useState, useEffect } from 'react';

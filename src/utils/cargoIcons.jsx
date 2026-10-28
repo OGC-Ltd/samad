@@ -43,27 +43,8 @@ export function SugarPackIcon() {
   );
 }
 
-// Sugarcane stalks — the real icon asset (public/sugar-cane-svgrepo-com.svg),
-// sized in em so it scales with the surrounding text like the emoji.
-export function SugarcaneIcon() {
-  return (
-    <img
-      src="/sugar-cane-svgrepo-com.svg"
-      width="1.15em"
-      height="1.15em"
-      // The asset is solid black — the filter re-tints it cane-green so it
-      // reads on the dashboard's dark cards.
-      style={{ width: "1.15em", height: "1.15em", verticalAlign: "-0.15em", filter: "invert(70%) sepia(60%) saturate(450%) hue-rotate(60deg) brightness(1.1)" }}
-      alt="Raw sugarcane"
-    />
-  );
-}
-
 // Keys are lowercase — see iconForCargo.
 const CARGO_ICONS = {
-  "raw sugarcane":         <SugarcaneIcon />,
-  "raw sugar cane":        <SugarcaneIcon />,
-  "sugarcane":             <SugarcaneIcon />,
   "processed sugar":       <SugarPackIcon />,
   "bottled water (18.9l)": "💧",
   "still water, 5l bottles": "💧",

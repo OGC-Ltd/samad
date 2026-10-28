@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import { fuelRateFindings, fuelRateSummaryText } from '../../lib/fuelRateSummary';
 import { FUEL_EVENT_KINDS } from '../../lib/fuelEpisodes';
-import './FuelRateSummary.css';
+import './FuelRateSummary.scss';
 
 const HHMM = new Intl.DateTimeFormat('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false });
 const DAY_HHMM = new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });

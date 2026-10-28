@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
-import "./ProductTour.css";
+import "./ProductTour.scss";
 import { useAppFields, useAppActions, useAppSelector, useCompanies } from "../../context/AppContext";
 import { authKeys, useAuth } from "../../context/AuthContext";
 import { recordTourSeen } from "../../api/account";

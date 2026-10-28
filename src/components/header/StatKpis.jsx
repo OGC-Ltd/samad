@@ -80,9 +80,7 @@ export function statMeta(summary, products = []) {
       key: `product:${p.product}`,
       label: p.product,
       color: productColor(p.product),
-      // Raw sugarcane gets its own icon (public/sugar-cane-svgrepo-com.svg);
-      // every other product keeps the generic crate.
-      icon: /sugar\s*cane|sugarcane/i.test(p.product) ? "sugarcane" : "product",
+      icon: "product",
     })),
     // Only when there is plant on the move — same rule as the product buttons,
     // and it keeps the topbar from carrying a permanent 0 for fleets that have
@@ -212,11 +210,6 @@ function StatIcon({ type, color }) {
         <circle cx="7" cy="17.5" r="1.8" fill={color} />
         <circle cx="16.5" cy="17.5" r="1.8" fill={color} />
       </svg>
-    </div>
-  );
-  if (type === "sugarcane") return (
-    <div style={box}>
-      <img src="/sugar-cane-svgrepo-com.svg" width="19" height="19" alt="" style={{ display: "block", filter: "invert(70%) sepia(60%) saturate(450%) hue-rotate(60deg) brightness(1.1)" }} />
     </div>
   );
   if (type === "empty") return (

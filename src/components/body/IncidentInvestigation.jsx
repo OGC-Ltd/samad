@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTheftInvestigation, getHaltInvestigation } from "../../api/fuelInvestigation";
 import { useFloatingWindow } from "../../hooks/useFloatingWindow";
-import "./IncidentInvestigation.css";
+import "./IncidentInvestigation.scss";
 
 const TZ = "Africa/Nairobi";
 const HHMM = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: TZ });

@@ -1,0 +1,122 @@
+/* FuelChart — the fuel events on the vehicle panel's fuel & overspeed chart.
+   The chart's frame, readout and base legend are VehicleDetailPanel.scss's
+   (.vdp-chart, .vdp-readout, .vdp-legend); this adds only what the events need,
+   in the panel's own variables. */
+
+/* The crosshair's label: litres at the reading under it. Placed by FuelChart
+   in % of the plot, beside the line and level with the dot. */
+.fc-plot { position: relative; }
+.fc-tip {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translate(10px, -50%);
+}
+.fc-tip--left { transform: translate(calc(-100% - 10px), -50%); }
+.fc-tip b { font-size: 13px; font-weight: 600; }
+.fc-tip span { color: #cbd5e1; font-size: 10.5px; }
+
+/* Numbered marks above the plot */
+.fc-chip { cursor: zoom-in; outline: none; }
+.fc-chip:focus-visible rect:nth-of-type(2) { stroke: #1d4ed8; stroke-width: 1.4px; }
+
+/* A small swatch in text: the kind's colour */
+.fc-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Readout lines for an event */
+.fc-readout-ep { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.fc-readout-ep .fc-dot { margin-right: -3px; }
+.fc-readout-detail { color: var(--vdp-mut); flex-basis: 100%; }
+.fc-readout-under { display: inline-flex; align-items: center; gap: 5px; color: var(--vdp-ink); font-weight: 500; }
+
+/* Base legend: wraps rather than running off a narrow panel */
+.fc-legend { flex-wrap: wrap; row-gap: 4px; }
+.fc-swatch { display: inline-block; flex-shrink: 0; }
+.fc-swatch--bar { width: 12px; height: 4px; border-radius: 1px; }
+
+/* One switch per kind of event on the day, with its count */
+.fc-toggles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid var(--vdp-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--vdp-ink);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fc-toggle b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fc-toggle:hover { border-color: #b8c1cb; }
+.fc-toggle:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.fc-toggle--off { color: var(--vdp-faint); background: #f8fafc; }
+.fc-toggle--off .fc-dot { opacity: 0.3; }
+.fc-toggle--off span, .fc-toggle--off { text-decoration: line-through; text-decoration-color: #cbd5e1; }
+@media (max-width: 720px) { .fc-toggle { min-height: 32px; padding: 0 12px; } }
+
+/* The day's events, numbered as on the chart */
+.fc-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 232px;
+  overflow-y: auto;
+  border: 1px solid var(--vdp-hair);
+  border-radius: 6px;
+}
+.fc-list li + li { border-top: 1px solid var(--vdp-hair); }
+.fc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--vdp-ink);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: zoom-in;
+}
+.fc-row:hover { background: #f8fafc; }
+.fc-row:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; }
+.fc-row--on { background: #eff6ff; }
+.fc-row-n {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.fc-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fc-row-head { display: flex; flex-wrap: wrap; gap: 2px 10px; font-variant-numeric: tabular-nums; }
+.fc-row-head b { font-weight: 600; }
+.fc-row-detail { color: var(--vdp-mut); }

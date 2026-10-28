@@ -1,6 +1,6 @@
 // Inline 'failed to load, Retry' UI for failed data fetches.
 
-import "./ErrorBoundary.css";
+import "./ErrorBoundary.scss";
 
 export default function LoadError({ label, onRetry, fullSection = false, message }) {
   return (

@@ -26,7 +26,7 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { STATUS_STATS, FLAGGED_ONLY_HIDDEN, countStatuses } from '../../lib/fleetStatusStats';
 import { usePermissions } from '../../hooks/usePermissions';
-import './StatusRail.css';
+import './StatusRail.scss';
 
 export default function StatusRail({ vehicles = [], loading = false, activeFilter = 'all', onFilter, afterToggle = false }) {
   const scrollerRef = useRef(null);

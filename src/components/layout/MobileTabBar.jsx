@@ -16,7 +16,7 @@
 import { useAppSelector, useAppActions } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { NAV_ITEMS } from './SidePanel';
-import './MobileTabBar.css';
+import './MobileTabBar.scss';
 
 /* `fleet` carries a map icon for the case where it is NOT in the centre — the
    truck is drawn for the centre position only, and a demoted Fleet tab with no

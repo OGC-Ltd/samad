@@ -14,7 +14,7 @@ import {
   PULSE_CACHE_KEY, usablePulse, nextPollDelay, mergePulse,
 } from "../../lib/fleetPulse";
 import { versionLabel, copyrightLabel, buildDetail } from "../../lib/version";
-import "./LoginScreen.css";
+import "./LoginScreen.scss";
 
 /** At or above this share of the fleet, the platform is at its busiest and the
  *  card says so. Chosen by the operator, not derived — it is a threshold, and a

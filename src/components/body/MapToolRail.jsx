@@ -16,7 +16,7 @@ import { useAppSelector, useAppActions, useCompanies } from "../../context/AppCo
 import { useCrossOrgUnitHandoff } from "../../hooks/useCrossOrgUnits";
 import UnitTypeIcon from "../shared/UnitTypeIcon";
 import { usePermissions } from "../../hooks/usePermissions";
-import "./MapToolRail.css";
+import "./MapToolRail.scss";
 
 /* OpenStreetMap's geocoder: free, keyless, and limited to one request a second
    per client, which the 600 ms debounce on typing respects. */

@@ -9,7 +9,7 @@
 // specific unit is not reporting that counter rather than that the channel
 // does not exist at all.
 
-import "./TelemetryCard.css";
+import "./TelemetryCard.scss";
 
 const dash = (v, fmt) => (v == null ? "-" : fmt(v));
 

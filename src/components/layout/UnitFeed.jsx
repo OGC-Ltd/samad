@@ -21,7 +21,7 @@ import { driverIndex, driverFor } from '../../lib/feedDriver';
 import { feedItemFollowUp, openFollowUp } from '../../lib/fuelFollowUps';
 import { useVehicleFeed } from '../../hooks/useVehicleFeed';
 import { feedKind } from './LiveFeed';
-import './UnitFeed.css';
+import './UnitFeed.scss';
 
 const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' });
 const DAY_LABEL = new Intl.DateTimeFormat('en-KE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Africa/Nairobi' });

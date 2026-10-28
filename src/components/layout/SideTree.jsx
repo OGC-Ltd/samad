@@ -5,7 +5,7 @@
  * Fleets and Units — each a button that opened a popover over the imagery. On a
  * desktop they are here instead, as trees in the panel that is already open and
  * already the place this app puts navigation. The map keeps them below 1024px,
- * where there is no sidebar body to hold them (see FleetMap.css).
+ * where there is no sidebar body to hold them (see FleetMap.scss).
  *
  * The difference that matters is not where they sit but what they can now say.
  * A popover has one state — open — so a fleet's machine types, its stranded
@@ -31,7 +31,7 @@
  */
 
 import { createContext, useContext, useId, useState } from 'react';
-import './SideTree.css';
+import './SideTree.scss';
 
 /**
  * Counts masked (operator, 2026-10-01): an account with limited access (no

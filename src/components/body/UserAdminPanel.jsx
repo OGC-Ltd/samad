@@ -60,7 +60,7 @@ import {
 import LoadError from "../shared/LoadError";
 import TabEmptyState from "../shared/TabEmptyState";
 import { DriversIcon } from "../footer/NavIcons";
-import "./UserAdminPanel.css";
+import "./UserAdminPanel.scss";
 
 const EMPTY_FORM = { fullName: "", email: "", phone: "", employeeId: "" };
 
@@ -2625,7 +2625,7 @@ export default function UserAdminPanel() {
                     return (
                       <Fragment key={key}>
                       {/* `data-label` on every cell is what lets the roster
-                          become a stack of cards under 768px (UserAdminPanel.css):
+                          become a stack of cards under 768px (UserAdminPanel.scss):
                           with no table head to sit under, each value has to
                           carry the column name it came from. They are inert on
                           a desktop, where the head is still doing that job. */}

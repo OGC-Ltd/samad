@@ -2,21 +2,20 @@
  * A unit's own picture in a list (operator, 2026-10-20: "on every search bar
  * for vehicle each vehicle should get its icon, if a lorry the lorry icon").
  *
- * Drawn from the same `<kind>-atlas.png` sprites the map markers use, picked
- * by the same `spriteKind` (lib/vehicleMap): a lorry is the lorry, a tractor
- * the tractor, a pickup the light vehicle, an excavator the excavator. A row
- * in a search and the marker it jumps to are therefore the same picture.
+ * Drawn from the same truck atlas the map markers use (every Samad unit is a
+ * truck); its label comes from `spriteKind` (lib/vehicleMap). A row in a
+ * search and the marker it jumps to are therefore the same picture.
  * The atlas row is the unit's status, as on the map: green on the move, grey
  * parked, sky blue idling, red speeding.
  *
- * FleetMap.css owns `.lf-truck` and the atlas URLs; the sizing maths there is
+ * FleetMap.scss owns `.lf-truck` and the atlas URL; the sizing maths there is
  * driven off `--lf-marker`, so setting it here is all a list needs.
  */
 
 import { fleetType, fleetTypeLabel, spriteKind } from "../../lib/vehicleMap";
 import { spriteColumn } from "../../lib/fleetSprite";
-import "../body/FleetMap.css";
-import "./UnitTypeIcon.css";
+import "../body/FleetMap.scss";
+import "./UnitTypeIcon.scss";
 
 // The atlas's rows, as FleetMap.jsx's TRUCK_STATUS_ROWS / TRUCK_ROW_FOR and
 // UnitsMenu's copy; change all three if the atlas is re-baked.

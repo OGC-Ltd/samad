@@ -19,9 +19,9 @@ describe('fleetSprite', () => {
     expect(Math.round(bearingDeg({ lat: 0, lng: 0 }, { lat: 0, lng: 1 }))).toBe(90);
     expect(Math.round(bearingDeg({ lat: 0, lng: 0 }, { lat: -1, lng: 0 }))).toBe(180);
   });
-  it('cuts the cell for the kind, heading and status out of the atlas', () => {
+  it('cuts the cell for the heading and status out of the truck atlas', () => {
     const icon = spriteIcon(maps, 'mtr', { heading: 90, status: 'idling', px: 40 });
-    expect(icon.url).toBe('/mtr-atlas.png');
+    expect(icon.url).toBe('/truck-atlas.png');
     expect([icon.origin.x, icon.origin.y]).toEqual([240, 160]);
     expect([icon.scaledSize.width, icon.scaledSize.height]).toEqual([960, 200]);
     expect(spriteIcon(maps, undefined).url).toBe('/truck-atlas.png');

@@ -22,9 +22,9 @@
  *
  * ## The sprite is the marker's own artwork
  *
- * The avatar column draws from the same `<kind>-atlas.png` the map markers use,
+ * The avatar column draws from the same truck atlas the map markers use,
  * at the same status row, by setting `--lf-marker` on the element and letting
- * FleetMap.css's `.lf-truck` do the sizing maths. A row and its marker cannot
+ * FleetMap.scss's `.lf-truck` do the sizing maths. A row and its marker cannot
  * disagree about what a unit is or what state it is in, because they are the
  * same pixels.
  *
@@ -58,7 +58,7 @@ import { useAppSelector, useAppActions, useCompanies } from "../../context/AppCo
 import { useCrossOrgUnitHandoff } from "../../hooks/useCrossOrgUnits";
 import { useFloatingWindow } from "../../hooks/useFloatingWindow";
 import { usePlaceName } from "../../hooks/usePlaceName";
-import "./UnitsMenu.css";
+import "./UnitsMenu.scss";
 import { displayPlate } from "../../lib/plate";
 
 /* ── header glyphs ──────────────────────────────────────────────────────────

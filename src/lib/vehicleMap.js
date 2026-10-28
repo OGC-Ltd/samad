@@ -54,7 +54,7 @@ export function maxPayloadTonnes(vehicleType) {
 export const MOVING_THRESHOLD_KMH = 1
 
 /**
- * The one idling colour — sky blue, matching `--accent-idling` in App.css.
+ * The one idling colour — sky blue, matching `--accent-idling` in App.scss.
  *
  * Idling gets its own accent because it is neither healthy nor an alert. It
  * was amber on the vehicle card and the driver card, which is the SPEEDING
@@ -391,8 +391,9 @@ export function equipmentLabel(vehicle) {
 /**
  * Equipment code → the marker sprite that actually depicts it.
  *
- * Each kind is a baked atlas in public/ (see scripts/bake-vehicle-atlas.mjs).
- * A code is listed here ONLY where the mesh genuinely shows that machine —
+ * The kind groups the Fleets type filter. The map draws every kind with the
+ * truck atlas (FleetMap.scss). A code is listed here ONLY where it genuinely
+ * names that machine —
  * everything else falls back to 'truck', which is honest about being generic
  * rather than dressing an excavator up as something it is not.
  *

@@ -11,7 +11,7 @@
  * card with outcome chips and a "what you found" box, and a pinned foot with
  * the count of what is missing beside Cancel and the one submit button. Those
  * classes read the `--sp4-*` tokens, which live on `.sp4-root`, so the host
- * wraps the dialog in one (`display: contents`, see FuelFollowUp.css).
+ * wraps the dialog in one (`display: contents`, see FuelFollowUp.scss).
  *
  * Four modes share that shape. The main one accepts or decides. "Decline"
  * asks for the reason before saying no. "Assign" is the administrator's: pick
@@ -22,8 +22,8 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import "./SensorPanel.css";
-import "./FuelFollowUp.css";
+import "./SensorPanel.scss";
+import "./FuelFollowUp.scss";
 import { usePermissions } from "../../hooks/usePermissions";
 import useFocusTrap from "../../hooks/useFocusTrap";
 import {

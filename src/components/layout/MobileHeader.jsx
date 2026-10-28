@@ -6,7 +6,7 @@ import { useAppSelector, useAppActions, useCompanies } from '../../context/AppCo
 import { useAuth } from '../../context/AuthContext';
 import { useFleetLiveShared } from '../../context/FleetLiveContext';
 import { useMapLayers } from '../../context/MapLayersContext';
-import './MobileHeader.css';
+import './MobileHeader.scss';
 import { companyMark as companyLogo } from '../../lib/companyLogos';
 import { usePermissions } from '../../hooks/usePermissions';
 import { initialsOf, avatarHue } from '../../lib/avatar';

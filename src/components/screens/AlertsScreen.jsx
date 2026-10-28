@@ -24,11 +24,11 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import "../body/SensorPanel.css";
-import "./SystemScreen.css";
-import "./FuelReportScreen.css";
-import "./AuditScreen.css";
-import "./AlertsScreen.css";
+import "../body/SensorPanel.scss";
+import "./SystemScreen.scss";
+import "./FuelReportScreen.scss";
+import "./AuditScreen.scss";
+import "./AlertsScreen.scss";
 import { useAppActions, useAppSelector, useCompanies } from "../../context/AppContext";
 import { usePermissions } from "../../hooks/usePermissions";
 import { useApiData } from "../../hooks/useApiData";

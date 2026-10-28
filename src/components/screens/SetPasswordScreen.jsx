@@ -28,8 +28,8 @@ import { useAuth } from "../../context/AuthContext";
 import { verifySetupToken, completeSetup, requestPasswordReset } from "../../api/account";
 import { firstMessage } from "../../lib/formErrors";
 import { clearSetupHash } from "../../lib/setupLink";
-import "./LoginScreen.css";
-import "./SetPasswordScreen.css";
+import "./LoginScreen.scss";
+import "./SetPasswordScreen.scss";
 
 const MIN_LENGTH = 12;
 

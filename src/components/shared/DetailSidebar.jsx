@@ -19,7 +19,7 @@
 
 import { useEffect, useRef } from "react";
 import { claimSidePanel, onSidePanelClaim } from "../../lib/sidePanels";
-import "./DetailSidebar.css";
+import "./DetailSidebar.scss";
 
 export default function DetailSidebar({ title, label, itemKey, onClose, footer = null, wide = false, children }) {
   const body = useRef(null);

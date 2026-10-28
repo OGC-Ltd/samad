@@ -4,7 +4,7 @@
 // overdue counts derived from a hardcoded service catalogue against a reset
 // point that is 0 for every vehicle in production; see lib/vehicleReadings.
 
-import "./FleetMaintenanceCard.css";
+import "./FleetMaintenanceCard.scss";
 import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import { readingCoverage, vehicleReadings, formatKm, formatSince } from "../../lib/vehicleReadings";
 import LoadError from "../shared/LoadError";

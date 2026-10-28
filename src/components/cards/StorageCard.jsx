@@ -1,6 +1,6 @@
 // Current cargo card for the vehicle detail panel.
 
-import "./StorageCard.css";
+import "./StorageCard.scss";
 import { iconForCargo } from "../../utils/cargoIcons";
 
 /**

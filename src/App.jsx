@@ -3,7 +3,7 @@
 // Real authentication: login, set-password links, account and user admin.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import './App.css';
+import './App.scss';
 import { AppProvider, useAppFields, useAppActions, useCompanies, useAppSelector } from './context/AppContext';
 import { useSelector } from 'react-redux';
 import { AuthProvider, useAuth } from './context/AuthContext';

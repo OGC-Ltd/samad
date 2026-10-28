@@ -11,7 +11,7 @@
 // MapOverlay with it) never re-renders for them.
 
 import { useEffect, useRef } from "react";
-import "./MapStatusBar.css";
+import "./MapStatusBar.scss";
 
 /** Longest a scale bar may be, in px. */
 const BAR_MAX = 110;

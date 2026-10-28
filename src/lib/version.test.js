@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { APP_VERSION, versionLabel, copyrightLabel, buildDetail } from './version';
 
 describe('version', () => {
-  it("is package.json's version, injected by vite.config.js", () => {
-    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-    expect(APP_VERSION).toBe(pkg.version);
-    expect(versionLabel()).toBe(`v${pkg.version}`);
-    expect(buildDetail()).toMatch(new RegExp(`^Version ${pkg.version.replace(/\./g, '\\.')}`));
+  it('is the deploy number vite.config.js injected (1.0, 1.1, …, or dev)', () => {
+    expect(APP_VERSION).toMatch(/^(\d+\.\d(-dev)?|dev)$/);
+    expect(versionLabel()).toBe(`v${APP_VERSION}`);
+    expect(buildDetail().startsWith(`Version ${APP_VERSION}`)).toBe(true);
   });
 
   it('reads the copyright year when rendered, not when built', () => {

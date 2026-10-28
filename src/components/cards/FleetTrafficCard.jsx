@@ -2,7 +2,7 @@
 // legs (real sim places: mill, farms, depots), not the old mock route list.
 
 import { useMemo } from "react";
-import "./FleetTrafficCard.css";
+import "./FleetTrafficCard.scss";
 import { summarizeFleetTraffic } from "../../api/traffic";
 import { useFleetLiveShared } from "../../context/FleetLiveContext";
 import LoadError from "../shared/LoadError";

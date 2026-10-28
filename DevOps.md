@@ -402,7 +402,8 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 | Partner API key | `server/.env` → `PARTNER_API_KEY` | the app, server side |
 | Token signing secret | `server/.env` → `JWT_SECRET` (different per stack) | the app |
 | Default super admin | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
-| Google Routes + Weather | `server/.env` → `GOOGLE_ROUTING_API_KEY` (optional; a server key, IP-restricted) | road routes, arrivals, weather layer |
+| Google Maps key | CI secret `GOOGLE_MAPS_API_KEY` (built into the dashboard) and `server/.env` → `GOOGLE_MAPS_API_KEY` | Google hybrid/satellite/terrain maps and live traffic (browser); road routes, arrivals and the weather layer (server) |
+| Google Routes + Weather, own key | `server/.env` → `GOOGLE_ROUTING_API_KEY` (optional; overrides the Maps key on the server) | a separate IP-restricted server key, if the Maps key is referrer-restricted |
 | Driver roster | `drivers.json` in the `samad-data` volume (not git: ID and phone numbers) | drivers per truck, units labelled Truck |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
 | Database password | `secrets/postgres_password` | `db`, `migrate` |
@@ -566,8 +567,17 @@ the workflow created the package). Keep the package private.
 4. **Approve the production deploy**: Actions → the run → *Review deployments*
    → `production` → Approve. The image is deployed by digest, with a database
    backup first.
-5. **Verify**: the deploy job's summary shows the running image and schema
-   version; open the site.
+5. **Verify**: the deploy job's summary shows the running image, schema
+   version and app version; open the site.
+
+**Versions.** Every production deploy is 0.1 above the last, from 1.0: 1.0,
+1.1, … 1.9, 2.0. The image job reads the newest `vX.Y` git tag and builds the
+next number into the dashboard (sidebar foot, login page) and the server
+(`/api/v1/health` → `version`); the image is also tagged `vX.Y` in GHCR. Once
+the deploy succeeds, CI tags the commit `vX.Y`. A build that is never deployed
+takes no number. If two builds wait for approval at once they carry the same
+number; the second is refused at deploy and needs the pipeline re-run.
+Rollbacks keep the version of the image they return to.
 
 There is no dev stack, so the pull request's checks (and its image, built
 and started in CI) are the test before production.

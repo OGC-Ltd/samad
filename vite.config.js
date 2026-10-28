@@ -1,12 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 
-/* The version the app shows (sidebar foot, login page) — package.json's, so
- * `npm version patch|minor|major` is the one place it changes. The commit is
- * read at build time for support ("which build is that?"); no git, no hash. */
-const APP_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+/* The version the app shows (sidebar foot, login page). Every production
+ * deploy is 0.1 higher than the last, starting at 1.0: the pipeline works it
+ * out from the newest v* tag and passes it in as APP_VERSION, and the deploy
+ * tags the commit with it (DevOps.md §11). A local build shows the newest tag
+ * with "-dev"; package.json's version is not used. The commit is read at build
+ * time for support ("which build is that?"). */
+let APP_VERSION = process.env.APP_VERSION || ''
+if (!APP_VERSION) try { APP_VERSION = `${execSync('git describe --tags --abbrev=0 --match "v[0-9]*"', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().slice(1)}-dev` } catch { APP_VERSION = 'dev' }
 // A Docker build has no .git: it passes the commit in as APP_COMMIT.
 let APP_COMMIT = process.env.APP_COMMIT || ''
 if (!APP_COMMIT) try { APP_COMMIT = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { /* not a checkout */ }
@@ -33,13 +36,11 @@ export default defineConfig({
    */
   test: {
     environment: 'node',
-    /* tools/ as well as src/. The KML converter that builds the Kabras site
-     * layer is build-time code, but it carries the kind of rule this project
-     * tests everywhere else — and it shipped a regex that compiled to
-     * something matching nothing while reporting success. A tool that writes
-     * a file the map draws is not exempt from having its decisions pinned. */
-    include: ['src/**/*.test.{js,jsx}', 'tools/**/*.test.{js,mjs}'],
+    include: ['src/**/*.test.{js,jsx}'],
   },
+
+  // The stylesheets are SCSS (sass), compiled with Sass's current API.
+  css: { preprocessorOptions: { scss: { api: 'modern-compiler' } } },
 
   plugins: [react()],
   server: {

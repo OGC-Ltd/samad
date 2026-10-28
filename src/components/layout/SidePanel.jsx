@@ -15,7 +15,7 @@ import ErrorBoundary from '../shared/ErrorBoundary';
 import { versionLabel, buildDetail } from '../../lib/version';
 import { useAlertSummary, badgeText } from '../../hooks/useAlertSummary';
 import { useFuelAlarm } from '../../hooks/useFuelAlarm';
-import './SidePanel.css';
+import './SidePanel.scss';
 
 export const NAV_ITEMS = [
   { key: 'fleet',        label: 'Live Map',     icon: 'map-2',     permission: 'map:read'         },

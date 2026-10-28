@@ -23,7 +23,7 @@ import { useMemo, useState } from 'react';
 import { useFleetLiveShared } from '../../context/FleetLiveContext';
 import { useAppActions } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import './MobileSearchTray.css';
+import './MobileSearchTray.scss';
 import { displayPlate } from "../../lib/plate";
 import UnitTypeIcon from "../shared/UnitTypeIcon";
 

@@ -14,7 +14,7 @@
 // dispatched has no position at all. Both are common (20 of 52 open runs are
 // silent) and both say so.
 
-import "./DeliveryCard.css";
+import "./DeliveryCard.scss";
 import { LEG_LABEL, fmtDuration } from "../../lib/tripProgress";
 import ShieldIcon from "../shared/ShieldIcon";
 import { useTrafficRoute, routeTarget, useRoutingAvailable } from "../../hooks/useTrafficRoute";

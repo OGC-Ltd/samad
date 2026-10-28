@@ -14,7 +14,7 @@ import StatCarousel from '../header/StatCarousel';
 import LiveFeed from './LiveFeed';
 import { FuelFollowUpHost } from '../body/FuelFollowUp';
 import FilterStrip from '../header/FilterStrip';
-import './AppHeader.css';
+import './AppHeader.scss';
 import { companyMark as companyLogo } from '../../lib/companyLogos';
 import { initialsOf, avatarHue } from '../../lib/avatar';
 import { requestTour } from '../../lib/productTour';

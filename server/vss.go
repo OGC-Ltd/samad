@@ -224,3 +224,26 @@ func (s *Server) vssFile(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(res.StatusCode)
 	_, _ = io.Copy(w, res.Body)
 }
+
+// GET /organisations/{org}/vehicles/{vehicleId}/camera, the vehicle panel's
+// live dashcam (src/api/vehicleCamera.js). The partner feed carries recorded
+// alarm clips only, never a live stream, so this says which: no_camera for a
+// unit that has never sent a camera alarm, not_configured (with where its
+// clips are) for one that has.
+func (s *Server) vehicleCamera(w http.ResponseWriter, r *http.Request) {
+	v, ok := s.vehicleParam(w, r)
+	if !ok {
+		return
+	}
+	state, message := "no_camera", "This unit has sent no dashcam alarms."
+	for _, e := range s.store.Events() {
+		if e.VehicleID == v.VehicleID && isCameraEvent(e) {
+			state, message = "not_configured", "The tracking partner sends recorded alarm clips, not a live feed. Its clips are on the Camera page."
+			break
+		}
+	}
+	writeData(w, map[string]any{
+		"state": state, "deviceId": nil, "deviceName": nil,
+		"channels": []any{}, "streamUrl": nil, "message": message,
+	})
+}

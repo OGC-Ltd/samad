@@ -1,7 +1,7 @@
 // Catches render errors so one broken section doesn't crash the app.
 
 import { Component } from "react";
-import "./ErrorBoundary.css";
+import "./ErrorBoundary.scss";
 
 export default class ErrorBoundary extends Component {
   constructor(props) {

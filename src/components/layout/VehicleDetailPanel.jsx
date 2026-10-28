@@ -38,11 +38,11 @@ import LoadError from '../shared/LoadError';
 import { DayGroups, TankGauge } from './FuelParts';
 import { ReadingsCard, FactsCard, OverspeedReadout, DriverRow, SummaryCard } from './OverviewParts';
 import { HealthSummary, CheckList } from './FaultsParts';
-import './VehicleHeader.css';
+import './VehicleHeader.scss';
 // The panel's shared list, filter and empty-state styles (af-*): the Alerts
 // tab's filter row, the Safety timeline, EmptyNote.
-import './AlertsFeed.css';
-import './VehicleDetailPanel.css';
+import './AlertsFeed.scss';
+import './VehicleDetailPanel.scss';
 import { displayPlate } from '../../lib/plate';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ function dayFigures(sum, { limit, runs, hasPings }) {
 
 /**
  * Nothing to list, said in the middle of what is left of the tab: an icon, a
- * title and one line under it (AlertsFeed.css, .af-empty). The section holding
+ * title and one line under it (AlertsFeed.scss, .af-empty). The section holding
  * it takes `vdp-block--fill` so there is a middle. `tone` 'error' is red.
  */
 function EmptyNote({ icon, title, children, tone }) {
@@ -767,7 +767,7 @@ export default function VehicleDetailPanel({ vehicle, onClose }) {
   return (
     <div className="vdp vdp--open">
 
-      {/* ── Header: who and where (VehicleHeader.css) ── */}
+      {/* ── Header: who and where (VehicleHeader.scss) ── */}
       <header className="vdp-header vh">
         <div className="vh-top">
           <h2 className="vh-name" title={vehicle.name && vehicle.name !== vehicle.id ? `${vehicle.id} · ${vehicle.name}` : vehicle.id}>

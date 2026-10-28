@@ -11,7 +11,7 @@
 // slow to scan, and an operator checking one number should not have to parse a
 // sentence to find it.
 
-import "./VehicleBriefCard.css";
+import "./VehicleBriefCard.scss";
 import { useApiData } from "../../hooks/useApiData";
 import LoadError from "../shared/LoadError";
 import { getVehicleBrief } from "../../api/vehicleBrief";

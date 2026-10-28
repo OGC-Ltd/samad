@@ -1,0 +1,226 @@
+/* Hallmark · redesign: sidebar Fleets block · genre: modern-minimal · theme: the app's own (preflight 2026-09-21)
+ * states: chip / switch / row — default · hover · focus · active (pressed) · on/current · disabled (inert, locked trees)
+ *         (loading / error / success: n/a — counts come from the live fleet, which has its own states)
+ * contrast: text #0f172a / #475569 on white ≥ 7:1; muted #5f6e83 4.8:1; chip-on #1d4ed8 on #eff6ff 6.6:1;
+ *           counts: orange #b45309 5.0:1, red #b91c1c 6.5:1; focus ring #2563eb 5.2:1
+ *
+ * Replaces three folding branches (guide lines, chevrons, a type list with its
+ * own scrollbar) with two flat parts: filters, then a list of places to open.
+ * Counts: tabular figures, one weight, coloured only when they are news. */
+
+.fleets {
+  --fl-ink: var(--text-primary, #0f172a);
+  --fl-ink-2: var(--text-secondary, #475569);
+  --fl-muted: var(--color-text-muted, #5f6e83);
+  --fl-rule: #edf0f4;
+  --fl-line: var(--color-border, #e2e8f0);
+  --fl-hover: #f1f5f9;
+  --fl-press: #e2e8f0;
+  --fl-accent: var(--accent, #2563eb);
+  --fl-accent-ink: #1d4ed8;
+  --fl-accent-soft: var(--accent-light, #eff6ff);
+  /* In transit only is on in the map's own in-transit green, not the accent:
+     the switch is "show me the moving ones", and moving is green on every
+     marker it leaves on the map. */
+  --fl-green: #16a34a;
+  --fl-green-soft: #f0fdf4;
+  --fl-orange: #b45309;
+  --fl-red: #b91c1c;
+  --fl-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  gap: 10px;
+}
+
+/* ── Heading ─────────────────────────────────────────────────────────────── */
+.fleets__title { padding-bottom: 0; }
+.fleets__clear {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fl-accent-ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fleets__clear:hover { background: var(--fl-accent-soft); }
+.fleets__clear:active { background: var(--fl-press); }
+.fleets__clear:focus-visible { outline: 2px solid var(--fl-accent); outline-offset: 1px; }
+
+/* ── Machine types: wrapping chips ───────────────────────────────────────── */
+.fleets__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px;
+}
+.fleets__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--fl-line);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fl-ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms var(--fl-ease), border-color 120ms var(--fl-ease), color 120ms var(--fl-ease);
+}
+.fleets__chip-label { overflow: hidden; text-overflow: ellipsis; }
+.fleets__chip-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--fl-muted);
+}
+.fleets__chip:hover { background: var(--fl-hover); color: var(--fl-ink); }
+.fleets__chip:active { background: var(--fl-press); }
+.fleets__chip:focus-visible { outline: 2px solid var(--fl-accent); outline-offset: 2px; transition: none; }
+.fleets__chip--on,
+.fleets__chip--on:hover {
+  border-color: color-mix(in srgb, var(--fl-accent) 45%, transparent);
+  background: var(--fl-accent-soft);
+  color: var(--fl-accent-ink);
+}
+.fleets__chip--on .fleets__chip-count { color: var(--fl-accent-ink); }
+.fleets__chip--more {
+  border-style: dashed;
+  color: var(--fl-muted);
+}
+
+/* ── In transit only: one switch ─────────────────────────────────────────── */
+.fleets__switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--fl-line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms var(--fl-ease), border-color 120ms var(--fl-ease);
+}
+.fleets__switch-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.fleets__switch-label { font-size: 13px; font-weight: 500; color: var(--fl-ink); }
+.fleets__switch-sub { font-size: 11px; color: var(--fl-muted); font-variant-numeric: tabular-nums; }
+.fleets__track {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background-color 150ms var(--fl-ease);
+}
+.fleets__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 150ms var(--fl-ease);
+}
+.fleets__switch:hover { background: var(--fl-hover); }
+.fleets__switch:active { background: var(--fl-press); }
+.fleets__switch:focus-visible { outline: 2px solid var(--fl-accent); outline-offset: 2px; transition: none; }
+.fleets__switch--on { border-color: color-mix(in srgb, var(--fl-green) 45%, transparent); background: var(--fl-green-soft); }
+.fleets__switch--on:hover { background: var(--fl-green-soft); }
+.fleets__switch--on .fleets__track { background: var(--fl-green); }
+.fleets__switch--on .fleets__thumb { transform: translateX(14px); }
+
+/* ── The places this block opens: one flat list ──────────────────────────── */
+.fleets__list {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  border-top: 1px solid var(--fl-rule);
+}
+.fleets__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  /* 32, not 36: five rows of four px is what keeps the sidebar inside a
+     900px window without a scrollbar (2026-10-07). */
+  min-height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms var(--fl-ease);
+}
+.fleets__row-icon { font-size: 17px; color: var(--fl-muted); flex-shrink: 0; width: 18px; text-align: center; }
+.fleets__row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--fl-ink);
+}
+.fleets__count {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fl-ink-2);
+}
+.fleets__count--orange { color: var(--fl-orange); }
+.fleets__count--alert { color: var(--fl-red); }
+.fleets__row:hover { background: var(--fl-hover); }
+.fleets__row:active { background: var(--fl-press); }
+.fleets__row:focus-visible { outline: 2px solid var(--fl-accent); outline-offset: -2px; transition: none; }
+.fleets__row--current,
+.fleets__row--current:hover { background: var(--fl-accent-soft); }
+.fleets__row--current .fleets__row-icon,
+.fleets__row--current .fleets__row-label { color: var(--fl-accent-ink); }
+.fleets__row--current .fleets__row-label { font-weight: 600; }
+
+/* Fuel: a heading over Alerts, Audit and Report. The sidebar's uppercase
+   micro-label (.side-tree__section-title), set tight so the group costs one
+   short line, not a row. */
+.fleets__group { display: flex; flex-direction: column; margin-top: 4px; }
+.fleets__group-title {
+  padding: 4px 8px 2px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fl-muted);
+}
+
+/* Locked trees (no map:read) are `inert` and dimmed by SidePanel.scss;
+   disabled controls read the same way. */
+.fleets button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (pointer: coarse) {
+  .fleets__chip { height: 36px; }
+  .fleets__row { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fleets__chip,
+  .fleets__switch,
+  .fleets__track,
+  .fleets__thumb,
+  .fleets__row { transition: none; }
+}

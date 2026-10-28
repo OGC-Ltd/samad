@@ -45,6 +45,9 @@ type Config struct {
 	// Google Routes and Weather from the server (google.go). No key, no
 	// road routes, arrivals or weather layer.
 	GoogleRoutingAPIKey string
+	// GoogleMapsAPIKey is the dashboard's Maps key; routes and weather use it
+	// when no GOOGLE_ROUTING_API_KEY of their own is set.
+	GoogleMapsAPIKey string
 
 	// The browser origin allowed to call the API cross-origin (the vite dev
 	// server proxies, so this is only for a separately hosted UI).
@@ -101,6 +104,7 @@ func loadConfig() (Config, error) {
 		OpenAIBaseURL:     env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 
 		GoogleRoutingAPIKey: os.Getenv("GOOGLE_ROUTING_API_KEY"),
+		GoogleMapsAPIKey:    os.Getenv("GOOGLE_MAPS_API_KEY"),
 	}
 	var err error
 	if c.PositionsEvery, err = time.ParseDuration(env("POSITIONS_EVERY", "30s")); err != nil {
@@ -127,4 +131,15 @@ func loadConfig() (Config, error) {
 		return c, fmt.Errorf("missing settings: %s (see .env.example)", strings.Join(missing, ", "))
 	}
 	return c, nil
+}
+
+// GoogleKey is the key the server's Routes and Weather calls use: its own
+// GOOGLE_ROUTING_API_KEY, else the dashboard's GOOGLE_MAPS_API_KEY. A key
+// restricted to HTTP referrers is refused by Google for server calls; restrict
+// it by the box's IP address (or by API) instead.
+func (c Config) GoogleKey() string {
+	if c.GoogleRoutingAPIKey != "" {
+		return c.GoogleRoutingAPIKey
+	}
+	return c.GoogleMapsAPIKey
 }

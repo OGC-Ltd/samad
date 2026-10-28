@@ -50,7 +50,7 @@ func main() {
 	store := NewStore(cfg.DataDir)
 	client := NewPartnerClient(cfg.PartnerBaseURL, cfg.PartnerAPIKey)
 	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg),
-		routing: NewRouting(NewGoogle(cfg.GoogleRoutingAPIKey), store)}
+		routing: NewRouting(NewGoogle(cfg.GoogleKey()), store)}
 	if srv.ai == nil {
 		log.Printf("no OPENAI_API_KEY: the Fleet summary shows facts, not an AI brief")
 	}
@@ -81,6 +81,10 @@ func main() {
 	store.Save()
 }
 
+// version is the release (1.0, 1.1, …), set at build time with
+// -ldflags "-X main.version=…"; see the Dockerfile.
+var version = "dev"
+
 // healthy asks the running server's /health, for `samad-server healthcheck`.
 func healthy() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -102,7 +106,9 @@ func routes(s *Server, a *Auth) http.Handler {
 	r.Use(logRequests, cors(s.cfg.AllowOrigin))
 
 	api := r.PathPrefix("/api/v1").Subrouter()
-	api.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) { writeData(w, map[string]any{"ok": true}) }).Methods("GET")
+	api.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		writeData(w, map[string]any{"ok": true, "version": version})
+	}).Methods("GET")
 	api.HandleFunc("/auth/login", a.Login).Methods("POST")
 	api.HandleFunc("/auth/refresh", a.Refresh).Methods("POST")
 	api.HandleFunc("/auth/logout", a.Logout).Methods("POST")
@@ -139,6 +145,7 @@ func routes(s *Server, a *Auth) http.Handler {
 	org.Use(ourOrg)
 	org.Handle("/vehicles/snapshot", needFunc(s.snapshot, "telemetry:read")).Methods("GET")
 	org.Handle("/live", unitsVisible(needFunc(s.live, "notification:read", "telemetry:read"))).Methods("GET")
+	org.Handle("/vehicles/{vehicleId}/camera", unitsVisible(needFunc(s.vehicleCamera, "telemetry:read"))).Methods("GET")
 	org.Handle("/vehicles/{vehicleId}/track", unitsVisible(needFunc(s.track, "map:read", "map:playback"))).Methods("GET")
 	org.Handle("/vehicles/{vehicleId}/playback", unitsVisible(needFunc(s.playback, "map:playback"))).Methods("GET")
 	org.Handle("/geofences/geojson", needFunc(s.geofencesGeoJSON, "geofence:read", "map:read")).Methods("GET")

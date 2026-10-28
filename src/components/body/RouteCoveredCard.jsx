@@ -4,7 +4,7 @@
 // lib/tomtomTraffic trackJourney + fetchExpectedTime.
 
 import { fmtDuration } from "../../lib/tripProgress";
-import "./RouteCoveredCard.css";
+import "./RouteCoveredCard.scss";
 
 const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const dur = (s) => fmtDuration(Math.round(s / 60)) ?? "0 m";

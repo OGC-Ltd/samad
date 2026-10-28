@@ -1,0 +1,98 @@
+/* Fuel follow-ups — the case window. It is the Repair report dialog
+   (SensorPanel.scss: .sp4-modal and its parts); these rules are only what a
+   follow-up has and a repair row does not. */
+
+/* The window is mounted in the header, outside every .sp4-root, and the sp4
+   classes read their colours from tokens declared there. A root that draws no
+   box of its own carries them to the dialog. */
+.sp4-root.ffu-scope { display: contents; }
+
+/* Over the fuel incident window (.fi-overlay, 4000), which can open it. */
+.ffu-scope .sp4-modal-overlay { z-index: 4100; }
+
+/* The status pill sits at the end of the unit's line, like the fix date does
+   on a one-unit repair report. */
+.ffu-pill { margin-left: auto; align-self: center; }
+
+.sp4-pill--info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--sp4-accent);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+}
+
+.ffu-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+.ffu-facts dt { margin: 0; }
+.ffu-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.ffu-muted { margin: 0; font-size: var(--sp4-label); color: var(--sp4-text-3); }
+
+/* Assign and Decline sit at the left of the foot, apart from Cancel and the
+   submit, so the red and blue buttons on the right stay the only commitment. */
+.ffu-foot-lead { margin-right: auto; }
+
+/* The repair picker is 190px for a table cell; here it has the card's width. */
+.ffu-assign-select { width: 100%; }
+
+/* A theft is recorded with the panel's red, not its blue. */
+.sp4-submit-btn.ffu-submit--danger { background: var(--sp4-crit); border-color: var(--sp4-crit); color: #fff; }
+
+/* What was done: a timeline. Each step draws its own dot, centred on its
+   first line of text, and a connector down to the next step's dot, so the
+   line starts at the first dot and stops at the last instead of hanging
+   past it. */
+.ffu-log { list-style: none; margin: 6px 0 0; padding: 0; }
+.ffu-log-item { position: relative; padding: 0 0 12px 20px; }
+.ffu-log-item:last-child { padding-bottom: 0; }
+.ffu-log-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sp4-text-4);
+}
+.ffu-log-item::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 16px;
+  bottom: -2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sp4-line-hi);
+}
+.ffu-log-item:last-child::after { content: none; }
+.ffu-log-item--escalated::before   { background: var(--sp4-crit); }
+.ffu-log-item--deescalated::before { background: var(--sp4-ok); }
+.ffu-log-item--accepted::before    { background: var(--sp4-accent); }
+.ffu-log-item--assigned::before    { background: var(--sp4-accent); }
+.ffu-log-item--declined::before    { background: var(--sp4-warn); }
+.ffu-log-item--recalled::before    { background: var(--sp4-warn); }
+.ffu-log-line { font-size: var(--sp4-body); color: var(--sp4-text-2); line-height: 18px; }
+.ffu-log-line strong { color: var(--sp4-text-1); }
+.ffu-log-when { margin-left: 6px; font-size: var(--sp4-label); color: var(--sp4-text-4); white-space: nowrap; }
+.ffu-log-note {
+  margin: 4px 0 0;
+  font-size: var(--sp4-body);
+  color: var(--sp4-text-1);
+  background: var(--sp4-raised);
+  border-radius: 4px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .ffu-facts { gap: 6px 12px; }
+}

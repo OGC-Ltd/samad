@@ -16,8 +16,8 @@
 
 import { tankBand } from './FuelParts';
 import { initialsOf, avatarHue } from '../../lib/avatar';
-import './OverviewParts.css';
-import './FuelParts.css';
+import './OverviewParts.scss';
+import './FuelParts.scss';
 
 const NA = 'Not available';
 

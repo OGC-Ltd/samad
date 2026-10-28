@@ -13,20 +13,18 @@ import { useMapLayers } from '../../context/MapLayersContext';
 //
 // Markers are custom OverlayView elements rather than google.maps.Marker or
 // AdvancedMarkerElement: the fleet's marker is rich HTML (status ring, pulsing
-// halo, shadowed dot) styled entirely in FleetMap.css, and OverlayView is the
+// halo, shadowed dot) styled entirely in FleetMap.scss, and OverlayView is the
 // only option that renders arbitrary DOM without requiring a cloud-configured
 // Map ID.
 //
-// The glyph itself is a baked sprite of a real 3D mesh rather than a runtime
-// mesh — see scripts/bake-vehicle-atlas.mjs for why, and for the atlas layout
-// this file indexes into. Which machine a marker shows comes from the vehicle's
-// equipment code via lib/vehicleMap's spriteKind.
+// The glyph itself is a frame of the baked truck atlas (public/truck-atlas.png;
+// layout in FleetMap.scss), not a runtime mesh.
 
 import { pointerXY, layoutViewport } from "../../lib/appZoom";
 import { panClearOfWindows } from "../../lib/clearView";
 import { apiFetch } from "../../services/api";
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
-import "./FleetMap.css";
+import "./FleetMap.scss";
 import MapOverlay, { FuelIncidentHost } from "./MapOverlay";
 import { useIncidentInvestigation, InvestigationWindow } from "./IncidentInvestigation";
 import { useHubArrivals, ArrivalsWindow } from "./HubArrivals";
@@ -154,7 +152,7 @@ const STATUS_COLORS = {
 //
 // The better fix is a re-bake with a row per online state, and it is not
 // available here: models/ is not in this checkout, and truck.obj was never in
-// it even when it was (see FleetMap.css). Borrowing a row is what this table
+// it even when it was (see FleetMap.scss). Borrowing a row is what this table
 // exists for.
 //
 // `signal-lost` has always borrowed the MOVING art, for a different reason:
@@ -344,11 +342,8 @@ function zoneLabelHtml(name, color, detail, plan) {
 //
 // Since 2026-10-20 (operator: "replace the planting area on the new-ui for
 // kasulu with the newly created kmz") it is the drawing's OWN coordinates
-// (WGS 84 / UTM 36S, embedded in the DWG), through a KMZ export and
-// scripts/kmz-to-estate-plan.py, which says what is kept and what is dropped.
-// It replaced a plan vector-traced from the PDF plot and georeferenced by eye to
-// about +/-1.5 km (scripts/clean-estate-plan.py). That plan's land-use classes
-// (rocky, swampy, borrow pits) are not in this drawing and are gone with it.
+// (WGS 84 / UTM 36S, embedded in the DWG), through a KMZ export. Samad ships
+// no estate plan, so the layer stays empty here.
 const ESTATE_PLAN_URL = "/estate-plan.geojson";
 
 // Only this org has an estate plan. The layer is a static asset rather than
@@ -453,7 +448,7 @@ function siteIcon(category) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-// Classes of the surveyor's drawing (scripts/kmz-to-estate-plan.py). `weight`
+// Classes of the surveyor's drawing. `weight`
 // is the outline in px (0 = none), `fill` the wash; lines take only the stroke.
 const PLAN_STYLE = {
   boundary:    { color: "#f97316", weight: 2.2, fill: 0 },
@@ -1105,14 +1100,11 @@ function bearingDeg(fromLat, fromLng, toLat, toLng) {
   return (Math.atan2(y, x) / rad + 360) % 360;
 }
 
-// ── vehicle sprite atlases ──────────────────────────────────────────────────
-// public/<kind>-atlas.png, produced by scripts/bake-vehicle-atlas.mjs. Columns
-// are headings (TRUCK_HEADINGS of them, evenly spaced clockwise from north),
-// rows are vehicle statuses in TRUCK_STATUS_ROWS order. Every atlas shares that
-// layout, so which kind a marker draws is purely a background-IMAGE swap (a
-// class, styled in FleetMap.css) and the background-POSITION maths below is
-// identical for all of them. These constants MUST stay in step with the
-// baker's HEADINGS / STATUS_ROWS.
+// ── the vehicle sprite atlas ────────────────────────────────────────────────
+// public/truck-atlas.png. Columns are headings (TRUCK_HEADINGS of them, evenly
+// spaced clockwise from north), rows are vehicle statuses in TRUCK_STATUS_ROWS
+// order; the background-POSITION maths below indexes into it. These constants
+// MUST stay in step with the image.
 const TRUCK_HEADINGS    = 24;
 const TRUCK_STATUS_ROWS = ["ok", "speeding", "theft", "parked", "idling"];
 // Rendered cell is 64 device px; drawing it at 40 CSS px keeps it crisp on
@@ -1844,7 +1836,7 @@ const VehicleTooltip = memo(function VehicleTooltip({
 
 // Marker icon HTML — pulsing wrap for warn/crit statuses (speeding/theft), the
 // same flickering treatment the original map had. Classes are styled in
-// FleetMap.css and are unchanged from the Leaflet implementation.
+// FleetMap.scss and are unchanged from the Leaflet implementation.
 //
 // `moving` adds a circular ripple on top of that, so a vehicle in transit is
 // findable at a glance on a map where most markers are parked and static. It is
@@ -1976,7 +1968,7 @@ const visibleUnderFilter = matchesFilter;
 // ── DOM marker overlay ──────────────────────────────────────────────────────
 // google.maps.Marker only renders an image, and AdvancedMarkerElement needs a
 // cloud-configured Map ID. OverlayView renders our existing marker HTML as-is,
-// so every FleetMap.css rule keeps working.
+// so every FleetMap.scss rule keeps working.
 function makeDomMarkerClass(maps) {
   return class DomMarker extends maps.OverlayView {
     constructor({ position, html, anchor = "bottom", zIndex = 0, onClick, onOver, onOut }) {
@@ -4893,7 +4885,7 @@ export default function FleetMap() {
       const name = feature.getProperty("n");
       const { color, weight, fill } = PLAN_STYLE[cls] ?? PLAN_STYLE.boundary;
       // `s` marks a SHADING region — a land-use area dissolved back out of the
-      // drawing's diagonal hatching (see scripts/clean-estate-plan.py). The
+      // drawing's diagonal hatching. The
       // hatch strokes themselves are gone from the data: 2,155 of them were
       // being drawn as linework, which is what made the layer read as scribble.
       // A region is a flat wash with no outline of its own — the block grid on
@@ -7302,7 +7294,7 @@ export default function FleetMap() {
             open={unitsOpen}
             onOpenChange={setUnitsOpen}
             /* A window beside the sidebar where the sidebar exists, the map's
-               own popover where it does not — the same 1024 line FleetMap.css
+               own popover where it does not — the same 1024 line FleetMap.scss
                hides the rail button on. */
             asWindow={!isCompact}
           />
@@ -7342,7 +7334,7 @@ export default function FleetMap() {
               sidebar, so the rail is one menu and the camera rather than four
               and the camera. Zoom controls are a vertical stack everywhere
               else on the web and the reason to break that had expired.
-              CSS-only — see the min-width: 1024px block in FleetMap.css, which
+              CSS-only — see the min-width: 1024px block in FleetMap.scss, which
               also re-sizes --rail-panel-max-h for the shorter rail. The order
               is set there too, because the vertical reading is in, reset, out
               while the horizontal one is out, reset, in. */}
@@ -7465,7 +7457,7 @@ export default function FleetMap() {
             The way out is the tab bar, which sits at z-index 1000 against this
             layer's 700 and so is never covered by it — that is what makes the
             pill removable rather than a trapdoor. Its 42px line is given back
-            to --map-bottom-band in FleetMap.css, which every rail menu clears,
+            to --map-bottom-band in FleetMap.scss, which every rail menu clears,
             so the units panel gains 50px of height on a phone. */}
       </div>
 

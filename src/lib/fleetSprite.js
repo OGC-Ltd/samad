@@ -1,12 +1,11 @@
 // The live map's unit artwork as a Google Maps marker icon.
 //
-// FleetMap draws each unit from a baked atlas — public/<kind>-atlas.png, 24
-// heading columns (clockwise from north) by 5 status rows — as a CSS
+// FleetMap draws each unit from the baked truck atlas — public/truck-atlas.png,
+// 24 heading columns (clockwise from north) by 5 status rows — as a CSS
 // background. A google.maps.Marker icon can cut the same cell out of the same
-// image with `origin` + `scaledSize`, so any other map shows the very truck,
-// tractor or excavator the operator knows from the live map, pointing the way
-// it was going. The layout constants MUST stay in step with FleetMap's
-// TRUCK_HEADINGS / TRUCK_STATUS_ROWS and scripts/bake-vehicle-atlas.mjs.
+// image with `origin` + `scaledSize`, so any other map shows the very truck the
+// operator knows from the live map, pointing the way it was going. The layout
+// constants MUST stay in step with FleetMap's TRUCK_HEADINGS / TRUCK_STATUS_ROWS.
 
 export const SPRITE_HEADINGS = 24;
 export const SPRITE_ROWS = ["ok", "speeding", "theft", "parked", "idling"];
@@ -26,13 +25,14 @@ export function bearingDeg(a, b) {
 }
 
 /**
- * The marker icon for `kind` (lib/vehicleMap spriteKind) drawn at `px`, facing
- * `heading`, in the colours of `status`.
+ * The marker icon drawn at `px`, facing `heading`, in the colours of `status`.
+ * `kind` (lib/vehicleMap spriteKind) is accepted for the callers' sake; every
+ * Samad unit is a truck, so it always draws the truck.
  */
-export function spriteIcon(maps, kind, { heading = 0, status = "ok", px = 40 } = {}) {
+export function spriteIcon(maps, _kind, { heading = 0, status = "ok", px = 40 } = {}) {
   const row = Math.max(0, SPRITE_ROWS.indexOf(status));
   return {
-    url: `/${kind || "truck"}-atlas.png`,
+    url: "/truck-atlas.png",
     size: new maps.Size(px, px),
     origin: new maps.Point(spriteColumn(heading) * px, row * px),
     scaledSize: new maps.Size(px * SPRITE_HEADINGS, px * SPRITE_ROWS.length),

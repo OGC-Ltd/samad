@@ -1,0 +1,185 @@
+/* Camera window. Same family as the vehicle card and the playback transport —
+   shared metrics, shared drag, themed tokens throughout. */
+@use "../shared/windowChrome";
+
+.vcam {
+  pointer-events: auto;
+  /* Fixed, like every window in this family: the drag handler works in viewport
+     coordinates and `position: absolute` would write them into the offset
+     parent's space instead. */
+  position: fixed;
+  left: 50%;
+  top: 140px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  /* The free column, not the viewport — see the note in RoutePlayback.scss. */
+  width: min(420px, var(--safe-w, calc(calc(var(--vw) * 100) - 32px)));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--win-pad-y) var(--win-pad-x);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--color-card);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.35));
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.vcam.is-dragging,
+.vcam.is-dragging * { cursor: grabbing !important; user-select: none; }
+
+.vcam__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: grab;
+  /* Always, not only mid-drag — see the note on .rp__head. */
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+.vcam__bar:active { cursor: grabbing; }
+
+.vcam__grip { flex: 0 0 auto; color: var(--text-muted); font-size: 12px; line-height: 1; letter-spacing: -1px; }
+
+.vcam__plate {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 16:9, so the empty state occupies the same shape a feed would. A panel that
+   changes size the day a stream appears is a panel nobody has laid out for. */
+.vcam__stage {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-card-inner);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vcam__video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Deliberately NOT a spinner and NOT a black rectangle. Both read as a feed
+   that failed, and would send someone to check the vehicle's hardware over a
+   camera that was never fitted. */
+.vcam__empty {
+  padding: 14px 18px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.vcam__empty-icon { display: block; font-size: 20px; opacity: 0.5; margin-bottom: 6px; }
+.vcam__empty-head {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.vcam__empty-note { margin: 0; font-size: 10.5px; line-height: 1.5; }
+
+/* Live: wide enough for the road and the cab side by side. */
+.vcam--live { width: min(760px, var(--safe-w, calc(calc(var(--vw) * 100) - 32px))); }
+
+.vcam__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vcam__seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.vcam__seg-btn {
+  padding: 3px 10px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vcam__seg-btn:last-child { border-right: 0; }
+.vcam__seg-btn[aria-pressed="true"] { background: var(--color-card-inner); color: var(--text-primary); }
+.vcam__seg-btn:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: -2px; }
+
+/* One 16:9 tile per channel; two side by side once there is room. */
+.vcam__grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+@media (min-width: 720px) { .vcam__grid--two { grid-template-columns: 1fr 1fr; } }
+
+.vcam__feed {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0b0d10;
+}
+.vcam__feed:fullscreen { aspect-ratio: auto; border-radius: 0; border: 0; }
+/* The SDK appends its own canvas here, sized to the box when it starts. */
+.vcam__canvas, .vcam__canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.vcam__feed-note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+}
+
+.vcam__caption {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.vcam__status { font-weight: 500; opacity: 0.8; }
+.vcam__dot { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; }
+.vcam__dot--live { background: var(--accent-ok, #22c55e); }
+.vcam__dot--connecting { background: var(--accent-warn, #f59e0b); }
+.vcam__dot--stalled, .vcam__dot--failed { background: var(--accent-crit, #ef4444); }
+
+.vcam__tools {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  gap: 4px;
+}
+.vcam__tool {
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.vcam__tool:hover:not(:disabled) { background: rgba(0, 0, 0, 0.75); }
+.vcam__tool:disabled { opacity: 0.4; cursor: default; }
+.vcam__tool:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }

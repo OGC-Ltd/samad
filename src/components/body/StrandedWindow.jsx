@@ -67,7 +67,7 @@ import { useFloatingWindow } from "../../hooks/useFloatingWindow";
 import { usePlaceName } from "../../hooks/usePlaceName";
 import { paginate } from "../../lib/rosterView";
 import TablePager from "./TablePager";
-import "./StrandedWindow.css";
+import "./StrandedWindow.scss";
 import { displayPlate } from "../../lib/plate";
 
 /** Ten, where every full-width table pages fifteen (TablePager): this is a

@@ -6,12 +6,10 @@ server/data/
 node_modules/
 build/
 dist/
-models/
 scratch/
 .git/
 .claude/
 .hallmark/
 docs/
-tools/
 *.log
 secrets/

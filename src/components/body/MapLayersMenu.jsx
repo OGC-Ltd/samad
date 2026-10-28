@@ -34,7 +34,7 @@
  */
 
 import { useEffect, useRef, useState, useId } from "react";
-import "./MapLayersMenu.css";
+import "./MapLayersMenu.scss";
 
 /** Stacked sheets. An icon rather than a glyph — ▤ reads as a list. */
 function LayersIcon() {

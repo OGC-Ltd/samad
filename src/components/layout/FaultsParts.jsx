@@ -12,7 +12,7 @@
  * tone 'alert' (fault) · 'warn' (quiet / hold) · 'ok' (reporting) · 'none' (not fitted, no reading).
  */
 
-import './FaultsParts.css';
+import './FaultsParts.scss';
 
 const ORDER = { alert: 0, warn: 1, ok: 2, none: 3 };
 // Grey is a part not fitted or with no reading: 'no reading' is true of both

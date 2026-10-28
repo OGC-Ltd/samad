@@ -33,7 +33,7 @@ import { companyMark } from "../../lib/companyLogos";
 import LoadError from "../shared/LoadError";
 import TabEmptyState from "../shared/TabEmptyState";
 import { DriversIcon } from "../footer/NavIcons";
-import "./UserGroupsPanel.css";
+import "./UserGroupsPanel.scss";
 
 const EMPTY_GROUP = { name: "", description: "" };
 

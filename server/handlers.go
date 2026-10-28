@@ -294,7 +294,8 @@ func (s *Server) geofencesGeoJSON(w http.ResponseWriter, r *http.Request) {
 // GET /organisations/{org}/analytics/drivers/overview?days=
 // The drivers the partner assigns to vehicles, with the trips and distance
 // this server has tallied for their vehicle (see Store.tally) and the
-// overspeeds raised on it.
+// overspeeds raised on it. details[id] is what the driver panel shows: who
+// they are, the window's totals, the days they drove and every overspeed.
 func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
 	if days <= 0 || days > 90 {
@@ -314,6 +315,7 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 			trips int
 			km    float64
 		}
+		overspeeds []map[string]any
 	}
 	drivers := map[string]*driver{}
 	order := []string{}
@@ -361,6 +363,9 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 		for _, e := range s.store.Events() {
 			if e.VehicleID == v.VehicleID && isSpeeding(e) && !parseTime(e.OccurredAt).Before(floor) {
 				d.row["overspeedingCases"] = d.row["overspeedingCases"].(int) + 1
+				d.overspeeds = append(d.overspeeds, map[string]any{
+					"at": e.OccurredAt, "plate": v.Registration, "route": nil, "speedKmh": e.Speed,
+				})
 			}
 		}
 	}
@@ -388,10 +393,29 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 		byDay := []map[string]any{}
 		for _, day := range keys {
 			if b := d.byDay[day]; b != nil {
-				byDay = append(byDay, map[string]any{"day": day, "trips": b.trips, "km": float64(int(b.km*10)) / 10})
+				km := float64(int(b.km*10)) / 10
+				byDay = append(byDay, map[string]any{"day": day, "trips": b.trips, "km": km, "mileageKm": km})
 			}
 		}
-		details[id] = map[string]any{"byDay": byDay}
+		overspeeds := d.overspeeds
+		if overspeeds == nil {
+			overspeeds = []map[string]any{}
+		}
+		sort.Slice(overspeeds, func(i, j int) bool { return overspeeds[i]["at"].(string) > overspeeds[j]["at"].(string) })
+		r := d.row
+		details[id] = map[string]any{
+			"driver": map[string]any{
+				"id": id, "fullName": r["fullName"], "status": r["status"], "rating": nil,
+				"employeeId": nil, "licenceNumber": nil,
+				"idNumber": r["idNumber"], "phone": r["phone"], "trailer": r["trailer"], "vehicle": r["vehicle"],
+			},
+			"totals": map[string]any{
+				"windowDays": days, "trips": r["trips"], "mileageKm": r["mileageKm"],
+				"overspeedingCases": r["overspeedingCases"],
+			},
+			"byDay":     byDay,
+			"incidents": map[string]any{"overspeeds": overspeeds},
+		}
 	}
 	writeData(w, map[string]any{"drivers": rows, "details": details})
 }

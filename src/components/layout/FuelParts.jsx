@@ -11,7 +11,7 @@
  * take dayFigures as they are.
  */
 
-import './FuelParts.css';
+import './FuelParts.scss';
 
 const NA = 'Not available';
 const fmtL = (l) => `${Math.round(l).toLocaleString('en-KE')} L`;
