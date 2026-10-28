@@ -24,7 +24,7 @@ on:
       environment: { type: string, required: true }   # production
       target:      { type: string, required: true }   # prod (deploy.sh's name)
       image:       { type: string, required: true }   # ghcr.io/ogc-ltd/samad@sha256:…
-      version:     { type: string, required: false }  # 1.71: tagged v1.71 once it is live
+      version:     { type: string, required: false }  # 1.7.1: tagged v1.7.1 once it is live
   workflow_dispatch:
     inputs:
       target:
@@ -82,7 +82,7 @@ jobs:
             echo "::error::image must be ghcr.io/ogc-ltd/samad@sha256:<digest>, got '$IMAGE_REF'"; exit 1
           fi
           if [ -n "$VERSION" ]; then
-            [[ "$VERSION" =~ ^[0-9]+\.[0-9]{1,2}$ ]] || { echo "::error::version must be like 1.71, got '$VERSION'"; exit 1; }
+            [[ "$VERSION" =~ ^[0-9]+\.[0-9](\.[1-9])?$ ]] || { echo "::error::version must be like 1.7.1 or 1.8, got '$VERSION'"; exit 1; }
             # Two builds waiting on approval both get the same number; the
             # second must be rebuilt (re-run the pipeline) to take the next.
             if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
