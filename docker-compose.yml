@@ -1,0 +1,241 @@
+# The Samad dashboard behind Traefik (/opt/traefik on the box).
+#
+# One file, two stacks on the same box: STACK names everything (containers,
+# volumes, the database network, Traefik's routers), so production
+# (STACK=samad) and dev (STACK=samad-dev) never touch each other. Each stack
+# lives in its own folder with its own .env:
+#
+#   /opt/samad/.env       STACK=samad      SAMAD_DOMAIN=…  SAMAD_IMAGE=ghcr.io/ogc-ltd/samad@sha256:…
+#   /opt/samad-dev/.env   STACK=samad-dev  SAMAD_DOMAIN=…  SAMAD_IMAGE=…  DB_MEM_LIMIT=384m
+#
+# CI builds the image and deploy/deploy.sh starts it; on a workstation,
+# `docker compose up -d --build` builds it here instead.
+#
+# Networking: the app joins Traefik's external "proxy" network and publishes
+# no port, so the only way in is Traefik on 443 (80 redirects). It still
+# reaches out, to the IntelliFleet360 Partner API and its video host. The
+# database sits on an internal network of its own stack: no published port,
+# no route to the internet.
+#
+# Secrets come from server/.env (see server/.env.example) and
+# secrets/postgres_password; the settings under `environment` win over
+# server/.env, so a dev .env cannot move the paths.
+
+name: ${STACK:-samad}
+
+services:
+  samad:
+    build:
+      context: .
+      args:
+        APP_COMMIT: ${APP_COMMIT:-}
+    image: ${SAMAD_IMAGE:-samad:latest}
+    container_name: ${STACK:-samad}
+    restart: unless-stopped
+    env_file:
+      - path: server/.env
+        required: true
+    environment:
+      PORT: "8080"
+      DATA_DIR: /data
+      STATIC_DIR: /app/web
+      ALLOW_ORIGIN: ""
+    volumes:
+      - data:/data
+    networks:
+      - proxy
+      - db
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+
+    # Hardening: not root, no Linux capabilities, nothing to escalate to, a
+    # read-only root filesystem (only /data and a small /tmp are writable),
+    # and a ceiling on what one container may take from a 2 GB box.
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: ${APP_MEM_LIMIT:-512m}
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Traefik. A list, not a map: compose fills ${STACK} into list items but
+    # not into map keys, and every router and middleware name must be the
+    # stack's own.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.services.${STACK:-samad}.loadbalancer.server.port=8080
+
+      # Everything on the domain.
+      - traefik.http.routers.${STACK:-samad}.rule=Host(`${SAMAD_DOMAIN:?set SAMAD_DOMAIN}`)
+      - traefik.http.routers.${STACK:-samad}.entrypoints=websecure
+      - traefik.http.routers.${STACK:-samad}.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK:-samad}.service=${STACK:-samad}
+      - traefik.http.routers.${STACK:-samad}.middlewares=${STACK:-samad}-headers,${STACK:-samad}-compress
+
+      # Sign-in and token refresh: the same, plus a per-address rate limit
+      # against password guessing.
+      - traefik.http.routers.${STACK:-samad}-auth.rule=Host(`${SAMAD_DOMAIN}`) && (Path(`/api/v1/auth/login`) || Path(`/api/v1/auth/refresh`))
+      - traefik.http.routers.${STACK:-samad}-auth.priority=100
+      - traefik.http.routers.${STACK:-samad}-auth.entrypoints=websecure
+      - traefik.http.routers.${STACK:-samad}-auth.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK:-samad}-auth.service=${STACK:-samad}
+      - traefik.http.routers.${STACK:-samad}-auth.middlewares=${STACK:-samad}-headers,${STACK:-samad}-auth-limit
+      - traefik.http.middlewares.${STACK:-samad}-auth-limit.ratelimit.average=10
+      - traefik.http.middlewares.${STACK:-samad}-auth-limit.ratelimit.period=1m
+      - traefik.http.middlewares.${STACK:-samad}-auth-limit.ratelimit.burst=5
+
+      # Gzip; Traefik leaves the live stream (text/event-stream) alone.
+      - traefik.http.middlewares.${STACK:-samad}-compress.compress=true
+
+      # Browser security headers. The policy lists every outside host the
+      # app uses: OpenStreetMap tiles and Nominatim place names, Open-Meteo
+      # weather, Google Fonts and the Tabler icon font on jsDelivr, and the
+      # Google Maps JavaScript API (satellite, terrain and traffic layers),
+      # with the hosts Google documents for it.
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.forceSTSHeader=true
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.frameDeny=true
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.permissionsPolicy=camera=(), microphone=(), geolocation=(), payment=(), usb=()
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.customResponseHeaders.Cross-Origin-Opener-Policy=same-origin
+      - traefik.http.middlewares.${STACK:-samad}-headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
+      - "traefik.http.middlewares.${STACK:-samad}-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://api.open-meteo.com https://nominatim.openstreetmap.org https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com data: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src https://*.google.com; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+
+  # PostgreSQL 18 with PostGIS 3.6. Reachable only from this stack's app and
+  # migrate on its internal network. From the box:
+  #   docker compose exec db psql -U samad samad
+  db:
+    image: postgis/postgis:18-3.6
+    container_name: ${STACK:-samad}-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: samad
+      POSTGRES_USER: samad
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      # Passwords over the network; the image's own setup signs in over the
+      # socket inside the container, which only `docker compose exec` reaches.
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets:
+      - postgres_password
+    # PostgreSQL 18 images keep their data in a versioned folder under
+    # /var/lib/postgresql, so the volume goes there (not .../data).
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks:
+      - db
+    expose:
+      - "5432"
+    # Sized for a 2 GB box shared by both stacks and Traefik.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${DB_SHARED_BUFFERS:-192MB}
+      - -c
+      - effective_cache_size=512MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=40
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - log_connections=on
+    shm_size: 128m
+
+    # Hardening: only the capabilities the entrypoint needs to set up the
+    # data folder and drop to the postgres user, nothing to escalate to.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${DB_MEM_LIMIT:-768m}
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samad -d samad -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # golang-migrate: applies server/migrations to the database, then exits.
+  # `up` runs it before the app starts. By hand, from the stack's folder:
+  #   docker compose run --rm migrate version
+  #   docker compose run --rm migrate down 1
+  migrate:
+    image: migrate/migrate:v4.20.1
+    container_name: ${STACK:-samad}-migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - postgres_password
+    volumes:
+      - ./server/migrations:/migrations:ro
+    networks:
+      - db
+    entrypoint:
+      - sh
+      - -c
+      - exec migrate -path /migrations -database "postgres://samad:$$(cat /run/secrets/postgres_password)@db:5432/samad?sslmode=disable" "$$@"
+      - migrate
+    command: ["up"]
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+
+secrets:
+  # One line, the database password; created on the box, never in git:
+  #   install -d -m 700 secrets && openssl rand -base64 32 | tr -d '\n/+=' > secrets/postgres_password && chmod 644 secrets/postgres_password
+  postgres_password:
+    file: ./secrets/postgres_password
+
+volumes:
+  data:
+    name: ${STACK:-samad}-data
+  pgdata:
+    name: ${STACK:-samad}-pgdata
+
+networks:
+  proxy:
+    name: proxy
+    external: true
+  # The app ↔ database link. internal: no gateway, so nothing on it can
+  # reach or be reached from outside the box.
+  db:
+    name: ${STACK:-samad}-db
+    internal: true

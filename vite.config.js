@@ -7,8 +7,9 @@ import { execSync } from 'node:child_process'
  * `npm version patch|minor|major` is the one place it changes. The commit is
  * read at build time for support ("which build is that?"); no git, no hash. */
 const APP_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
-let APP_COMMIT = ''
-try { APP_COMMIT = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { /* not a checkout */ }
+// A Docker build has no .git: it passes the commit in as APP_COMMIT.
+let APP_COMMIT = process.env.APP_COMMIT || ''
+if (!APP_COMMIT) try { APP_COMMIT = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { /* not a checkout */ }
 
 export default defineConfig({
   define: {

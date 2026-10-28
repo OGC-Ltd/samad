@@ -15,3 +15,6 @@ scratch/
 
 # Claude Code local dev-server config (browser pane launch targets).
 .claude/
+
+# Docker secrets (database password) on the box.
+secrets/

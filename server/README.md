@@ -15,6 +15,39 @@ go run .
 The dashboard's dev server (`npm run dev` in the parent folder) proxies `/api`
 to `http://localhost:8080`.
 
+## Deploy (Docker, behind Traefik)
+
+The repo root has a `Dockerfile` (the built dashboard and this server in one
+distroless image, run as a non-root user) and a `docker-compose.yml` with
+three services:
+
+| Service | Image | Networks | Notes |
+| --- | --- | --- | --- |
+| `samad` | built here | `proxy`, `samad-db` | no published port; Traefik routes `SAMAD_DOMAIN` to it on 443 |
+| `db` | `postgis/postgis:18-3.6` | `samad-db` (internal) | volume `samad-pgdata`; password from `secrets/postgres_password` |
+| `migrate` | `migrate/migrate:v4.20.1` | `samad-db` | applies `server/migrations`, then exits; the app starts after it |
+
+On the box (`/opt/samad`), with `server/.env`, `secrets/postgres_password` and
+`SAMAD_DOMAIN` in `.env` beside the compose file:
+
+```bash
+docker compose up -d --build
+docker compose run --rm migrate version      # which migration the database is on
+docker compose exec db psql -U samad samad   # a SQL prompt
+```
+
+## Migrations
+
+[golang-migrate](https://github.com/golang-migrate/migrate) files in
+`migrations/`, one numbered `up`/`down` pair per step. A new step:
+
+```bash
+docker run --rm -v "$PWD/migrations:/migrations" migrate/migrate:v4.20.1 create -ext sql -dir /migrations -seq <name>
+```
+
+The schema is in place; the server still keeps its state in `data/state.json`
+until its store is moved onto it.
+
 ## What it does
 
 | Partner API | Polled | Serves |

@@ -74,7 +74,9 @@ func (a *Auth) verify(token, typ string) (tokenClaims, error) {
 
 func (a *Auth) issue(w http.ResponseWriter, r *http.Request, email string) string {
 	now := time.Now()
-	http.SetCookie(w, &http.Cookie{
+	// Secure follows the request: always on behind Traefik (HTTPS), off for
+	// the plain-HTTP dev server, where a Secure cookie would never be sent.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is isHTTPS(r), see above
 		Name:     refreshCookie,
 		Value:    a.sign(tokenClaims{Sub: email, Typ: "refresh", Exp: now.Add(refreshTTL).Unix()}),
 		Path:     "/api/v1",
@@ -125,7 +127,10 @@ func (a *Auth) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{Name: refreshCookie, Value: "", Path: "/api/v1", MaxAge: -1, HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is isHTTPS(r), as in issue
+		Name: refreshCookie, Value: "", Path: "/api/v1", MaxAge: -1,
+		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
+	})
 	writeData(w, map[string]any{"ok": true})
 }
 

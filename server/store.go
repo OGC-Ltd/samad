@@ -93,7 +93,7 @@ func NewStore(dir string) *Store {
 			Decisions: map[string][]Decision{}, Days: map[string]map[int]*DayStats{},
 		},
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		log.Printf("store: %v", err)
 	}
 	if b, err := os.ReadFile(s.path); err == nil {
@@ -146,7 +146,7 @@ func (s *Store) Save() {
 		return
 	}
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		log.Printf("store: %v", err)
 		return
 	}

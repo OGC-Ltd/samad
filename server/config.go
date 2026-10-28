@@ -35,6 +35,12 @@ type Config struct {
 	PositionsEvery time.Duration
 	EventsEvery    time.Duration
 
+	// The Fleet summary's AI brief (insight.go). No key, no brief: the card
+	// shows the facts.
+	OpenAIKey     string
+	OpenAIModel   string
+	OpenAIBaseURL string
+
 	// The browser origin allowed to call the API cross-origin (the vite dev
 	// server proxies, so this is only for a separately hosted UI).
 	AllowOrigin string
@@ -43,7 +49,7 @@ type Config struct {
 // loadDotEnv sets variables from a KEY=VALUE file without overriding what
 // the environment already holds. A missing file is not an error.
 func loadDotEnv(path string) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: the caller passes the fixed name ".env"
 	if err != nil {
 		return
 	}
@@ -85,6 +91,9 @@ func loadConfig() (Config, error) {
 		AdminPasswordHash: os.Getenv("ADMIN_PASSWORD_HASH"),
 		DataDir:           env("DATA_DIR", "data"),
 		AllowOrigin:       os.Getenv("ALLOW_ORIGIN"),
+		OpenAIKey:         os.Getenv("OPENAI_API_KEY"),
+		OpenAIModel:       env("OPENAI_MODEL", "gpt-5.4-nano"),
+		OpenAIBaseURL:     env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 	}
 	var err error
 	if c.PositionsEvery, err = time.ParseDuration(env("POSITIONS_EVERY", "30s")); err != nil {

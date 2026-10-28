@@ -552,7 +552,7 @@ function blurAlpha(alpha, w, h, radius) {
         dst[y * w + x] = sum / n
       }
     }
-    ;[src, dst] = [dst, src]
+    [src, dst] = [dst, src]
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         let sum = 0, n = 0
@@ -564,7 +564,7 @@ function blurAlpha(alpha, w, h, radius) {
         dst[y * w + x] = sum / n
       }
     }
-    ;[src, dst] = [dst, src]
+    [src, dst] = [dst, src]
   }
   return src
 }

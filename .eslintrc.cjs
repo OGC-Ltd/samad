@@ -1,7 +1,8 @@
 module.exports = {
   root: true,
   // Control Tech's VSS player SDK, vendored as served (public/vss-sdk/README.md).
-  ignorePatterns: ['public/vss-sdk/'],
+  // and the build output.
+  ignorePatterns: ['public/vss-sdk/', 'build/', 'dist/'],
   env: { browser: true, es2021: true },
   extends: [
     'eslint:recommended',
@@ -18,4 +19,8 @@ module.exports = {
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
   },
+  overrides: [
+    // Build tooling runs in Node, not the browser.
+    { files: ['vite.config.js', 'scripts/**/*.{js,mjs}', '*.cjs'], env: { node: true, browser: false } },
+  ],
 }

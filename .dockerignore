@@ -1,0 +1,17 @@
+# Only what the Dockerfile copies is needed; keep secrets and bulk out.
+**/.env
+**/.env.*
+!server/.env.example
+server/data/
+node_modules/
+build/
+dist/
+models/
+scratch/
+.git/
+.claude/
+.hallmark/
+docs/
+tools/
+*.log
+secrets/

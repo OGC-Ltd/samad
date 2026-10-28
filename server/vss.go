@@ -168,9 +168,10 @@ func (s *Server) vssFile(w http.ResponseWriter, r *http.Request) {
 	for _, e := range s.store.Events() {
 		if e.EventID == id && isCameraEvent(e) {
 			road, cabin := clipsOf(e)
-			if cam == "road" {
+			switch cam {
+			case "road":
 				src = road
-			} else if cam == "driver" {
+			case "driver":
 				src = cabin
 			}
 			break

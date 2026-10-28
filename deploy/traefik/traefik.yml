@@ -1,0 +1,48 @@
+# Traefik static config for the Samad box. Apps join the "proxy" Docker
+# network and opt in with traefik.enable=true labels.
+entryPoints:
+  traefik:
+    address: ":8080"
+    http:
+      aliasHeadersStrategy: delete
+  web:
+    address: ":80"
+    http:
+      aliasHeadersStrategy: delete
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+    http:
+      aliasHeadersStrategy: delete
+      tls:
+        certResolver: letsencrypt
+
+providers:
+  docker:
+    exposedByDefault: false
+    network: proxy
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+# Dashboard on 127.0.0.1:8080 only; reach it with an SSH tunnel.
+api:
+  dashboard: true
+  insecure: true
+
+ping: {}
+
+
+log:
+  level: INFO
+accessLog: {}

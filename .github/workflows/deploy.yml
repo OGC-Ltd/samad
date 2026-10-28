@@ -1,0 +1,122 @@
+# Deploy one image to one stack on the box, through deploy/deploy.sh.
+#
+# Called by pipeline.yml (develop → dev, main → production) and by hand from
+# the Actions tab. The SSH key in SAMAD_DEPLOY_KEY can run nothing on the box
+# but /usr/local/bin/samad-deploy (a forced command), so this job sends it a
+# tar.gz of the release files and the image to run; the script does the rest
+# and rolls back on its own if the new release is not healthy.
+#
+# Secrets (per environment or repository):
+#   SAMAD_DEPLOY_KEY          the CI private key (keys/samad-deploy)
+#   SAMAD_DEPLOY_KNOWN_HOSTS  the box's host key line, so the first connect is not trust-on-first-use
+# Variables:
+#   SAMAD_DEPLOY_HOST         ec2-13-247-156-214.af-south-1.compute.amazonaws.com
+#   SAMAD_URL                 the stack's https URL (shown on the deploy)
+
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment: { type: string, required: true }   # development | production
+      target:      { type: string, required: true }   # dev | prod (deploy.sh's names)
+      image:       { type: string, required: true }   # ghcr.io/ogc-ltd/samad@sha256:…
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Stack
+        type: choice
+        options: [dev, prod]
+      action:
+        description: What to do
+        type: choice
+        options: [deploy, rollback, status]
+      image:
+        description: Image to deploy (ghcr.io/ogc-ltd/samad@sha256:…), for "deploy"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: ${{ inputs.action || 'deploy' }} · ${{ inputs.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment || (inputs.target == 'prod' && 'production' || 'development') }}
+      url: ${{ vars.SAMAD_URL }}
+    # One deploy per stack at a time, queued, never cancelled half way.
+    concurrency:
+      group: deploy-${{ inputs.target }}
+      cancel-in-progress: false
+    env:
+      ACTION: ${{ inputs.action || 'deploy' }}
+      TARGET: ${{ inputs.target }}
+      IMAGE_REF: ${{ inputs.image }}
+      HOST: ${{ vars.SAMAD_DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the request
+        run: |
+          case "$TARGET" in dev|prod) ;; *) echo "::error::target must be dev or prod"; exit 1 ;; esac
+          [ -n "$HOST" ] || { echo "::error::set the SAMAD_DEPLOY_HOST variable"; exit 1; }
+          if [ "$ACTION" = deploy ] && ! [[ "$IMAGE_REF" =~ ^ghcr\.io/ogc-ltd/samad@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::image must be ghcr.io/ogc-ltd/samad@sha256:<digest>, got '$IMAGE_REF'"; exit 1
+          fi
+
+      - name: SSH key and pinned host key
+        env:
+          KEY: ${{ secrets.SAMAD_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SAMAD_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          [ -n "$KEY" ] && [ -n "$KNOWN_HOSTS" ] || { echo "::error::set SAMAD_DEPLOY_KEY and SAMAD_DEPLOY_KNOWN_HOSTS"; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host box
+            HostName $HOST
+            User deploy
+            IdentityFile ~/.ssh/deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ServerAliveInterval 15
+          EOF
+
+      - name: ${{ env.ACTION }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # SC2029: the arguments are meant to expand here; the box's forced
+        # command reads them as words.
+        run: |
+          # shellcheck disable=SC2029
+          if [ "$ACTION" = deploy ]; then
+            # The release bundle: compose file, migrations, and this job's
+            # short-lived token for pulling the image (the box keeps no
+            # registry credentials).
+            bundle=$(mktemp -d)
+            cp docker-compose.yml "$bundle/"
+            mkdir -p "$bundle/server" && cp -r server/migrations "$bundle/server/"
+            printf '%s' "$GHCR_TOKEN" > "$bundle/.ghcr-token"
+            tar -C "$bundle" -czf - docker-compose.yml server .ghcr-token | ssh box "deploy $TARGET $IMAGE_REF"
+            rm -rf "$bundle"
+          else
+            ssh box "$ACTION $TARGET" < /dev/null
+          fi
+
+      - name: Status
+        if: always()
+        run: |
+          # shellcheck disable=SC2029
+          ssh box "status $TARGET" < /dev/null | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Forget the key
+        if: always()
+        run: rm -rf ~/.ssh

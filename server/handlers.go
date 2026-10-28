@@ -19,6 +19,7 @@ type Server struct {
 	client *PartnerClient
 	store  *Store
 	hub    *Hub
+	ai     *Insighter // nil without OPENAI_API_KEY
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -372,72 +373,117 @@ func (s *Server) driversOverview(w http.ResponseWriter, r *http.Request) {
 	writeData(w, map[string]any{"drivers": rows, "details": details})
 }
 
-// GET /organisations/{org}/dashboard/ai-insight: the Fleet summary card.
-// Worked out from the live positions and today's alarms; source "facts"
-// tells the card it is not a model's brief.
-func (s *Server) fleetInsight(w http.ResponseWriter, r *http.Request) {
-	now := time.Now()
-	var moving, idle, offline int
+// fleetFacts is what the Fleet summary card says, worked out from the live
+// positions and today's alarms. It is the card on its own (source "facts")
+// and the only thing the model is given to write its brief from.
+type fleetFacts struct {
+	Total, Moving, Idle, Offline int
+	Critical                     int            // critical alarms today
+	Alarms                       map[string]int // today's alarms by label
+	UnitsMostAlarms              []unitAlarms   // the units with the most critical alarms today
+	Headline, Action, Risk       string
+	Findings                     []map[string]any
+}
+
+type unitAlarms struct {
+	Plate    string `json:"plate"`
+	Critical int    `json:"criticalAlarms"`
+}
+
+func (s *Server) fleetFacts(now time.Time) fleetFacts {
+	var f fleetFacts
 	list := s.store.Vehicles()
 	for _, v := range list {
 		switch {
 		case v.Position == nil || v.Position.MotionStatus == "offline":
-			offline++
+			f.Offline++
 		case v.Position.MotionStatus == "moving":
-			moving++
+			f.Moving++
 		default:
-			idle++
+			f.Idle++
 		}
 	}
+	f.Total = len(list)
 	today := fleetMidnight(now, 0)
 	byType := map[string]int{}
 	labels := map[string]string{}
-	critical := 0
+	f.Alarms = map[string]int{}
+	perUnit := map[string]int{}
 	for _, e := range s.store.Events() {
 		if parseTime(e.OccurredAt).Before(today) {
 			continue
 		}
+		label := e.TypeLabel
+		if label == "" {
+			label = strings.ReplaceAll(e.Type, "_", " ")
+		}
 		byType[e.Type]++
-		labels[e.Type] = e.TypeLabel
+		labels[e.Type] = label
+		f.Alarms[label]++
 		if e.Severity == "critical" {
-			critical++
+			f.Critical++
+			perUnit[e.Registration]++
 		}
 	}
-	total := len(list)
-	headline := fmt.Sprintf("%d of %d units moving, %d idle, %d offline.", moving, total, idle, offline)
-	findings := []map[string]any{}
+	for plate, n := range perUnit {
+		f.UnitsMostAlarms = append(f.UnitsMostAlarms, unitAlarms{plate, n})
+	}
+	sort.Slice(f.UnitsMostAlarms, func(i, j int) bool {
+		a, b := f.UnitsMostAlarms[i], f.UnitsMostAlarms[j]
+		return a.Critical > b.Critical || a.Critical == b.Critical && a.Plate < b.Plate
+	})
+	if len(f.UnitsMostAlarms) > 5 {
+		f.UnitsMostAlarms = f.UnitsMostAlarms[:5]
+	}
+
+	f.Headline = fmt.Sprintf("%d of %d units moving, %d idle, %d offline.", f.Moving, f.Total, f.Idle, f.Offline)
+	f.Findings = []map[string]any{}
 	types := make([]string, 0, len(byType))
 	for t := range byType {
 		types = append(types, t)
 	}
-	sort.Slice(types, func(i, j int) bool { return byType[types[i]] > byType[types[j]] })
+	sort.Slice(types, func(i, j int) bool {
+		return byType[types[i]] > byType[types[j]] || byType[types[i]] == byType[types[j]] && types[i] < types[j]
+	})
 	for i, t := range types {
 		if i == 3 {
 			break
 		}
-		label := labels[t]
-		if label == "" {
-			label = strings.ReplaceAll(t, "_", " ")
-		}
-		findings = append(findings, map[string]any{"kind": t, "text": fmt.Sprintf("%d %s alarm%s today.", byType[t], strings.ToLower(label), plural(byType[t]))})
+		f.Findings = append(f.Findings, map[string]any{"kind": t, "text": fmt.Sprintf("%d %s alarm%s today.", byType[t], strings.ToLower(labels[t]), plural(byType[t]))})
 	}
-	risk, action := "LOW", "No action needed."
+	f.Risk, f.Action = "LOW", "No action needed."
 	switch {
-	case critical >= 10:
-		risk, action = "HIGH", "Review today's critical alarms with the drivers involved."
-	case critical > 0:
-		risk, action = "MEDIUM", "Check today's critical alarms on the Alerts and unit cards."
+	case f.Critical >= 10:
+		f.Risk, f.Action = "HIGH", "Review today's critical alarms with the drivers involved."
+	case f.Critical > 0:
+		f.Risk, f.Action = "MEDIUM", "Check today's critical alarms on the Alerts and unit cards."
 	}
-	if total > 0 && offline*2 > total {
-		findings = append(findings, map[string]any{"kind": "offline", "text": fmt.Sprintf("%d of %d units are not reporting.", offline, total)})
+	if f.Total > 0 && f.Offline*2 > f.Total {
+		f.Findings = append(f.Findings, map[string]any{"kind": "offline", "text": fmt.Sprintf("%d of %d units are not reporting.", f.Offline, f.Total)})
 	}
-	msg := headline
-	for _, f := range findings {
-		msg += " " + f["text"].(string)
+	return f
+}
+
+// GET /organisations/{org}/dashboard/ai-insight: the Fleet summary card.
+// The model's brief (source "model") when OPENAI_API_KEY is set and one is
+// ready; otherwise the facts themselves (source "facts"), which the card
+// labels "AI unavailable".
+func (s *Server) fleetInsight(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	f := s.fleetFacts(now)
+	if s.ai != nil {
+		if brief := s.ai.Brief(f, now); brief != nil {
+			writeData(w, map[string]any{"insight": brief})
+			return
+		}
+	}
+	msg := f.Headline
+	for _, x := range f.Findings {
+		msg += " " + x["text"].(string)
 	}
 	writeData(w, map[string]any{"insight": map[string]any{
-		"msg": msg, "headline": headline, "findings": findings, "action": action,
-		"risk": risk, "source": "facts", "generatedAt": now.UTC().Format(time.RFC3339),
+		"msg": msg, "headline": f.Headline, "findings": f.Findings, "action": f.Action,
+		"risk": f.Risk, "source": "facts", "generatedAt": now.UTC().Format(time.RFC3339),
 	}})
 }
 

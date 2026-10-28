@@ -408,7 +408,7 @@ export function useFleetLive(companyId, { keepFeed = false } = {}) {
       if (feedPersistTimer) clearTimeout(feedPersistTimer)
       if (feedToPersist) writeCache(feedCacheKey(companyId), feedToPersist)
     }
-  }, [companyId, orgId, snapshotRead, retryToken, queryClient])
+  }, [companyId, orgId, snapshotRead, retryToken, queryClient, horizonMs])
 
   // A company with no backend organisation has no fleet — not a stale one.
   const noOrg = org.isSuccess && !orgId

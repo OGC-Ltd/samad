@@ -1,0 +1,323 @@
+# Samad: one pipeline from a pull request to production.
+#
+#   pull request ─┐
+#   push develop ─┼─▶ web · go · migrations · security ─▶ image ─┬─▶ deploy dev   (develop)
+#   push main ────┘   (all must pass)              build, scan, └─▶ deploy prod  (main, approval)
+#                                                  push to GHCR
+#
+# Pull requests run every check and build the image without pushing it.
+# develop deploys to dev on its own; main waits for an approval on the
+# "production" environment, then deploys the image it just built and
+# scanned, pinned by digest. The box runs deploy/deploy.sh, which backs up
+# the production database, migrates, waits for health and rolls back on
+# failure.
+#
+# Every third-party action is pinned to a commit; the scanners run from
+# pinned images, so no outside action ever holds this repository's token.
+
+name: pipeline
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  # A newer push replaces a running check, never a running deploy.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/ogc-ltd/samad
+  NODE_VERSION: "24.19.0"
+  GOLANGCI_LINT_VERSION: v2.15.0
+  GOVULNCHECK_VERSION: v1.9.0
+  TRIVY_IMAGE: aquasec/trivy:0.76.1
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
+  HADOLINT_IMAGE: hadolint/hadolint:v2.15.1-debian
+  SHELLCHECK_IMAGE: koalaman/shellcheck:v0.11.0
+  ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12
+  MIGRATE_IMAGE: migrate/migrate:v4.20.1
+
+jobs:
+  # ── the dashboard ─────────────────────────────────────────────────────────
+  web:
+    name: web · lint, test, build, audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint (no warnings allowed)
+        run: npx eslint . --max-warnings=0
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  # ── the API ───────────────────────────────────────────────────────────────
+  go:
+    name: go · fmt, vet, lint, test, vulncheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: server/go.mod   # its toolchain line: the patched release
+          cache-dependency-path: server/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "::error::not gofmt'd: $unformatted"; exit 1; fi
+      - name: go mod tidy
+        run: go mod tidy -diff
+      - run: go vet ./...
+      - name: golangci-lint (gosec, staticcheck, errcheck, …)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: server
+      - name: Tests (race detector)
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
+      - name: Coverage
+        run: go tool cover -func=coverage.out | tail -1
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
+
+  # ── the schema ────────────────────────────────────────────────────────────
+  migrations:
+    name: migrations · up, down, up on PostGIS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      db:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: samad
+          POSTGRES_USER: samad
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U samad -d samad"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Every migration applies, rolls back and applies again
+        run: |
+          migrate() {
+            docker run --rm --network host -v "$PWD/server/migrations:/migrations:ro" "$MIGRATE_IMAGE" \
+              -path /migrations -database "postgres://samad:ci-only@127.0.0.1:5432/samad?sslmode=disable" "$@"
+          }
+          latest=$(find server/migrations -name '*.up.sql' | sed 's|.*/0*\([0-9]*\)_.*|\1|' | sort -n | tail -1)
+          migrate up
+          migrate down -all
+          migrate up
+          got=$(migrate version 2>&1 | tail -1)
+          [ "$got" = "$latest" ] || { echo "::error::schema at $got, expected $latest"; exit 1; }
+          for f in server/migrations/*.up.sql; do
+            [ -f "${f%.up.sql}.down.sql" ] || { echo "::error::$f has no down migration"; exit 1; }
+          done
+          echo "schema version $got"
+
+  # ── secrets, Dockerfile, scripts, config, dependencies ───────────────────
+  security:
+    name: security · secrets, IaC, scripts, deps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0   # gitleaks reads the whole history
+      - name: gitleaks (every commit)
+        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --no-banner --exit-code 1
+      - name: hadolint (Dockerfile)
+        run: docker run --rm -i "$HADOLINT_IMAGE" hadolint --failure-threshold warning - < Dockerfile
+      - name: shellcheck (deploy script)
+        run: docker run --rm -v "$PWD:/mnt:ro" "$SHELLCHECK_IMAGE" -S style /mnt/deploy/deploy.sh
+      - name: actionlint (workflows)
+        run: docker run --rm -v "$PWD:/repo" -w /repo "$ACTIONLINT_IMAGE" -color
+      - name: compose file is valid
+        run: |
+          mkdir -p secrets && echo ci > secrets/postgres_password && touch server/.env
+          SAMAD_DOMAIN=ci.invalid docker compose config -q
+      - name: trivy (dependencies, secrets, Dockerfile and compose misconfig)
+        run: |
+          docker run --rm -v "$PWD:/src:ro" "$TRIVY_IMAGE" fs /src \
+            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
+            --skip-dirs /src/node_modules --skip-dirs /src/public/vss-sdk \
+            --ignorefile /src/.trivyignore --exit-code 1 --no-progress
+
+  # Optional: Snyk, when a SNYK_TOKEN secret is set (the free tier covers this).
+  snyk:
+    name: security · snyk (optional)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - name: Skip without a token
+        if: env.SNYK_TOKEN == ''
+        run: echo "No SNYK_TOKEN secret; skipping Snyk."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.SNYK_TOKEN != ''
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.SNYK_TOKEN != ''
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: env.SNYK_TOKEN != ''
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - name: snyk open source + code
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npm ci --no-audit --no-fund
+          npx --yes snyk@1 test --all-projects --severity-threshold=high
+          npx --yes snyk@1 code test --severity-threshold=high
+
+  # ── the image ─────────────────────────────────────────────────────────────
+  image:
+    name: image · build, scan, push
+    needs: [web, go, migrations, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write        # push to GHCR
+      id-token: write        # build provenance
+      attestations: write
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=ref,event=pr
+      - name: Build (for the scan)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: samad:scan
+          build-args: APP_COMMIT=${{ github.sha }}
+          secrets: |
+            google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: trivy (image)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image samad:scan \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+      - name: The image runs and answers
+        run: |
+          docker network create smoke
+          docker run -d --name smoke --network smoke --read-only --cap-drop ALL --user 65532:65532 \
+            -e PARTNER_API_KEY=ci -e JWT_SECRET=ci-ci-ci-ci-ci-ci-ci-ci -e ADMIN_EMAIL=ci@samad.test \
+            -e ADMIN_PASSWORD_HASH=not-a-hash -e PARTNER_BASE_URL=http://127.0.0.1:9 \
+            --tmpfs /tmp --mount type=tmpfs,dst=/data,tmpfs-mode=1777 samad:scan
+          for _ in $(seq 1 20); do
+            if docker run --rm --network smoke curlimages/curl:8.23.0 -fsS http://smoke:8080/api/v1/health | grep -q '"ok":true'; then ok=1; break; fi
+            sleep 2
+          done
+          docker logs smoke | tail -5
+          [ "${ok:-}" = 1 ] || { echo "::error::the image did not answer /api/v1/health"; exit 1; }
+          code=$(docker run --rm --network smoke curlimages/curl:8.23.0 -s -o /dev/null -w '%{http_code}' http://smoke:8080/)
+          [ "$code" = 200 ] || { echo "::error::the dashboard answered $code"; exit 1; }
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push (from the build cache, so the image that was scanned)
+        if: github.event_name == 'push'
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_COMMIT=${{ github.sha }}
+          secrets: |
+            google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY }}
+          cache-from: type=gha
+          provenance: mode=max
+          sbom: true
+      # Signed provenance in GitHub's attestation store. For a private repo
+      # this needs GitHub Enterprise Cloud, so it is opt-in: set the repository
+      # variable ENABLE_ATTESTATIONS=true. (The SBOM and provenance pushed with
+      # the image above are always there.)
+      - name: Attest build provenance
+        if: github.event_name == 'push' && vars.ENABLE_ATTESTATIONS == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - id: ref
+        if: github.event_name == 'push'
+        run: echo "ref=${IMAGE}@${{ steps.push.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+  # ── deploys ───────────────────────────────────────────────────────────────
+  deploy-dev:
+    name: deploy · dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: image
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: development
+      target: dev
+      image: ${{ needs.image.outputs.ref }}
+    permissions:
+      contents: read
+      packages: read
+    secrets: inherit
+
+  deploy-prod:
+    name: deploy · production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: image
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      target: prod
+      image: ${{ needs.image.outputs.ref }}
+    permissions:
+      contents: read
+      packages: read
+    secrets: inherit

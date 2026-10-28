@@ -1,0 +1,46 @@
+# golangci-lint v2: the checks CI runs on the Go server.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard        # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec                # security: injection, weak crypto, file perms, timeouts
+    - bodyclose            # HTTP response bodies closed
+    - noctx                # outgoing requests carry a context
+    - errorlint            # errors compared with errors.Is / As
+    - misspell
+    - unconvert
+    - gocritic
+    - nilerr
+    - copyloopvar
+    - durationcheck
+    - usestdlibvars
+  settings:
+    gosec:
+      excludes:
+        - G104             # unhandled errors: errcheck already covers them, with exclusions below
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - io.Copy
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - singleCaseSwitch
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      # Tests call their own httptest servers.
+      - path: _test\.go
+        linters: [gosec, noctx, bodyclose]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

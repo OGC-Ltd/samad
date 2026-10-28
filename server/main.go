@@ -9,11 +9,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"path"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,6 +33,14 @@ func main() {
 		fmt.Println(string(h))
 		return
 	}
+	// `samad-server healthcheck` exits 0 when the API answers: the container
+	// image has no shell or curl to do it with.
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		if !healthy() {
+			os.Exit(1)
+		}
+		return
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -39,7 +49,10 @@ func main() {
 	hub := NewHub()
 	store := NewStore(cfg.DataDir)
 	client := NewPartnerClient(cfg.PartnerBaseURL, cfg.PartnerAPIKey)
-	srv := &Server{cfg: cfg, client: client, store: store, hub: hub}
+	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg)}
+	if srv.ai == nil {
+		log.Printf("no OPENAI_API_KEY: the Fleet summary shows facts, not an AI brief")
+	}
 	auth := NewAuth(cfg)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -62,6 +75,22 @@ func main() {
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdown)
 	store.Save()
+}
+
+// healthy asks the running server's /health, for `samad-server healthcheck`.
+func healthy() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+env("PORT", "8080")+"/api/v1/health", nil)
+	if err != nil {
+		return false
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	res.Body.Close()
+	return res.StatusCode == http.StatusOK
 }
 
 func routes(s *Server, a *Auth) http.Handler {
@@ -105,7 +134,11 @@ func routes(s *Server, a *Auth) http.Handler {
 
 	// The built dashboard, when STATIC_DIR points at it (one-box deploy).
 	if dir := os.Getenv("STATIC_DIR"); dir != "" {
-		r.PathPrefix("/").Handler(spa(dir))
+		h, err := spa(dir)
+		if err != nil {
+			log.Fatalf("STATIC_DIR: %v", err)
+		}
+		r.PathPrefix("/").Handler(h)
 	}
 	return r
 }
@@ -121,17 +154,33 @@ func ourOrg(next http.Handler) http.Handler {
 	})
 }
 
-// spa serves files from dir, and index.html for any path that is not one.
-func spa(dir string) http.Handler {
-	files := http.FileServer(http.Dir(dir))
+// spa serves files from dir, and index.html for any other page path. A
+// missing file (anything with an extension, under /api, or in a hidden
+// folder like /.git) is a 404, not the
+// app: scanners asking for /secrets.json or /.env get nothing that looks
+// like a hit.
+//
+// Files are read through an os.Root: no path, symlink or ".." can reach
+// outside dir.
+func spa(dir string) (http.Handler, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	fsys := root.FS()
+	files := http.FileServerFS(fsys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := filepath.Join(dir, filepath.FromSlash(filepath.Clean("/"+r.URL.Path)))
-		if st, err := os.Stat(p); err != nil || st.IsDir() {
-			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+		clean := path.Clean("/" + r.URL.Path)
+		if st, err := fs.Stat(fsys, strings.TrimPrefix(clean, "/")); err != nil || st.IsDir() {
+			if path.Ext(clean) != "" || strings.HasPrefix(clean, "/api/") || strings.Contains(clean, "/.") {
+				http.NotFound(w, r)
+				return
+			}
+			http.ServeFileFS(w, r, fsys, "index.html")
 			return
 		}
 		files.ServeHTTP(w, r)
-	})
+	}), nil
 }
 
 func cors(origin string) mux.MiddlewareFunc {
@@ -172,6 +221,7 @@ func logRequests(next http.Handler) http.Handler {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
-		log.Printf("%s %s %d %s", r.Method, r.URL.Path, sw.status, time.Since(start).Round(time.Millisecond))
+		// %q: a path with an encoded newline cannot forge a log line.
+		log.Printf("%q %q %d %s", r.Method, r.URL.Path, sw.status, time.Since(start).Round(time.Millisecond)) //nolint:gosec // G706: both values are quoted
 	})
 }

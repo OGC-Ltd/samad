@@ -1,0 +1,8 @@
+# Files that run on Linux keep LF on every checkout (a CR after a "\"
+# continuation, or in a shell script, breaks them).
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sql           text eol=lf
+.env.example    text eol=lf
