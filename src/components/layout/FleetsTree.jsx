@@ -89,10 +89,12 @@ export default function FleetsTree({ audit = null, report = null, review = null 
      `status !== 'parked'`, which would count a yard of idling units. */
   const inTransitCount = useMemo(() => vehicles.filter(isInTransit).length, [vehicles]);
 
-  // A fleet of one machine type has nothing to narrow — the map funnel's rule.
+  // Shown even for a fleet of one type (operator, 2026-10-28: "under fleets we
+  // need to filter by the type of vehicle"): Samad is all trucks today, and a
+  // filter that only appears once a second type arrives reads as missing.
   // Technicians narrow their flagged units by type too (operator, 2026-10-27).
   const canFilter = can('map:filter') || flaggedOnly;
-  const showTypes = canFilter && options.length > 1;
+  const showTypes = canFilter && options.length > 0;
   const filtered  = selected.size > 0 || Boolean(inTransitOnly);
 
   /* Folded to the first CHIP_FOLD chips — but a ticked type is never hidden

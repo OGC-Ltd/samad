@@ -64,10 +64,10 @@ describe("buildTourSteps", () => {
     expect(screens).not.toContain("Analytics");
   });
 
-  it("names Halted and Fuel alerts only when the rail draws them", () => {
+  it("names Halted only when the rail draws it", () => {
     const tools = (vis) => buildTourSteps({ visible: vis }).find((s) => s.popover.title === "Map Tools").popover.description;
     expect(tools(DESKTOP)).not.toContain("Halted");
-    expect(tools(on("map-tools", "map-halted", "map-fuel"))).toContain("Halted");
+    expect(tools(on("map-tools", "map-halted"))).toContain("Halted");
   });
 
   it("says how to switch organisation only to an account that can", () => {

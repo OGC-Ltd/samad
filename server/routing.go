@@ -36,7 +36,7 @@ const (
 	arrivedM     = 300.0 // this close to the destination is there
 	weatherTTL   = 15 * time.Minute
 	weatherPar   = 6
-	cellsAcross  = 5
+	cellsAcross  = 8 // 5 left a town's rain smeared over a whole district
 	matrixTTL    = 2 * time.Minute
 	freshFix     = 6 * time.Hour    // older fixes are not routed
 	availableFix = 30 * time.Minute // a free unit has reported within this
@@ -182,20 +182,35 @@ func gridFor(south, west, north, east float64) (float64, []cell) {
 	return step, cells
 }
 
-func (rt *Routing) conditions(ctx context.Context, step float64, c cell) *weatherPoint {
+// keyRefused: Google turned the key itself away (API not enabled, key
+// invalid or restricted, quota). Not cached, so it clears the moment the
+// console is fixed, and reported to the map rather than read as "no weather".
+func keyRefused(err error) (*GoogleError, bool) {
+	var ge *GoogleError
+	if !errors.As(err, &ge) {
+		return nil, false
+	}
+	return ge, ge.Status == http.StatusUnauthorized || ge.Status == http.StatusForbidden || ge.Status == http.StatusTooManyRequests
+}
+
+// conditions answers one cell; the error is set only when the key was refused.
+func (rt *Routing) conditions(ctx context.Context, step float64, c cell) (*weatherPoint, error) {
 	key := fmt.Sprintf("%g:%d:%d", step, c.i, c.j)
 	rt.mu.Lock()
 	hit, ok := rt.weather[key]
 	rt.mu.Unlock()
 	if ok && time.Since(hit.at) < weatherTTL {
-		return hit.point
+		return hit.point, nil
 	}
 	v, err := rt.shared("weather:"+key, func() (any, error) {
 		p, err := rt.g.Conditions(ctx, c.lat, c.lng)
+		if _, refused := keyRefused(err); refused {
+			return nil, err
+		}
 		var ge *GoogleError
 		if errors.As(err, &ge) {
 			// Google has no conditions for some places; not worth a retry.
-			log.Printf("google weather: refused at %g,%g: %s", c.lat, c.lng, ge.Msg)
+			log.Printf("google weather: no conditions at %g,%g: %s", c.lat, c.lng, ge.Msg)
 			p, err = nil, nil
 		}
 		if err != nil {
@@ -207,11 +222,14 @@ func (rt *Routing) conditions(ctx context.Context, step float64, c cell) *weathe
 		return p, nil
 	})
 	if err != nil {
+		if ge, refused := keyRefused(err); refused {
+			return hit.point, ge
+		}
 		log.Printf("google weather: %v", err)
-		return hit.point // the last answer, however old, beats none
+		return hit.point, nil // the last answer, however old, beats none
 	}
 	p, _ := v.(*weatherPoint)
-	return p
+	return p, nil
 }
 
 func (rt *Routing) weatherGrid(w http.ResponseWriter, r *http.Request) {
@@ -241,12 +259,13 @@ func (rt *Routing) weatherGrid(w http.ResponseWriter, r *http.Request) {
 	}
 	step, cells := gridFor(b[0], b[1], b[2], b[3])
 	out := make([]*weatherPoint, len(cells))
+	refusals := make([]error, len(cells))
 	var wg sync.WaitGroup
 	next := make(chan int)
 	for range min(weatherPar, len(cells)) {
 		wg.Go(func() {
 			for k := range next {
-				out[k] = rt.conditions(r.Context(), step, cells[k])
+				out[k], refusals[k] = rt.conditions(r.Context(), step, cells[k])
 			}
 		})
 	}
@@ -261,7 +280,16 @@ func (rt *Routing) weatherGrid(w http.ResponseWriter, r *http.Request) {
 			points = append(points, p)
 		}
 	}
-	writeData(w, map[string]any{"enabled": true, "step": step, "points": points})
+	// Why the map is bare, when Google refused the key: the console fix
+	// ("enable the Weather API") rather than a silently empty layer.
+	var refused any
+	if err := errors.Join(refusals...); err != nil {
+		var ge *GoogleError
+		errors.As(err, &ge)
+		log.Printf("google weather: key refused: %s", ge.Msg)
+		refused = ge.Msg
+	}
+	writeData(w, map[string]any{"enabled": true, "step": step, "points": points, "refused": refused})
 }
 
 // ── the road ahead of one unit ──

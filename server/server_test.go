@@ -203,7 +203,14 @@ func TestTokens(t *testing.T) {
 	})
 
 	t.Run("signed with another secret", func(t *testing.T) {
-		a := NewAuth(Config{JWTSecret: "some-other-secret", AdminEmail: testEmail, DataDir: t.TempDir()})
+		// Not t.TempDir: its file store keeps the folder open, and Windows
+		// then fails the test on the cleanup (as newHarness does).
+		dir, err := os.MkdirTemp("", "samad-other-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		a := NewAuth(Config{JWTSecret: "some-other-secret", AdminEmail: testEmail, DataDir: dir})
 		if rec := h.do("GET", "/api/v1/auth/me", a.sign(claims), nil); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("forged: %d", rec.Code)
 		}

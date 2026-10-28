@@ -6886,7 +6886,9 @@ export default function FleetMap() {
     setWeatherNote("loading…");
     return addWeatherLayer(map, async (b) => {
       const grid = await getWeatherGrid({ orgId, ...b });
-      setWeatherNote(grid.enabled ? null : "not configured");
+      // Google refusing the key (Weather API off) reads as a bare map
+      // otherwise; the rail button's title says why.
+      setWeatherNote(!grid.enabled ? "not configured" : grid.refused ? `Google refused: ${grid.refused}` : null);
       return grid;
     }, { onError: () => setWeatherNote("failed") });
   }, [mapReady, showWeather, orgId]);
@@ -7211,31 +7213,10 @@ export default function FleetMap() {
             measuring={measuring}
             measureText={measureText}
             onToggleMeasure={toggleMeasure}
-            route={(() => {
-              const target = selectedVehicleId ?? routeId;
-              const v = target ? vehicles.find(x => x.id === target) : null;
-              const on = Boolean(target && routeId === target && routeLayerRef.current[target]);
-              return {
-                available: Boolean(v),
-                on,
-                onToggle: () => v && toggleRoute(v.id),
-                title: v
-                  ? `${on ? "Hide" : "Show"} the route covered by ${v.name || v.id}`
-                  : "Select a vehicle to show the route it covered",
-              };
-            })()}
             zones={mapLayers.find(l => l.id === "zones") ?? null}
             halted={canDo("map:filter")
               ? { count: strandedVehicles.length, open: strandedOpen, onOpen: () => setStrandedOpen(v => !v) }
               : null}
-            /* Fuel alerts, below Halted (operator, 2026-10-07). Counted with
-               isTheftAlert, the test FuelAlertsMenu lists by. */
-            fuelAlerts={canDo("map:fuel_alerts")
-              ? { count: flaggedVehicles.filter(isTheftAlert).length, open: fuelAlertsOpen, onOpen: () => setFuelAlertsOpen(v => !v) }
-              : null}
-            /* Arrivals at a hub, below Fuel alerts: only where the server's
-               Google routing is on, since every answer comes from it. */
-            arrivals={googleRouting ? { open: arrivalsOpen, onOpen: () => setArrivalsOpen(v => !v) } : null}
           />
         )}
 

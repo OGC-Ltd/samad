@@ -244,13 +244,10 @@ export default function MapToolRail({
   bases, base, onBase, baseNote,   // base map choice, shown in the Maps panel
   onFitFleet,
   measuring, measureText, onToggleMeasure,
-  route,            // { available, on, onToggle, title }
-  traffic,          // the "traffic" map layer ({ on, onToggle }) or null
+  traffic,         // the "traffic" map layer ({ on, onToggle }) or null
   weather,          // the "weather" map layer ({ on, onToggle, note }) or null
   zones,            // the "zones" map layer ({ on, onToggle, label }) or null
   halted,           // { count, open, onOpen } or null without map:filter
-  fuelAlerts,       // { count, open, onOpen } or null without map:fuel_alerts
-  arrivals,         // { open, onOpen } or null while Google routing is off
   dashcam,          // { count, critical, onOpen } or null where there are no VSS cameras
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -299,10 +296,6 @@ export default function MapToolRail({
             on={measuring} expanded={expanded} onClick={onToggleMeasure}
           />
           {!flaggedOnly && (<>
-          <RailButton
-            icon="ti-route" label="Route covered" title={route.title}
-            on={route.on} disabled={!route.available} expanded={expanded} onClick={route.onToggle}
-          />
           {/* Live traffic: its own tool rather than a row in the Maps panel. */}
           <RailButton
             icon="ti-traffic-lights" label={traffic?.on ? "Hide traffic" : "Live traffic"}
@@ -342,17 +335,9 @@ export default function MapToolRail({
               on={halted.open} count={halted.count} expanded={expanded} onClick={halted.onOpen}
             />
           )}
-          {/* Fuel alerts, below Halted: open theft cases, in the alert red. */}
-          {fuelAlerts && (
-            <RailButton
-              icon="ti-gas-station" label="Fuel alerts" tour="map-fuel"
-              title={fuelAlerts.count
-                ? `Fuel alerts: ${fuelAlerts.count} ${fuelAlerts.count === 1 ? "unit" : "units"} with an open fuel theft alert`
-                : "Fuel alerts: none open, open the list anyway"}
-              on={fuelAlerts.open} count={fuelAlerts.count} tone="alert" expanded={expanded} onClick={fuelAlerts.onOpen}
-            />
-          )}
-          {/* Dashcam alarms, below Fuel alerts (operator, 2026-10-27): opens
+          {/* No Fuel alerts, Arrivals or Route covered here (operator,
+              2026-10-28: removed from the rail). */}
+          {/* Dashcam alarms, below Halted (operator, 2026-10-27): opens
               the Alarms page with each alarm's clip. Only where the
               organisation's vehicles carry VSS cameras. The count is today's
               warning and critical alarms not yet reviewed, red while one of
@@ -365,14 +350,6 @@ export default function MapToolRail({
                 : "Dashcam alarms: nothing waiting today, open the list anyway"}
               count={dashcam.count} tone={dashcam.critical ? "alert" : "warn"}
               expanded={expanded} onClick={dashcam.onOpen}
-            />
-          )}
-          {/* Arrivals at a hub: every unit's live drive time in. */}
-          {arrivals && !flaggedOnly && (
-            <RailButton
-              icon="ti-target-arrow" label="Arrivals" tour="map-arrivals"
-              title="Arrivals: who can reach a hub, and when, with live traffic"
-              on={arrivals.open} expanded={expanded} onClick={arrivals.onOpen}
             />
           )}
         </div>

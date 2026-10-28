@@ -222,10 +222,9 @@ export function buildTourSteps({ can = () => true, firstName = "", orgName = "",
 
   const tools = [
     "<b>Maps</b>: OpenStreetMap or satellite, and layers such as site plans and weighbridges",
-    "<b>Measure</b> a distance, or show a unit's <b>Route covered</b>",
+    "<b>Measure</b> a distance",
     "<b>Geofences</b> on or off",
     visible("map-halted") && "<b>Halted</b>: units that stopped mid-journey",
-    visible("map-fuel")   && "<b>Fuel alerts</b>: open fuel theft alerts",
   ].filter(Boolean);
   add("app:map-tools", first("map-tools"), {
     title: "Map Tools",

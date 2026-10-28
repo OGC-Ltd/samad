@@ -116,14 +116,11 @@ export default function FleetsMenu({
     };
   }, [open]);
 
-  const showTypes = options.length >= 2;
+  // Every type is listed, even when the fleet has only one (operator,
+  // 2026-10-28), as the sidebar's Fleets block does.
+  const showTypes = options.length > 0;
   const flagCount = flagged.length;
 
-  // A fleet of one machine type has nothing to filter — but the panel still
-  // owns the in-transit lens and the flagged list, so it only disappears
-  // entirely when it would have nothing at all to say. (The old rule hid the
-  // whole control on a single-type fleet, which would now take the stranded
-  // units with it.)
   if (!showTypes && flagCount === 0 && !inTransitOnly) return null;
 
   function toggle(kind) {

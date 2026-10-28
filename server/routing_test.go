@@ -144,3 +144,35 @@ func TestGoogleKeyOrder(t *testing.T) {
 		}
 	}
 }
+
+// A key Google refuses (Weather API off) is reported and never cached, so
+// enabling the API in the console shows on the next request.
+func TestWeatherRefusedKeyNotCached(t *testing.T) {
+	var calls atomic.Int32
+	var refuse atomic.Bool
+	refuse.Store(true)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if refuse.Load() {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"message":"Weather API has not been used in project 1 before or it is disabled."}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"weatherCondition":{"type":"CLOUDY"}}`))
+	}))
+	t.Cleanup(srv.Close)
+	g := NewGoogle("k")
+	g.weatherBase = srv.URL
+	rt := NewRouting(g, nil)
+	step, cells := gridFor(0, 0, 0.04, 0.04)
+
+	p, err := rt.conditions(t.Context(), step, cells[0])
+	if p != nil || err == nil || !strings.Contains(err.Error(), "Weather API") {
+		t.Fatalf("refused: %+v, %v", p, err)
+	}
+	refuse.Store(false)
+	p, err = rt.conditions(t.Context(), step, cells[0])
+	if err != nil || p == nil || p.Type != "CLOUDY" || calls.Load() != 2 {
+		t.Fatalf("after enabling: %+v, %v (%d calls)", p, err, calls.Load())
+	}
+}

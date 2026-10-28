@@ -16,7 +16,7 @@
  * motion" it draws one still frame per view instead of animating.
  */
 import L from "leaflet";
-import { weatherTone } from "./weatherChip";
+import { weatherTone, cloudCover, isFair } from "./weatherChip";
 
 /** Particles at most per cell, so a country-wide view cannot run away. */
 const MAX_DROPS = 140;
@@ -31,14 +31,15 @@ export function rainStrength(p) {
   else if (t.includes("RAIN") || t.includes("SHOWER") || t === "DRIZZLE") s = 0.35;
   if ((p?.rainMm ?? 0) >= 4) s = Math.max(s, 1);
   else if ((p?.rainMm ?? 0) >= 1) s = Math.max(s, 0.6);
-  if (s === 0 && (p?.rainPct ?? 0) >= 60) s = 0.3;
+  if (s === 0 && !isFair(p) && (p?.rainPct ?? 0) >= 60) s = 0.3;
   return s;
 }
 
 /** How much wind to draw, 0–1: calm under 10 km/h, full from 50. */
 export function windStrength(p) {
   const k = Math.max(p?.windKmh ?? 0, (p?.gustKmh ?? 0) * 0.7);
-  return k < 10 ? 0 : Math.min(1, (k - 10) / 40);
+  const s = k < 10 ? 0 : Math.min(1, (k - 10) / 40);
+  return p?.type?.startsWith("WIND") ? Math.max(s, 0.5) : s;
 }
 
 /** The way the wind blows TO, as a unit screen vector (y down). */
@@ -66,6 +67,7 @@ function makeCell(p, step) {
     south: p.lat - step / 2, north: p.lat + step / 2,
     west: p.lng - step / 2,  east: p.lng + step / 2,
     rain, wind, storm,
+    cloud: cloudCover(p),
     dir: windVector(p),
     drops: Array.from({ length: Math.round(MAX_DROPS * rain) }, () => ({ x: Math.random(), y: Math.random(), v: rand(0.7, 1.3) })),
     waves: Array.from({ length: Math.round(MAX_WAVES * wind) }, () => ({ x: Math.random(), y: Math.random(), ph: rand(0, Math.PI * 2), life: Math.random() })),
@@ -120,7 +122,7 @@ export function createWeatherEffects(l, pane) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const size = l.getSize();
     for (const c of cells) {
-      if (!c.rain && !c.wind && !c.storm) continue;
+      if (!c.rain && !c.wind && !c.storm && !c.cloud) continue;
       const nw = l.latLngToContainerPoint([c.north, c.west]);
       const se = l.latLngToContainerPoint([c.south, c.east]);
       // Each cell's weather spills a little past its edges and fades out
@@ -132,11 +134,12 @@ export function createWeatherEffects(l, pane) {
       const cx = x0 + w / 2, cy = y0 + h / 2, r = Math.max(w, h) / 2;
       ctx.save();
 
-      // A storm darkens its sky; rain gives it a wet tint. Both soft-edged.
-      if (c.storm || c.rain) {
+      // Cloud greys its sky, rain gives it a wet blue, a storm darkens it.
+      // All soft-edged, and strong enough to read on satellite imagery.
+      if (c.storm || c.rain || c.cloud) {
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        const tint = c.storm ? "30, 41, 59" : "59, 130, 246";
-        const a = c.storm ? 0.26 : 0.05 + 0.08 * c.rain;
+        const tint = c.storm ? "30, 41, 59" : c.rain ? "37, 99, 235" : "100, 116, 139";
+        const a = c.storm ? 0.34 : c.rain ? 0.14 + 0.14 * c.rain : 0.08 + 0.16 * c.cloud;
         g.addColorStop(0, `rgba(${tint}, ${a})`);
         g.addColorStop(0.6, `rgba(${tint}, ${a})`);
         g.addColorStop(1, `rgba(${tint}, 0)`);
@@ -146,22 +149,29 @@ export function createWeatherEffects(l, pane) {
 
       // Rain: streaks falling, leaning with the wind.
       if (c.drops.length) {
-        const len = 7 + 9 * c.rain;
+        const len = 10 + 12 * c.rain;
         const lean = c.dir.x * (0.15 + 0.5 * c.wind);
-        ctx.strokeStyle = c.storm ? "rgba(191, 219, 254, 0.85)" : "rgba(37, 99, 235, 0.55)";
-        ctx.lineWidth = c.rain > 0.6 ? 1.4 : 1;
+        const width = c.rain > 0.6 ? 2 : 1.6;
         ctx.lineCap = "round";
         for (const d of c.drops) {
           d.y += dt * d.v * (0.55 + 0.5 * c.rain) * (300 / Math.max(h, 1));
           d.x += dt * lean * 0.6 * (300 / Math.max(w, 1));
           if (d.y > 1) { d.y -= 1; d.x = Math.random(); }
           if (d.x > 1) d.x -= 1; else if (d.x < 0) d.x += 1;
-          const px = x0 + d.x * w, py = y0 + d.y * h;
-          ctx.globalAlpha = edgeFade(d.x, d.y);
-          ctx.beginPath();
-          ctx.moveTo(px, py);
-          ctx.lineTo(px - lean * len, py - len);
-          ctx.stroke();
+        }
+        // Each streak twice: a dark halo, then a light core, so rain shows
+        // on pale OpenStreetMap and on dark satellite imagery alike.
+        for (const [style, lw] of [["rgba(15, 23, 42, 0.45)", width + 1.6], [c.storm ? "rgba(224, 242, 254, 0.95)" : "rgba(147, 197, 253, 0.95)", width]]) {
+          ctx.strokeStyle = style;
+          ctx.lineWidth = lw;
+          for (const d of c.drops) {
+            const px = x0 + d.x * w, py = y0 + d.y * h;
+            ctx.globalAlpha = edgeFade(d.x, d.y);
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(px - lean * len, py - len);
+            ctx.stroke();
+          }
         }
         ctx.globalAlpha = 1;
       }
@@ -172,26 +182,31 @@ export function createWeatherEffects(l, pane) {
         const nx = -dy, ny = dx; // across the wind, for the wave's swing
         const speed = 40 + 120 * c.wind; // px a second
         const span = 26 + 26 * c.wind;
-        ctx.strokeStyle = "rgba(71, 85, 105, 0.55)";
-        ctx.lineWidth = 1.3;
         for (const wv of c.waves) {
           wv.life += dt * 0.35;
           if (wv.life > 1) { wv.life = 0; wv.x = Math.random(); wv.y = Math.random(); }
           wv.ph += dt * 5;
-          const run = wv.life * speed * 2.2;
-          const bx = x0 + wv.x * w + dx * run, by = y0 + wv.y * h + dy * run;
-          // Fade in and out over its run, and towards the cell's edge.
-          ctx.globalAlpha = Math.sin(wv.life * Math.PI)
-            * edgeFade((bx - x0) / w, (by - y0) / h);
-          ctx.beginPath();
-          for (let i = 0; i <= 12; i++) {
-            const t = i / 12;
-            const swing = Math.sin(wv.ph + t * Math.PI * 2) * 3;
-            const px = bx + dx * span * t + nx * swing;
-            const py = by + dy * span * t + ny * swing;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        // Halo then core, like the rain, so the lines read on any base map.
+        for (const [style, lw] of [["rgba(15, 23, 42, 0.4)", 3.4], ["rgba(255, 255, 255, 0.92)", 1.6]]) {
+          ctx.strokeStyle = style;
+          ctx.lineWidth = lw;
+          for (const wv of c.waves) {
+            const run = wv.life * speed * 2.2;
+            const bx = x0 + wv.x * w + dx * run, by = y0 + wv.y * h + dy * run;
+            // Fade in and out over its run, and towards the cell's edge.
+            ctx.globalAlpha = Math.sin(wv.life * Math.PI)
+              * edgeFade((bx - x0) / w, (by - y0) / h);
+            ctx.beginPath();
+            for (let i = 0; i <= 12; i++) {
+              const t = i / 12;
+              const swing = Math.sin(wv.ph + t * Math.PI * 2) * 3;
+              const px = bx + dx * span * t + nx * swing;
+              const py = by + dy * span * t + ny * swing;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
           }
-          ctx.stroke();
         }
         ctx.globalAlpha = 1;
       }
