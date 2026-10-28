@@ -1,0 +1,25 @@
+# TLS for every router on the box (the "default" options apply unless a
+# router names others). Certificates themselves come from the letsencrypt
+# resolver in traefik.yml and renew 30 days before they expire.
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      # TLS 1.2 only: forward-secret AEAD suites. TLS 1.3 suites are fixed by Go.
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      curvePreferences:
+        - X25519
+        - CurveP256
+        - CurveP384
+      # A handshake for a name no router serves (a bare IP, a scanner) is
+      # refused instead of being answered with Traefik's self-signed cert.
+      sniStrict: true
+      alpnProtocols:
+        - h2
+        - http/1.1

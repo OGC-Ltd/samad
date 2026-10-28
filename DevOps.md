@@ -52,7 +52,7 @@ this file; it says where each one lives.
 | --- | --- |
 | Server | AWS EC2, `af-south-1`, Ubuntu 26.04, 2 vCPU, 1.9 GB RAM + 2 GB swap, 15 GB disk |
 | Host | `ec2-13-247-156-214.af-south-1.compute.amazonaws.com` (`13.247.156.214`) |
-| Production | `https://13-247-156-214.sslip.io` (until the real domain, [§14](#14-moving-to-the-real-domain)) |
+| Production | `https://logistics.samadoperations.com` (since 2026-10-28; was `13-247-156-214.sslip.io`, [§14](#14-moving-to-the-real-domain)) |
 | App | Go server (`server/`, gorilla/mux) serving the API under `/api/v1` and the React app (`src/`) |
 | Data source | IntelliFleet360 Partner API (positions, events, geofences, dashcam clips) |
 | Database | PostGIS, schema managed by golang-migrate (`server/migrations/`) |
@@ -197,12 +197,14 @@ Files: `/opt/traefik` on the box; the same files are in this repo under
 | `docker-compose.yml` | Traefik v3.7.16, read-only Docker socket, `no-new-privileges`, health check, dashboard on `127.0.0.1:8080` only |
 | `letsencrypt/acme.json` | issued certificates (mode 600) |
 | `dynamic/` | extra routes from files, picked up without a restart |
+| `dynamic/tls.yml` | TLS for every router: TLS 1.2 minimum, forward-secret AEAD ciphers only, `sniStrict` (a handshake for an unknown name, e.g. the bare IP, is refused rather than shown Traefik's self-signed cert). Certificates renew automatically 30 days before expiry |
 
 **Install (once)**
 
 ```bash
 sudo install -d -o admin -g admin /opt/traefik /opt/traefik/dynamic /opt/traefik/letsencrypt
 cp deploy/traefik/traefik.yml deploy/traefik/docker-compose.yml /opt/traefik/   # from a copy of this repo
+cp deploy/traefik/dynamic/tls.yml /opt/traefik/dynamic/
 touch /opt/traefik/letsencrypt/acme.json && chmod 600 /opt/traefik/letsencrypt/acme.json
 docker network create proxy
 cd /opt/traefik && docker compose up -d
@@ -518,7 +520,7 @@ pipeline, or the deploy jobs fail (the checks still run).
 
 | Environment | Deployment branches | Protection | Variable |
 | --- | --- | --- | --- |
-| `production` | `main` only | **Required reviewers**: who approves; optionally a wait timer | `SAMAD_URL` = `https://13-247-156-214.sslip.io` |
+| `production` | `main` only | **Required reviewers**: who approves; optionally a wait timer | `SAMAD_URL` = `https://logistics.samadoperations.com` |
 
 **Step 2: Secrets** (Settings → Secrets and variables → Actions → New repository secret)
 
@@ -655,18 +657,18 @@ ls /opt/samad/releases/                       # what can be rolled back to
 
 ## 14. Moving to the real domain
 
-The domain is **`logistics.samad.com`**.
+The domain is **`logistics.samadoperations.com`** (live since 2026-10-28; steps 1–2 done, the sslip.io name no longer routes).
 
-1. **DNS**: an `A` record `logistics.samad.com` → `13.247.156.214`.
-   Wait until `dig +short logistics.samad.com` answers the IP.
-2. **Stack setting**: in `/opt/samad/.env` set `SAMAD_DOMAIN=logistics.samad.com`, then:
+1. **DNS**: an `A` record `logistics.samadoperations.com` → `13.247.156.214`.
+   Wait until `dig +short logistics.samadoperations.com` answers the IP.
+2. **Stack setting**: in `/opt/samad/.env` set `SAMAD_DOMAIN=logistics.samadoperations.com`, then:
    ```bash
    cd /opt/samad && sudo -u deploy docker compose up -d --wait
    ```
    Traefik requests the certificate on the first visit.
 3. **GitHub**: update `SAMAD_URL` in the `production` environment to
-   `https://logistics.samad.com`.
-4. **Google Maps key**: add `https://logistics.samad.com/*` to its allowed referrers.
+   `https://logistics.samadoperations.com`.
+4. **Google Maps key**: add `https://logistics.samadoperations.com/*` to its allowed referrers.
 5. **HSTS**: the site sends `Strict-Transport-Security` for a year, so the
    domain must stay on HTTPS.
 6. Retire the sslip.io name whenever convenient (remove it from the key's
@@ -683,7 +685,7 @@ The domain is **`logistics.samad.com`**.
 | Migrations of the last start | `sudo -u deploy docker compose logs migrate` |
 | Database log | `sudo -u deploy docker compose logs --tail 100 db` |
 | Traefik log (access + errors) | `docker logs -f --tail 100 traefik` |
-| Health through Traefik | `curl -s https://13-247-156-214.sslip.io/api/v1/health` |
+| Health through Traefik | `curl -s https://logistics.samadoperations.com/api/v1/health` |
 | Memory, CPU | `free -h; docker stats --no-stream` |
 | Disk | `df -h /; docker system df` |
 
