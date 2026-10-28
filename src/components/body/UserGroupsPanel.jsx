@@ -25,6 +25,7 @@ import {
   addUserToGroup, createUserGroup, deleteUserGroup, listUserGroups,
   removeGroupLogo, removeUserFromGroup, updateUserGroup, uploadGroupLogo,
 } from "../../api/userGroups";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../context/AuthContext";
 import { usePermissions } from "../../hooks/usePermissions";
 import { useApiData } from "../../hooks/useApiData";
@@ -477,6 +478,14 @@ function MemberPicker({ group, users, orgById, manageableOrgIds, pendingKey, onT
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 
 export default function UserGroupsPanel() {
+  const queryClient = useQueryClient();
+  /* The Users page reads the same people and groups: a person's groups and,
+     for a group with its own organisation, who they work for, and the new-user
+     form's list of organisations (operator, 2026-10-28). Read them again
+     after any change here rather than show the cached copy. */
+  const refreshUsers = () => queryClient.invalidateQueries({
+    predicate: (q) => q.queryKey[0] === "api" && /^ft-(org-users|invite-groups):/.test(String(q.queryKey[1])),
+  });
   const { orgs } = useAuth();
   const { orgId, canIn } = usePermissions();
 
@@ -752,6 +761,7 @@ export default function UserGroupsPanel() {
       }
       setModalOpen(false);
       revalidate();
+      refreshUsers();
     } catch (err) {
       fail(err.message || "Could not save this group.");
     } finally {
@@ -776,6 +786,7 @@ export default function UserGroupsPanel() {
       say(`${displayGroupText(group.name)} has been deleted. User accounts were not touched.`, "deleted");
       setModalOpen(false);
       revalidate();
+      refreshUsers();
     } catch (err) {
       fail(err.message || "Could not delete this group.");
     } finally {
@@ -794,6 +805,7 @@ export default function UserGroupsPanel() {
     try {
       if (adding) await addUserToGroup(orgId, group.id, user.id);
       else await removeUserFromGroup(orgId, group.id, user.id);
+      refreshUsers();
       mutate((prev) => (prev ? {
         ...prev,
         users: prev.users.map((u) => {

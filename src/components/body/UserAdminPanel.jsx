@@ -53,7 +53,8 @@ import { toCsv, exportFilename, downloadCsv } from "../../lib/rosterExport";
 import { accountState } from "../../lib/accountState";
 import { companyMark } from "../../lib/companyLogos";
 import { maskEmail, maskPhone } from "../../lib/mask";
-import { displayGroupText } from "../../lib/groupDisplay";
+import { displayGroupText, groupOrganisations } from "../../lib/groupDisplay";
+import { listUserGroups } from "../../api/userGroups";
 import {
   confirmPhraseFor, confirmMatches, confirmState, skipsTypedConfirmation,
 } from "../../lib/deleteConfirmation";
@@ -549,7 +550,8 @@ function ToastMark({ tone }) {
  */
 function OrgMark({ org, className = "" }) {
   const name = org?.name ?? "-";
-  const mark = org ? companyMark(org) : null;
+  // A custom organisation brings its logo from the group that carries it.
+  const mark = org?.logoUrl ?? (org ? companyMark(org) : null);
   if (mark) {
     return <img className={"ua-orgbadge__mark " + className} src={mark} alt="" />;
   }
@@ -587,6 +589,70 @@ function OrgBadge({ org, id, here }) {
     </span>
   );
 }
+
+/**
+ * Where a person works, in every view: their own organisation when they have
+ * one (a contractor's, named on their account or picked up from a group,
+ * 2026-10-28), otherwise the tenants that hold them.
+ */
+function RowOrgs({ u, orgById, orgId, className = "" }) {
+  return (
+    <span className={"ua-row__orgs " + className}>
+      {u.customOrganisation
+        ? <OrgBadge org={u.customOrganisation} here />
+        : (u.scopeOrgIds ?? [u.scopeOrgId]).filter(Boolean).map((id) => (
+          <OrgBadge key={id} id={id} org={orgById.get(id)} here={id === orgId} />
+        ))}
+    </span>
+  );
+}
+
+/**
+ * Who a person works for (operator, 2026-10-28: "add custom organisation when
+ * adding a new user; if the organisation was already added via the group,
+ * pick it up"). The tenant's own name, each organisation the groups already
+ * carry (with its logo), or another typed in. `value` is the name, "" for the
+ * tenant's own.
+ */
+function OrgChoice({ own, options, value, onChange, disabled, joinHint = false }) {
+  const ownName = own?.name ?? "Our organisation";
+  const picked = options.find((o) => o.name.toLowerCase() === value.trim().toLowerCase()) ?? null;
+  const [typing, setTyping] = useState(() => Boolean(value) && !picked);
+  const other = typing || (Boolean(value) && !picked);
+  const chip = (key, on, label, mark, onPick) => (
+    <button key={key} type="button" role="radio" aria-checked={on}
+            className={"ua-orgchoice__opt" + (on ? " ua-orgchoice__opt--on" : "")}
+            onClick={onPick} disabled={disabled}>
+      {mark}
+      <span>{label}</span>
+    </button>
+  );
+  return (
+    <div className="ua-orgchoice">
+      <span className="ua-label" id="ua-orgchoice-label">Organisation</span>
+      <div className="ua-orgchoice__opts" role="radiogroup" aria-labelledby="ua-orgchoice-label">
+        {chip("own", !value && !other, ownName, <OrgMark org={own ?? { name: ownName }} />,
+          () => { setTyping(false); onChange(""); })}
+        {options.map((o) => chip(o.name, picked === o && !typing, o.name, <OrgMark org={o} />,
+          () => { setTyping(false); onChange(o.name); }))}
+        {chip("other", other, "Other…", null, () => { setTyping(true); if (picked) onChange(""); })}
+      </div>
+      {other && (
+        <input className="ua-input" type="text" value={value} maxLength={100} autoFocus
+               placeholder="The organisation they work for" aria-label="Organisation name"
+               onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+      )}
+      {joinHint && picked && (
+        <span className="ua-orgchoice__hint">
+          From {picked.groupNames.length === 1 ? "the group" : "the groups"} {picked.groupNames.map(displayGroupText).join(", ")}, which they will join.
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The names of a person's groups, for sorting and the Group cell. */
+const groupNames = (u) => (u.groups ?? (u.group ? [u.group] : [])).map((g) => g.name);
 
 function Avatar({ name, email }) {
   return (
@@ -793,6 +859,9 @@ export default function UserAdminPanel() {
   const [scope, setScope] = useState(orgId ?? null);
 
   const [form, setForm] = useState(EMPTY_FORM);
+  /* Their organisation, "" for this tenant's own (OrgChoice). */
+  const [newOrgName, setNewOrgName] = useState("");
+  const [editOrgName, setEditOrgName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rowBusy, setRowBusy] = useState(null);
@@ -1081,8 +1150,6 @@ export default function UserAdminPanel() {
    *  does not re-run on every keystroke in the search box. */
   const scopeKey = scopeIds.join(",");
 
-  /** Is the Organisation column worth its width? Only when rows can differ. */
-  const showOrgColumn = scopeIds.length > 1;
 
   const orgNameById = useMemo(
     () => new Map((orgs ?? []).map((o) => [o.id, o.name])),
@@ -1142,10 +1209,23 @@ export default function UserAdminPanel() {
     { cacheKey: `ft-org-users:${scopeKey}` },
   );
 
+  /* The groups, for the organisations they already carry (OrgChoice). A
+     roster that cannot read them still adds people, just without that list. */
+  const { data: inviteGroups } = useApiData(
+    () => listUserGroups(orgId).catch(() => []),
+    [orgId],
+    { cacheKey: `ft-invite-groups:${orgId}` },
+  );
+  const groupOrgs = useMemo(() => groupOrganisations(inviteGroups), [inviteGroups]);
+
   /* Memoised so the `?? []` fallback does not hand the filters below a brand
      new empty array on every render — which would re-run all three of them
      for a roster that has not changed. */
   const users = useMemo(() => data?.users ?? [], [data]);
+
+  /** Is the Organisation column worth its width? Only when rows can differ:
+   *  several tenants, or somebody working for a custom organisation. */
+  const showOrgColumn = scopeIds.length > 1 || users.some((u) => u.customOrganisation);
 
   /**
    * Search first, then the facets — and the counts come from BETWEEN the two.
@@ -1341,7 +1421,7 @@ export default function UserAdminPanel() {
           case "email":    return u.email ?? "";
           case "phone":    return u.phone ?? "";
           case "org":      return orgNameById.get(u.scopeOrgId) ?? "";
-          case "group":    return u.group?.name ?? "";
+          case "group":    return groupNames(u).join(", ");
           case "roles":    return rolesFor(u).join("; ");
           case "status":   return accountState(u).label;
           case "created":  return fmtDate(u.createdAt);
@@ -1488,6 +1568,10 @@ export default function UserAdminPanel() {
         .filter((id) => id !== orgId)
         .map((id) => ({ organisationId: id, roleSlugs: createRoles, allVehicles: true }));
 
+      /* An organisation the groups already carry puts them in those groups,
+         so their row and the group cards agree from the start. */
+      const orgName = newOrgName.trim();
+      const fromGroups = groupOrgs.find((o) => o.name.toLowerCase() === orgName.toLowerCase());
       const result = await createOrgUser(orgId, {
         fullName: form.fullName.trim(),
         email: form.email.trim(),
@@ -1495,6 +1579,8 @@ export default function UserAdminPanel() {
         employeeId: form.employeeId.trim(),
         roleSlugs: createRoles,
         memberships: extras,
+        organisationName: orgName,
+        groupIds: fromGroups?.groupIds ?? [],
       });
 
       const where = selectedOrgIds.length === 1
@@ -1543,6 +1629,7 @@ export default function UserAdminPanel() {
       }
 
       setForm(EMPTY_FORM);
+      setNewOrgName("");
       setPicked(orgId ? { [orgId]: [] } : {});
       setCreateRoles([]);
       /* Show the person who was just created.
@@ -1767,6 +1854,7 @@ export default function UserAdminPanel() {
     setEditUser(user);
     setEditIdentity(identity);
     setEditForm(identity);
+    setEditOrgName(user.customOrganisation?.name ?? "");
     setEditStatus(user.status ?? "ACTIVE");
     setEditBase(null);
     setEditDraft({});
@@ -1862,6 +1950,9 @@ export default function UserAdminPanel() {
     for (const key of ["fullName", "phone", "employeeId"]) {
       const now = editForm[key].trim();
       if (now !== (editIdentity[key] ?? "").trim()) identity[key] = now;
+    }
+    if (editOrgName.trim() !== (user.customOrganisation?.name ?? "")) {
+      identity.organisationName = editOrgName.trim();
     }
     const identityChanged = Object.keys(identity).length > 0;
     const statusChanged = editStatus != null && editStatus !== user.status;
@@ -2328,6 +2419,9 @@ export default function UserAdminPanel() {
               </label>
             </div>
 
+            <OrgChoice own={activeCompany} options={groupOrgs}
+                       value={newOrgName} onChange={setNewOrgName} disabled={busy} joinHint />
+
             {/* Access: one role, then the organisations it applies in. */}
             <fieldset className="ua-access">
               <legend className="ua-access__legend">
@@ -2432,6 +2526,10 @@ export default function UserAdminPanel() {
                         <input className="ua-input" type="text" value={editForm.employeeId}
                                onChange={editField("employeeId")} disabled={editBusy} />
                       </label>
+                      {/* Keyed by the person, so its Other… box opens on theirs. */}
+                      <OrgChoice key={editUser.id} own={activeCompany}
+                                 options={groupOrgs} value={editOrgName} onChange={setEditOrgName}
+                                 disabled={editBusy} />
                     </div>
                   ) : (
                     /* Read-only, and told why. The alternative is three fields
@@ -2679,18 +2777,15 @@ export default function UserAdminPanel() {
                              answered by counting how many times their name
                              appeared in the list. */
                           <td data-label="Organisation">
-                            <span className="ua-row__orgs">
-                              {rowOrgIds.map((id) => (
-                                <OrgBadge key={id} id={id} org={orgById.get(id)}
-                                          here={id === orgId} />
-                              ))}
-                            </span>
+                            <RowOrgs u={{ ...u, scopeOrgIds: rowOrgIds }} orgById={orgById} orgId={orgId} />
                           </td>
                         )}
                         {shows("group") && (
                           <td data-label="Group">
-                            {u.group
-                              ? <span className="ua-groupchip">{displayGroupText(u.group.name)}</span>
+                            {groupNames(u).length
+                              ? groupNames(u).map((name) => (
+                                <span key={name} className="ua-groupchip">{displayGroupText(name)}</span>
+                              ))
                               /* Said, not left blank. An ungrouped account is
                                  reachable by the platform administrator alone
                                  once enforcement is on, and that is a fact
@@ -3026,11 +3121,7 @@ export default function UserAdminPanel() {
                           Above the foot rather than in it: the foot is the
                           card's action strip, and a fact wrapped in beside a
                           button reads as a label for the button. */}
-                      <span className="ua-row__orgs ua-bcard__orgs">
-                        {(u.scopeOrgIds ?? [u.scopeOrgId]).filter(Boolean).map((id) => (
-                          <OrgBadge key={id} id={id} org={orgById.get(id)} here={id === orgId} />
-                        ))}
-                      </span>
+                      <RowOrgs u={u} orgById={orgById} orgId={orgId} className="ua-bcard__orgs" />
 
                       <div className="ua-bcard__foot">
                         {(canIn(u.scopeOrgId, "user:assign_role") || canIn(u.scopeOrgId, "user:update")) && (
@@ -3065,11 +3156,7 @@ export default function UserAdminPanel() {
                     row already reads in: who, where, how they stand. Allowed
                     to shrink and wrap rather than push the status badge off
                     the end — this is the view that has to survive a phone. */}
-                <span className="ua-row__orgs ua-litem__orgs">
-                  {(u.scopeOrgIds ?? [u.scopeOrgId]).filter(Boolean).map((id) => (
-                    <OrgBadge key={id} id={id} org={orgById.get(id)} here={id === orgId} />
-                  ))}
-                </span>
+                <RowOrgs u={u} orgById={orgById} orgId={orgId} className="ua-litem__orgs" />
                 <span className="ua-litem__meta">
                   <StatusBadge state={accountState(u)} />
                   {(canIn(u.scopeOrgId, "user:assign_role") || canIn(u.scopeOrgId, "user:update")) && (

@@ -173,7 +173,7 @@ export async function listAssignableRoles(orgId) {
  */
 export async function createOrgUser(
   orgId,
-  { fullName, email, phone, employeeId, roleSlugs = [], memberships = [] },
+  { fullName, email, phone, employeeId, roleSlugs = [], memberships = [], organisationName = "", groupIds = [] },
 ) {
   const res = await apiFetch(`${base(orgId)}/provision`, {
     method: "POST",
@@ -188,6 +188,10 @@ export async function createOrgUser(
       // the caller against every one of these, so sending an organisation they
       // cannot administer earns a 403 rather than a silent partial grant.
       ...(memberships.length ? { memberships } : {}),
+      // Who they work for ("" this tenant's own), and groups to join; a
+      // group's organisation becomes theirs when none is named.
+      ...(organisationName ? { organisationName } : {}),
+      ...(groupIds.length ? { groupIds } : {}),
       sendInvite: true,
     }),
   });
@@ -217,7 +221,7 @@ export async function createOrgUser(
  */
 export async function updateOrgUser(homeOrgId, userId, fields) {
   const body = {};
-  for (const key of ["fullName", "phone", "employeeId"]) {
+  for (const key of ["fullName", "phone", "employeeId", "organisationName"]) {
     if (fields[key] !== undefined) body[key] = fields[key];
   }
   const res = await apiFetch(`${base(homeOrgId)}/${encodeURIComponent(userId)}`, {

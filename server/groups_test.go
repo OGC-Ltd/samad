@@ -143,3 +143,73 @@ func TestGroupsNeedAssignRole(t *testing.T) {
 		t.Fatalf("supervisor created a group: %d", rec.Code)
 	}
 }
+
+// A person's organisation follows the groups they join, and a new account can
+// name one or take it from the groups it is put in.
+func TestUserOrganisationFollowsGroups(t *testing.T) {
+	h := newHarness(t)
+	admin, _ := h.login()
+	g := decodeData[groupRow](t, h.do("POST", orgGroups, admin, map[string]any{
+		"name": "Haulage contractors", "organisationName": "Kilimo Transporters",
+	}).Body.Bytes())
+	type row struct {
+		ID                 string `json:"id"`
+		Email              string `json:"email"`
+		CustomOrganisation *struct {
+			Name string `json:"name"`
+		} `json:"customOrganisation"`
+	}
+	orgOf := func(id string) string {
+		for _, u := range decodeData[[]row](t, h.do("GET", orgUsers, admin, nil).Body.Bytes()) {
+			if u.ID == id {
+				if u.CustomOrganisation == nil {
+					return ""
+				}
+				return u.CustomOrganisation.Name
+			}
+		}
+		t.Fatalf("no row for %s", id)
+		return ""
+	}
+
+	// Joining the group makes its organisation theirs; leaving clears it.
+	id, _ := h.invite(admin, "dispatch@samad.test", "supervisor")
+	h.do("PUT", orgGroups+"/"+g.ID+"/users/"+id, admin, nil)
+	if got := orgOf(id); got != "Kilimo Transporters" {
+		t.Fatalf("after joining: %q", got)
+	}
+	h.do("DELETE", orgGroups+"/"+g.ID+"/users/"+id, admin, nil)
+	if got := orgOf(id); got != "" {
+		t.Fatalf("after leaving: %q", got)
+	}
+
+	// A new account put in the group picks its organisation up.
+	rec := h.do("POST", orgUsers+"/provision", admin, map[string]any{
+		"fullName": "Amina Otieno", "email": "amina@kilimo.test", "roleSlugs": []string{"supervisor"},
+		"groupIds": []string{g.ID},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("provision: %d %s", rec.Code, rec.Body)
+	}
+	made := decodeData[struct{ User row }](t, rec.Body.Bytes()).User
+	if made.CustomOrganisation == nil || made.CustomOrganisation.Name != "Kilimo Transporters" {
+		t.Fatalf("picked up: %+v", made.CustomOrganisation)
+	}
+	if n := decodeData[[]groupRow](t, h.do("GET", orgGroups, admin, nil).Body.Bytes())[0].Count.Users; n != 1 {
+		t.Fatalf("group members: %d", n)
+	}
+
+	// Or names its own, and an unknown group is refused before anything is made.
+	rec = h.do("POST", orgUsers+"/provision", admin, map[string]any{
+		"fullName": "Peter Kamau", "email": "peter@lakeside.test", "roleSlugs": []string{"supervisor"},
+		"organisationName": " Lakeside Haulage ",
+	})
+	if made := decodeData[struct{ User row }](t, rec.Body.Bytes()).User; made.CustomOrganisation == nil || made.CustomOrganisation.Name != "Lakeside Haulage" {
+		t.Fatalf("named: %d %s", rec.Code, rec.Body)
+	}
+	if rec := h.do("POST", orgUsers+"/provision", admin, map[string]any{
+		"fullName": "No Group", "email": "none@x.test", "roleSlugs": []string{"supervisor"}, "groupIds": []string{"missing"},
+	}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown group: %d", rec.Code)
+	}
+}

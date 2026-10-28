@@ -139,20 +139,27 @@ func oneRole(w http.ResponseWriter, caller User, slugs []string) (string, bool) 
 	return slugs[0], true
 }
 
+// userRow is userView with what the groups know: the person's groups, and
+// their custom organisation with its logo.
+func (a *Auth) userRow(u User) map[string]any {
+	row := userView(u)
+	row["groups"] = userGroupsView(a.groups.Of(u.ID))
+	row["customOrganisation"] = a.groups.OrgView(u.OrgName)
+	return row
+}
+
 func (a *Auth) listUsers(w http.ResponseWriter, _ *http.Request) {
 	list := a.users.List()
 	rows := make([]any, 0, len(list))
 	for _, u := range list {
-		row := userView(u)
-		row["groups"] = userGroupsView(a.groups.Of(u.ID))
-		rows = append(rows, row)
+		rows = append(rows, a.userRow(u))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": rows, "meta": map[string]any{"total": len(rows)}})
 }
 
 func (a *Auth) getUser(w http.ResponseWriter, r *http.Request) {
 	if u, ok := a.target(w, r, false); ok {
-		writeData(w, map[string]any{"user": userView(u)})
+		writeData(w, map[string]any{"user": a.userRow(u)})
 	}
 }
 
@@ -178,9 +185,28 @@ func (a *Auth) provision(w http.ResponseWriter, r *http.Request) {
 		Phone      string   `json:"phone"`
 		EmployeeID string   `json:"employeeId"`
 		RoleSlugs  []string `json:"roleSlugs"`
+		// A custom organisation ("" Samad's own), and groups to join. A
+		// group's organisation is theirs when none is named.
+		OrganisationName string   `json:"organisationName"`
+		GroupIDs         []string `json:"groupIds"`
 	}
 	if !decode(w, r, &body) {
 		return
+	}
+	orgName, err := cleanOrgName(body.OrganisationName)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var joining []Group
+	all := a.groups.List()
+	for _, id := range slices.Compact(slices.Sorted(slices.Values(body.GroupIDs))) {
+		i := slices.IndexFunc(all, func(g Group) bool { return g.ID == id })
+		if i < 0 {
+			writeError(w, http.StatusBadRequest, "no such group")
+			return
+		}
+		joining = append(joining, all[i])
 	}
 	email := strings.ToLower(strings.TrimSpace(body.Email))
 	name := strings.TrimSpace(body.FullName)
@@ -201,8 +227,21 @@ func (a *Auth) provision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "That address already has an account")
 		return
 	}
+	for _, g := range joining {
+		if _, err := a.groups.Update(g.ID, func(g *Group) error {
+			if !slices.Contains(g.Members, u.ID) {
+				g.Members = append(g.Members, u.ID)
+			}
+			return nil
+		}); err == nil && orgName == "" && g.OrgName != "" {
+			orgName = g.OrgName
+		}
+	}
+	if orgName != "" {
+		u, _ = a.users.Update(u.ID, func(u *User) error { u.OrgName = orgName; return nil })
+	}
 	writeData(w, map[string]any{
-		"user": userView(u), "created": true,
+		"user": a.userRow(u), "created": true,
 		"invite": map[string]any{"sent": false, "reason": "no-mail", "link": a.setupLink(r, token), "expiresAt": u.Token.ExpiresAt},
 	})
 }
@@ -216,11 +255,20 @@ func (a *Auth) updateUser(w http.ResponseWriter, r *http.Request) {
 		FullName   *string `json:"fullName"`
 		Phone      *string `json:"phone"`
 		EmployeeID *string `json:"employeeId"`
+		// "" back to Samad's own; absent leaves it as it is.
+		OrganisationName *string `json:"organisationName"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
 	u, err := a.users.Update(t.ID, func(u *User) error {
+		if body.OrganisationName != nil {
+			o, err := cleanOrgName(*body.OrganisationName)
+			if err != nil {
+				return err
+			}
+			u.OrgName = o
+		}
 		if body.FullName != nil {
 			n := strings.TrimSpace(*body.FullName)
 			if n == "" {
@@ -240,7 +288,7 @@ func (a *Auth) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"user": userView(u)})
+	writeData(w, map[string]any{"user": a.userRow(u)})
 }
 
 func (a *Auth) resendInvite(w http.ResponseWriter, r *http.Request) {

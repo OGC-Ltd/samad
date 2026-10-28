@@ -287,13 +287,42 @@ func (in groupInput) apply(g *Group) error {
 		g.Description = d
 	}
 	if in.OrganisationName != nil {
-		o := strings.TrimSpace(*in.OrganisationName)
-		if utf8.RuneCountInString(o) > 100 {
-			return errors.New("an organisation name is at most 100 characters")
+		o, err := cleanOrgName(*in.OrganisationName)
+		if err != nil {
+			return err
 		}
 		g.OrgName = o
 	}
 	return nil
+}
+
+// cleanOrgName checks a custom organisation's name ("" is Samad's own), for
+// a group and for a person alike.
+func cleanOrgName(s string) (string, error) {
+	o := strings.TrimSpace(s)
+	if utf8.RuneCountInString(o) > 100 {
+		return "", errors.New("an organisation name is at most 100 characters")
+	}
+	return o, nil
+}
+
+// OrgView is a person's custom organisation as their user row shows it: the
+// name, with the logo of a group that carries the same name, or nil for
+// Samad's own. Matched without case, as the new-user form offers them.
+func (gs *Groups) OrgView(name string) any {
+	if name == "" {
+		return nil
+	}
+	gs.mu.RLock()
+	defer gs.mu.RUnlock()
+	var logo any
+	for _, g := range gs.list {
+		if strings.EqualFold(g.OrgName, name) && g.LogoType != "" {
+			logo = fmt.Sprintf("/api/v1/organisations/%s/user-groups/%s/logo?v=%d", OrgID, g.ID, g.LogoVersion)
+			break
+		}
+	}
+	return map[string]any{"name": name, "logoUrl": logo}
 }
 
 func groupFailed(w http.ResponseWriter, err error) {
@@ -386,7 +415,32 @@ func (a *Auth) setGroupMember(w http.ResponseWriter, r *http.Request) {
 		groupFailed(w, err)
 		return
 	}
+	a.followGroupOrg(v["userId"], g, add)
 	writeData(w, groupView(g))
+}
+
+// followGroupOrg keeps a person's organisation in step with their groups
+// (operator, 2026-10-28: "when I assign a user to a group, the user info also
+// needs to be updated"). Joining a group with its own organisation makes it
+// theirs; leaving it clears it, unless another of their groups carries it.
+func (a *Auth) followGroupOrg(userID string, g Group, joined bool) {
+	if g.OrgName == "" {
+		return
+	}
+	_, _ = a.users.Update(userID, func(u *User) error {
+		switch {
+		case joined:
+			u.OrgName = g.OrgName
+		case strings.EqualFold(u.OrgName, g.OrgName):
+			u.OrgName = ""
+			for _, o := range a.groups.Of(userID) {
+				if strings.EqualFold(o.OrgName, g.OrgName) {
+					u.OrgName = o.OrgName
+				}
+			}
+		}
+		return nil
+	})
 }
 
 // PUT /organisations/{org}/user-groups/{groupId}/logo: the image itself as

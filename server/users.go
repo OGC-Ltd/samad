@@ -48,11 +48,14 @@ type setupToken struct {
 }
 
 type User struct {
-	ID                  string      `json:"id"`
-	Email               string      `json:"email"`
-	FullName            string      `json:"fullName"`
-	Phone               string      `json:"phone,omitempty"`
-	EmployeeID          string      `json:"employeeId,omitempty"`
+	ID         string `json:"id"`
+	Email      string `json:"email"`
+	FullName   string `json:"fullName"`
+	Phone      string `json:"phone,omitempty"`
+	EmployeeID string `json:"employeeId,omitempty"`
+	// OrgName: the custom organisation they work for, "" for Samad's own.
+	// Set by hand or by joining a group that has one (groups.go).
+	OrgName             string      `json:"orgName,omitempty"`
 	Status              string      `json:"status"`
 	Role                string      `json:"role"`
 	PasswordHash        string      `json:"passwordHash,omitempty"`

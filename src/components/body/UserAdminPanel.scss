@@ -3264,3 +3264,64 @@ select.ua-input { appearance: none; cursor: pointer; }
 /* The person's one role, above the organisations it applies in: a list of its
    own, so not indented or ruled off like a role list under an organisation. */
 .ua-roles--person { margin: 6px 0 12px; padding-top: 0; border-top: 0; }
+
+/* Several groups in one cell sit a gap apart. */
+.ua-groupchip + .ua-groupchip { margin-left: 4px; }
+
+/* Who a person works for (OrgChoice): this tenant, each organisation the
+   groups already carry with its mark, or another typed in. Chips rather than
+   a select, so the logos are seen before one is picked. */
+.ua-orgchoice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Its own line inside a wrapping row of fields, and never stretched by the
+     drawer's column (a basis there is a height). */
+  grid-column: 1 / -1;
+  flex: none;
+  width: 100%;
+  margin: 4px 0 2px;
+}
+.ua-orgchoice__opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ua-orgchoice__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--ua-line-hi);
+  border-radius: 8px;
+  background: var(--ua-raised);
+  color: var(--ua-text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+
+  &:hover:not(:disabled) { border-color: var(--ua-accent); }
+  &:focus-visible { outline: 2px solid var(--ua-accent); outline-offset: 2px; }
+  &:disabled { opacity: 0.55; cursor: default; }
+  .ua-orgbadge__mark { flex: none; }
+}
+.ua-orgchoice__opt--on {
+  border-color: var(--ua-accent);
+  box-shadow: inset 0 0 0 1px var(--ua-accent);
+  color: var(--ua-accent-ink);
+}
+.ua-orgchoice .ua-input {
+  padding: 7px 10px;
+  border: 1px solid var(--ua-field-line);
+  border-radius: 6px;
+  background: var(--ua-raised);
+}
+.ua-orgchoice__hint {
+  display: block;
+  font-size: 12px;
+  color: var(--ua-text-3, var(--ua-text-2));
+}
