@@ -23,7 +23,7 @@ import { createPortal } from "react-dom";
 import { listUsersAcrossOrgs } from "../../api/users";
 import {
   addUserToGroup, createUserGroup, deleteUserGroup, listUserGroups,
-  removeUserFromGroup, updateUserGroup,
+  removeGroupLogo, removeUserFromGroup, updateUserGroup, uploadGroupLogo,
 } from "../../api/userGroups";
 import { useAuth } from "../../context/AuthContext";
 import { usePermissions } from "../../hooks/usePermissions";
@@ -35,7 +35,13 @@ import TabEmptyState from "../shared/TabEmptyState";
 import { DriversIcon } from "../footer/NavIcons";
 import "./UserGroupsPanel.scss";
 
-const EMPTY_GROUP = { name: "", description: "" };
+// orgMode: "own" (the group is Samad's) or "custom" (its own organisation,
+// with a name and an uploaded logo: a contractor, a customer).
+const EMPTY_GROUP = { name: "", description: "", orgMode: "own", orgName: "" };
+
+// What the server accepts as a logo (server/groups.go): no SVG, which can carry script.
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const LOGO_MAX_BYTES = 512 * 1024;
 
 const STATUS_TABS = [
   { key: "all", label: "All" },
@@ -112,7 +118,8 @@ function Avatar({ name, email, size = 22 }) {
 /** One organisation's mark; a letter on a hue when no artwork is on file. */
 function OrgMark({ org, size = 16 }) {
   const name = org?.name ?? "-";
-  const mark = org ? companyMark(org) : null;
+  // A group's own organisation carries its uploaded logo; tenants use the bundled marks.
+  const mark = org?.logoUrl ?? (org && !org.custom ? companyMark(org) : null);
   if (mark) {
     return <img className="ug-orgmark" style={{ width: size, height: size }} src={mark} alt="" />;
   }
@@ -152,6 +159,38 @@ function scopeLabel(orgs, total) {
   if (orgs.length === 1) return orgs[0].name;
   if (orgs.length > 1 && orgs.length === total) return "All organisations";
   return `${orgs.length} organisations`;
+}
+
+/** A group's own organisation, shaped like a tenant for OrgMark and OrgBadge. */
+function customOrgOf(group) {
+  const o = group?.organisation;
+  return o?.name ? { id: `group-org:${group.id}`, name: o.name, logoUrl: o.logoUrl ?? null, custom: true } : null;
+}
+
+/** The logo for a group's own organisation: a preview, Upload or Replace, Remove. */
+function LogoPicker({ name, preview, onPick, onRemove, disabled, error }) {
+  const inputRef = useRef(null);
+  const hintId = useId();
+  return (
+    <div className="ug-logo">
+      <OrgMark org={{ name: name || "?", logoUrl: preview, custom: true }} size={48} />
+      <div className="ug-logo__body">
+        <div className="ug-logo__acts">
+          <button type="button" className="ug-tbtn" disabled={disabled} aria-describedby={hintId}
+                  onClick={() => inputRef.current?.click()}>
+            {preview ? "Replace logo" : "Upload logo"}
+          </button>
+          {preview && (
+            <button type="button" className="ug-action" disabled={disabled} onClick={onRemove}>Remove</button>
+          )}
+        </div>
+        <p className="ug-logo__hint" id={hintId}>PNG, JPEG, WebP or GIF, up to 512 KB. Square works best.</p>
+        {error && <p className="ug-logo__error" role="alert">{error}</p>}
+      </div>
+      <input ref={inputRef} type="file" accept={LOGO_TYPES.join(",")} hidden
+             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPick(f); }} />
+    </div>
+  );
 }
 
 /** Pick 1 to all organisations, each with its logo. */
@@ -458,6 +497,11 @@ export default function UserGroupsPanel() {
   const [modalOpen, setModalOpen] = useState(false);
   const [groupForm, setGroupForm] = useState(EMPTY_GROUP);
   const [modalOrgIds, setModalOrgIds] = useState([]);
+  // The logo in the modal: a newly picked file, or the group's current one; dropLogo removes it.
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [dropLogo, setDropLogo] = useState(false);
+  const [logoError, setLogoError] = useState("");
   const [tab, setTab] = useState("active");
   const [sort, setSort] = useState("recent");
   const [query, setQuery] = useState("");
@@ -628,7 +672,13 @@ export default function UserGroupsPanel() {
     setGroupForm(group ? {
       name: displayGroupText(group.name),
       description: displayGroupText(group.description ?? ""),
+      orgMode: group.organisation?.name ? "custom" : "own",
+      orgName: group.organisation?.name ?? "",
     } : EMPTY_GROUP);
+    setLogoFile(null);
+    setLogoPreview(group?.organisation?.logoUrl ?? null);
+    setDropLogo(false);
+    setLogoError("");
     setModalOrgIds(start.length > 0 ? start : manageOrgs.slice(0, 1).map((o) => o.id));
     setModal({ mode, group });
     setModalOpen(true);
@@ -636,6 +686,23 @@ export default function UserGroupsPanel() {
     setError("");
   }
   const closeModal = useCallback(() => { if (!busy) setModalOpen(false); }, [busy]);
+
+  // A picked file previews from an object URL, released when it is replaced.
+  useEffect(() => {
+    if (!logoFile) return undefined;
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
+
+  function pickLogo(file) {
+    if (!LOGO_TYPES.includes(file.type)) { setLogoError("That file is not a PNG, JPEG, WebP or GIF image."); return; }
+    if (file.size > LOGO_MAX_BYTES) { setLogoError("That image is over 512 KB."); return; }
+    setLogoError(""); setDropLogo(false); setLogoFile(file);
+  }
+  function clearLogo() {
+    setLogoError(""); setLogoFile(null); setLogoPreview(null); setDropLogo(true);
+  }
 
   async function saveGroup(e) {
     e.preventDefault();
@@ -645,14 +712,27 @@ export default function UserGroupsPanel() {
       /* Organisations the admin cannot manage stay on the group untouched. */
       const manageIds = new Set(manageOrgs.map((o) => o.id));
       const kept = (modal.group?.organisationIds ?? []).filter((id) => !manageIds.has(id));
+      const custom = groupForm.orgMode === "custom";
       const payload = {
         name: displayGroupText(groupForm.name),
         description: displayGroupText(groupForm.description),
         organisationIds: [...modalOrgIds, ...kept],
+        organisationName: custom ? groupForm.orgName.trim() : "",
+      };
+
+      /* The logo goes up after the group is saved (it needs the group's id).
+         Switching back to Samad's own drops any logo the group had. */
+      const syncLogo = async (home, g) => {
+        if (custom && logoFile) return (await uploadGroupLogo(home, g.id, logoFile)) ?? g;
+        if ((dropLogo || !custom) && g?.organisation?.logoUrl) return (await removeGroupLogo(home, g.id)) ?? g;
+        return g;
       };
 
       if (modal.mode === "edit") {
-        const saved = await updateUserGroup(homeOrgFor(modal.group) ?? modalOrgIds[0], modal.group.id, payload);
+        const home = homeOrgFor(modal.group) ?? modalOrgIds[0];
+        let saved = await updateUserGroup(home, modal.group.id, payload);
+        try { saved = await syncLogo(home, saved); }
+        catch (err) { fail(`Saved, but the logo was not: ${err.message || "upload failed"}.`); }
         mutate((prev) => (prev ? {
           ...prev,
           groups: prev.groups.map((g) => (g.id === modal.group.id
@@ -660,11 +740,15 @@ export default function UserGroupsPanel() {
         } : prev));
         say(`${displayGroupText(saved?.name ?? groupForm.name)} updated.`);
       } else {
-        const created = await createUserGroup(modalOrgIds[0], payload);
+        let created = await createUserGroup(modalOrgIds[0], payload);
+        try { created = await syncLogo(modalOrgIds[0], created); }
+        catch (err) { fail(`Created, but the logo was not: ${err.message || "upload failed"}.`); }
         mutate((prev) => (prev ? {
           ...prev, groups: [{ ...created, organisationIds: payload.organisationIds }, ...prev.groups],
         } : prev));
-        say(`${displayGroupText(created?.name ?? groupForm.name)} created across ${plural(payload.organisationIds.length, "organisation")}.`, "created");
+        say(custom
+          ? `${displayGroupText(created?.name ?? groupForm.name)} created for ${payload.organisationName}.`
+          : `${displayGroupText(created?.name ?? groupForm.name)} created across ${plural(payload.organisationIds.length, "organisation")}.`, "created");
       }
       setModalOpen(false);
       revalidate();
@@ -952,6 +1036,7 @@ export default function UserGroupsPanel() {
                 {shown.map((group) => {
                   const members = membersByGroup.get(group.id) ?? [];
                   const count = countFor(group);
+                  const ownOrg = customOrgOf(group);
                   const groupOrgs = orgsOf(group);
                   const manageable = !!homeOrgFor(group);
                   const creator = group.createdBy?.fullName ?? group.createdBy?.name ?? group.createdByName ?? "";
@@ -983,8 +1068,10 @@ export default function UserGroupsPanel() {
 
                       <div className="ug-panel">
                         <div className="ug-row">
-                          <span className="ug-row__label"><Icon name="building" />{groupOrgs.length > 1 ? "Organisations" : "Organisation"}</span>
-                          {groupOrgs.length === 0 ? (
+                          <span className="ug-row__label"><Icon name="building" />{!ownOrg && groupOrgs.length > 1 ? "Organisations" : "Organisation"}</span>
+                          {ownOrg ? (
+                            <OrgBadge org={ownOrg} />
+                          ) : groupOrgs.length === 0 ? (
                             <span className="ug-row__none">—</span>
                           ) : groupOrgs.length === 1 ? (
                             <OrgBadge org={groupOrgs[0]} here={groupOrgs[0].id === orgId} />
@@ -1084,12 +1171,39 @@ export default function UserGroupsPanel() {
               </label>
 
               <fieldset className="ug-orgs-field">
+                <legend className="ug-label">Organisation</legend>
+                <div className="ug-views ug-views--fill" role="radiogroup" aria-label="Whose group this is">
+                  {[["own", "Samad Resources"], ["custom", "Custom organisation"]].map(([key, label]) => (
+                    <button key={key} type="button" role="radio" aria-checked={groupForm.orgMode === key}
+                            className={"ug-views__opt" + (groupForm.orgMode === key ? " ug-views__opt--on" : "")}
+                            disabled={busy} onClick={() => setGroupForm((f) => ({ ...f, orgMode: key }))}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {groupForm.orgMode === "custom" && (
+                  <div className="ug-customorg">
+                    <label className="ug-field">
+                      <span className="ug-label">Organisation name</span>
+                      <input className="ug-input" type="text" required minLength={2} maxLength={100}
+                             value={groupForm.orgName} disabled={busy} placeholder="A contractor or customer"
+                             onChange={(e) => setGroupForm((f) => ({ ...f, orgName: e.target.value }))} />
+                    </label>
+                    <LogoPicker name={groupForm.orgName} preview={logoPreview} error={logoError}
+                                disabled={busy} onPick={pickLogo} onRemove={clearLogo} />
+                  </div>
+                )}
+              </fieldset>
+
+              {manageOrgs.length > 1 && (
+              <fieldset className="ug-orgs-field">
                 <legend className="ug-label">Organisations</legend>
                 <p className="ug-orgs-field__hint">
                   Pick one, several, or all. People from any of them can be added to this group.
                 </p>
                 <OrgChecklist orgs={manageOrgs} value={modalOrgIds} onChange={setModalOrgIds} disabled={busy} />
               </fieldset>
+              )}
             </div>
             <footer className="ug-modal__foot">
               {error && <p className="ug-modal__error" id="ug-modal-error">{error}</p>}
@@ -1097,7 +1211,8 @@ export default function UserGroupsPanel() {
                 <button type="button" className="ug-tbtn" onClick={closeModal} disabled={busy}>Cancel</button>
                 <button type="submit" className="ug-submit"
                         aria-describedby={error ? "ug-modal-error" : undefined}
-                        disabled={busy || groupForm.name.trim().length < 2 || modalOrgIds.length === 0}>
+                        disabled={busy || groupForm.name.trim().length < 2 || modalOrgIds.length === 0
+                          || (groupForm.orgMode === "custom" && groupForm.orgName.trim().length < 2)}>
                   {busy ? "Saving…" : modal?.mode === "edit" ? "Save changes" : "Create group"}
                 </button>
               </div>

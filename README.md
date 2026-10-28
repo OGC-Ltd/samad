@@ -13,9 +13,7 @@ Two parts in one repository, shipped as one Docker image:
   dashboard itself. See [server/README.md](server/README.md).
 
 **Contents:** [Quick start](#quick-start) · [How it fits together](#how-it-fits-together) ·
-[Configuration](#configuration) · [Scripts](#scripts) · [Code layout](#code-layout) ·
-[Deployment and versions](#deployment-and-versions) · [Troubleshooting](#troubleshooting) ·
-[Further docs](#further-docs)
+[Configuration](#configuration) · [Scripts](#scripts) · [Code layout](#code-layout)
 
 ---
 
@@ -110,34 +108,3 @@ Never commit `.env`, `.env.local`, keys or `drivers.json`.
 | `.github/workflows/` | CI (`pipeline.yml`) and the deploy (`deploy.yml`) |
 
 Tests sit beside the code they cover: `*.test.js(x)` and `*_test.go`.
-
-## Deployment and versions
-
-A push to `main` runs the pipeline: lint, tests, build, security scans, then
-the image is built, scanned and pushed to `ghcr.io/ogc-ltd/samad`. The
-production deploy waits for an approval, backs up the database, and rolls back
-by itself if the new release is not healthy.
-
-Every production deploy is **0.1 above the last, starting at 1.0**. The number
-shows in the dashboard (sidebar foot, login page) and in
-`/api/v1/health` → `version`, and the deployed commit is tagged `vX.Y`.
-
-The full guide (the box, Traefik, secrets, migrations, rollbacks, backups) is
-[DevOps.md](DevOps.md).
-
-## Troubleshooting
-
-| Symptom | Likely cause |
-|---|---|
-| Every `/api` call fails in dev | The Go server is not running on 8080, or `VITE_PROXY_TARGET` points elsewhere |
-| "Invalid email or password" | The password does not match `ADMIN_PASSWORD_HASH` in `server/.env` (quote the hash) |
-| No Google maps or traffic | `VITE_GOOGLE_MAPS_API_KEY` missing at build time |
-| No routes or weather | No Google key in `server/.env`, or the Routes / Weather API not enabled on it |
-| Page unstyled, no errors | Vite served empty CSS after a whole-file rewrite; touch the SCSS file |
-| `npm run dev` exits: port in use | Another app holds 5174 |
-
-## Further docs
-
-- [DevOps.md](DevOps.md): building, shipping and running it
-- [server/README.md](server/README.md): the API and the partner feed
-- [docs/driver-rating.md](docs/driver-rating.md): how drivers are scored

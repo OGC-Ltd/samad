@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ type Auth struct {
 	cfg    Config
 	secret []byte
 	users  *Users
+	groups *Groups
 	// Compared against for an unknown address, so the two cannot be told
 	// apart by timing.
 	dummyHash []byte
@@ -51,7 +53,11 @@ func NewAuth(cfg Config) *Auth {
 	users := NewUsers(cfg.DataDir)
 	users.Bootstrap(cfg.AdminEmail, cfg.AdminName, cfg.AdminPasswordHash)
 	dummy, _ := bcrypt.GenerateFromPassword([]byte("not a password anyone has"), bcrypt.DefaultCost)
-	return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret), users: users, dummyHash: dummy}
+	blobs, err := NewBlobs(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret), users: users, groups: NewGroups(cfg.DataDir, blobs), dummyHash: dummy}
 }
 
 func (a *Auth) sign(c tokenClaims) string {

@@ -48,11 +48,17 @@ func newHarness(t *testing.T) *harness {
 	mustWrite(t, filepath.Join(web, "index.html"), "<!doctype html><title>Samad</title>")
 	mustWrite(t, filepath.Join(web, "app.js"), "console.log(1)")
 	t.Setenv("STATIC_DIR", web)
+	// The uploaded-file store holds DATA_DIR/files open (os.Root) too.
+	data, err := os.MkdirTemp("", "samad-data-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(data) })
 
 	cfg := Config{
 		Port: "8080", JWTSecret: "test-secret-test-secret-test-secret",
 		AdminEmail: testEmail, AdminName: "Test", AdminPasswordHash: string(hash),
-		DataDir: t.TempDir(),
+		DataDir: data,
 	}
 	store := NewStore(cfg.DataDir)
 	srv := &Server{cfg: cfg, store: store, hub: NewHub(), routing: NewRouting(nil, store)}

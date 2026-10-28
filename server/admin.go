@@ -143,7 +143,9 @@ func (a *Auth) listUsers(w http.ResponseWriter, _ *http.Request) {
 	list := a.users.List()
 	rows := make([]any, 0, len(list))
 	for _, u := range list {
-		rows = append(rows, userView(u))
+		row := userView(u)
+		row["groups"] = userGroupsView(a.groups.Of(u.ID))
+		rows = append(rows, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": rows, "meta": map[string]any{"total": len(rows)}})
 }
@@ -342,6 +344,7 @@ func (a *Auth) purge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no such user")
 		return
 	}
+	a.groups.Forget(u.ID)
 	invites := 0
 	if u.Token != nil {
 		invites = 1

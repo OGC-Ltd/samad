@@ -413,6 +413,21 @@
   margin: 3px 0 8px; color: var(--ug-text-3); font-size: 12px; line-height: 1.45;
 }
 
+/* Whose group it is: Samad's, or a custom organisation with its own logo. */
+.ug-views--fill { display: flex; margin: 6px 0 0; }
+.ug-views--fill .ug-views__opt { flex: 1 1 0; justify-content: center; }
+.ug-views__opt:focus-visible { outline: 2px solid var(--ug-accent); outline-offset: 1px; }
+.ug-customorg { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 0; }
+.ug-logo {
+  display: flex; align-items: center; gap: 12px; padding: 10px;
+  border: 1px dashed var(--ug-line-hi); border-radius: 8px; background: var(--ug-surface);
+}
+.ug-logo .ug-orgmark { border-radius: 8px; border: 1px solid var(--ug-line); }
+.ug-logo__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ug-logo__acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ug-logo__hint { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--ug-text-3); }
+.ug-logo__error { margin: 0; font-size: 12px; line-height: 1.4; color: var(--ug-crit); }
+
 .ug-checklist {
   min-width: 0; padding: 8px; border: 1px solid var(--ug-line);
   border-radius: 8px; background: var(--ug-surface);

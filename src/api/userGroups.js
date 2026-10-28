@@ -9,25 +9,29 @@ export async function listUserGroups(orgId) {
   return res.data ?? [];
 }
 
-export async function createUserGroup(orgId, { name, description, organisationIds }) {
+export async function createUserGroup(orgId, { name, description, organisationIds, organisationName }) {
   const res = await apiFetch(base(orgId), {
     method: "POST",
     body: JSON.stringify({
       name,
       description: description || null,
       ...(organisationIds ? { organisationIds } : {}),
+      // The group's own organisation ("" = Samad's); left out, unchanged.
+      ...(organisationName !== undefined ? { organisationName } : {}),
     }),
   });
   return res.data;
 }
 
-export async function updateUserGroup(orgId, groupId, { name, description, organisationIds }) {
+export async function updateUserGroup(orgId, groupId, { name, description, organisationIds, organisationName }) {
   const res = await apiFetch(`${base(orgId)}/${encodeURIComponent(groupId)}`, {
     method: "PATCH",
     body: JSON.stringify({
       name,
       description: description || null,
       ...(organisationIds ? { organisationIds } : {}),
+      // The group's own organisation ("" = Samad's); left out, unchanged.
+      ...(organisationName !== undefined ? { organisationName } : {}),
     }),
   });
   return res.data;
@@ -53,5 +57,22 @@ export async function removeUserFromGroup(orgId, groupId, userId) {
     `${base(orgId)}/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`,
     { method: "DELETE" },
   );
+  return res.data;
+}
+
+/** The group's own organisation logo: the image file itself as the body. */
+export async function uploadGroupLogo(orgId, groupId, file) {
+  const res = await apiFetch(`${base(orgId)}/${encodeURIComponent(groupId)}/logo`, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+  });
+  return res.data;
+}
+
+export async function removeGroupLogo(orgId, groupId) {
+  const res = await apiFetch(`${base(orgId)}/${encodeURIComponent(groupId)}/logo`, {
+    method: "DELETE",
+  });
   return res.data;
 }

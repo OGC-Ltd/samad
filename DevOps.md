@@ -406,6 +406,7 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 | Google Routes + Weather, own key | `server/.env` → `GOOGLE_ROUTING_API_KEY` (optional; overrides the Maps key on the server) | a separate IP-restricted server key, if the Maps key is referrer-restricted |
 | Driver roster | `drivers.json` in the `samad-data` volume (not git: ID and phone numbers) | drivers per truck, units labelled Truck |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
+| Uploaded files | `server/.env` → `S3_BUCKET` (`samad-522505217087-af-south-1-an`), `S3_REGION`, `S3_PREFIX`; access from the box's IAM role (`s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the bucket's objects). Empty `S3_BUCKET`: files stay in the `samad-data` volume | group organisation logos |
 | Database password | `secrets/postgres_password` | `db`, `migrate` |
 | Google Maps key | GitHub secret `GOOGLE_MAPS_API_KEY`; local `.env.local` | baked into the dashboard at build |
 | CI deploy key | GitHub secret `SAMAD_DEPLOY_KEY` | the deploy job |
@@ -653,15 +654,18 @@ ls /opt/samad/releases/                       # what can be rolled back to
 
 ## 14. Moving to the real domain
 
-1. **DNS**: an `A` record for the domain (e.g. `fleet.samadresources.com`) → `13.247.156.214`.
-   Wait until `dig +short <domain>` answers the IP.
-2. **Stack setting**: in `/opt/samad/.env` set `SAMAD_DOMAIN=<domain>`, then:
+The domain is **`logistics.samad.com`**.
+
+1. **DNS**: an `A` record `logistics.samad.com` → `13.247.156.214`.
+   Wait until `dig +short logistics.samad.com` answers the IP.
+2. **Stack setting**: in `/opt/samad/.env` set `SAMAD_DOMAIN=logistics.samad.com`, then:
    ```bash
    cd /opt/samad && sudo -u deploy docker compose up -d --wait
    ```
    Traefik requests the certificate on the first visit.
-3. **GitHub**: update `SAMAD_URL` in the `production` environment.
-4. **Google Maps key**: add the new domain to its allowed referrers.
+3. **GitHub**: update `SAMAD_URL` in the `production` environment to
+   `https://logistics.samad.com`.
+4. **Google Maps key**: add `https://logistics.samad.com/*` to its allowed referrers.
 5. **HSTS**: the site sends `Strict-Transport-Security` for a year, so the
    domain must stay on HTTPS.
 6. Retire the sslip.io name whenever convenient (remove it from the key's

@@ -573,7 +573,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px;
+  /* Room above and below the mark and the version, so the foot reads as its
+     own band and not as the last nav row pressed against the rule. */
+  padding: 16px;
   border-top: 1px solid var(--sp-rule);
   color: var(--sp-icon);
   line-height: 1;
@@ -593,10 +595,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
-  /* Measure the gap from the drawn tree, not from its empty right margin. */
-  margin-left: calc(var(--sp-mark) * -0.28 + 6px);
+  /* Measure the gap from the drawn tree, not from its empty right margin:
+     12px of clear space between the mark and the wordmark. */
+  margin-left: calc(var(--sp-mark) * -0.28 + 12px);
 }
 .side-panel__meta-word {
   font-family: var(--font-display);
@@ -622,8 +625,8 @@
 .side-panel--collapsed .side-panel__meta {
   --sp-mark: 24px;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 16px 0;
 }
 .side-panel--collapsed .side-panel__meta-text { margin-left: 0; }
 .side-panel--collapsed .side-panel__meta-version { font-size: 9.5px; letter-spacing: 0; }

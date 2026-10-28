@@ -176,6 +176,15 @@ func routes(s *Server, a *Auth) http.Handler {
 	users.Handle("/{userId}/memberships", needFunc(a.removeMembership, "user:assign_role")).Methods("DELETE")
 	users.Handle("/{userId}/permanent", needFunc(a.purge, "user:delete")).Methods("DELETE")
 
+	groups := org.PathPrefix("/user-groups").Subrouter()
+	groups.Handle("", needFunc(a.listGroups, "user:read")).Methods("GET")
+	groups.Handle("", needFunc(a.createGroup, "user:assign_role")).Methods("POST")
+	groups.Handle("/{groupId}", needFunc(a.updateGroup, "user:assign_role")).Methods("PATCH")
+	groups.Handle("/{groupId}", needFunc(a.deleteGroup, "user:assign_role")).Methods("DELETE")
+	groups.Handle("/{groupId}/users/{userId}", needFunc(a.setGroupMember, "user:assign_role")).Methods("PUT", "DELETE")
+	groups.Handle("/{groupId}/logo", needFunc(a.setGroupLogo, "user:assign_role")).Methods("PUT", "DELETE")
+	groups.HandleFunc("/{groupId}/logo", a.groupLogo).Methods("GET")
+
 	// Everything else the UI may ask for, signed in: an empty answer.
 	in.PathPrefix("/").HandlerFunc(emptyRoute)
 

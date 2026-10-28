@@ -215,7 +215,9 @@
 .login__brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
+  /* The mark gets its own band: room above it and before the heading. */
+  padding: 8px 0 4px;
 }
 
 /* The mark is fine black line art on transparency — a fingerprint drawn as a
@@ -398,7 +400,8 @@
    under the form in every mode without moving the form itself. */
 .login__version {
   margin: auto 0 0;
-  padding-top: 18px;
+  /* Clear of the form above and of the sheet's edge below. */
+  padding: 24px 0 8px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: center;

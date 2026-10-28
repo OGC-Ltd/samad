@@ -49,6 +49,12 @@ type Config struct {
 	// when no GOOGLE_ROUTING_API_KEY of their own is set.
 	GoogleMapsAPIKey string
 
+	// Uploaded files (group logos, blobs.go): a private S3 bucket when
+	// S3_BUCKET is set, DATA_DIR/files otherwise.
+	S3Bucket string
+	S3Region string
+	S3Prefix string
+
 	// The browser origin allowed to call the API cross-origin (the vite dev
 	// server proxies, so this is only for a separately hosted UI).
 	AllowOrigin string
@@ -105,6 +111,10 @@ func loadConfig() (Config, error) {
 
 		GoogleRoutingAPIKey: os.Getenv("GOOGLE_ROUTING_API_KEY"),
 		GoogleMapsAPIKey:    os.Getenv("GOOGLE_MAPS_API_KEY"),
+
+		S3Bucket: os.Getenv("S3_BUCKET"),
+		S3Region: env("S3_REGION", env("AWS_REGION", "af-south-1")),
+		S3Prefix: os.Getenv("S3_PREFIX"),
 	}
 	var err error
 	if c.PositionsEvery, err = time.ParseDuration(env("POSITIONS_EVERY", "30s")); err != nil {
