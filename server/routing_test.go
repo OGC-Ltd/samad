@@ -176,3 +176,48 @@ func TestWeatherRefusedKeyNotCached(t *testing.T) {
 		t.Fatalf("after enabling: %+v, %v (%d calls)", p, err, calls.Load())
 	}
 }
+
+// A grid answers by weatherWithin with what it has; cells Google is still
+// looking up are counted in pending and are cached for the next ask.
+func TestWeatherGridAnswersWithin(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		_, _ = w.Write([]byte(`{"weatherCondition":{"type":"CLOUDY"}}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	g := NewGoogle("k")
+	g.weatherBase = srv.URL
+	rt := NewRouting(g, nil)
+	old := weatherWithin
+	weatherWithin = 50 * time.Millisecond
+	t.Cleanup(func() { weatherWithin = old })
+
+	ask := func() (pending, points int) {
+		rec := httptest.NewRecorder()
+		rt.weatherGrid(rec, httptest.NewRequest("GET", "/weather/grid?south=0&west=0&north=0.1&east=0.1", nil))
+		d := decodeData[struct {
+			Points  []weatherPoint
+			Pending int
+		}](t, rec.Body.Bytes())
+		return d.Pending, len(d.Points)
+	}
+	start := time.Now()
+	pending, points := ask()
+	if pending == 0 || points != 0 || time.Since(start) > time.Second {
+		t.Fatalf("first ask: %d pending, %d points after %v", pending, points, time.Since(start))
+	}
+	close(release) // let the lookups finish into the cache
+	release = make(chan struct{})
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if pending, points = ask(); pending == 0 && points > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("lookups never landed: %d pending, %d points", pending, points)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

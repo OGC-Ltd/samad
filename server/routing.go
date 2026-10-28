@@ -35,8 +35,8 @@ const (
 	routeReuseM  = 250.0 // moved less than this: the cached route stands
 	arrivedM     = 300.0 // this close to the destination is there
 	weatherTTL   = 15 * time.Minute
-	weatherPar   = 6
-	cellsAcross  = 8 // 5 left a town's rain smeared over a whole district
+	weatherPar   = 24 // a fresh 8-across view is up to 81 cells
+	cellsAcross  = 8  // 5 left a town's rain smeared over a whole district
 	matrixTTL    = 2 * time.Minute
 	freshFix     = 6 * time.Hour    // older fixes are not routed
 	availableFix = 30 * time.Minute // a free unit has reported within this
@@ -46,6 +46,12 @@ const (
 )
 
 var (
+	// The longest the map waits for a grid (operator, 2026-10-28: "make sure
+	// that the map grids respond fast without lagging"). Cells Google has not
+	// answered by then are counted in `pending`; their lookups carry on into
+	// the cache and the map asks again for the rest. A var for the tests.
+	weatherWithin = 1200 * time.Millisecond
+
 	weatherSteps   = []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5}
 	arrivalMinutes = []int{15, 30, 60}
 )
@@ -260,20 +266,41 @@ func (rt *Routing) weatherGrid(w http.ResponseWriter, r *http.Request) {
 	step, cells := gridFor(b[0], b[1], b[2], b[3])
 	out := make([]*weatherPoint, len(cells))
 	refusals := make([]error, len(cells))
-	var wg sync.WaitGroup
-	next := make(chan int)
-	for range min(weatherPar, len(cells)) {
-		wg.Go(func() {
-			for k := range next {
-				out[k], refusals[k] = rt.conditions(r.Context(), step, cells[k])
-			}
-		})
+	// Lookups outlive the answer: one still running at the deadline finishes
+	// into the cache for the map's next ask, so it must not die with the request.
+	ctx := context.WithoutCancel(r.Context())
+	type answer struct {
+		k   int
+		p   *weatherPoint
+		err error
 	}
+	answers := make(chan answer, len(cells)) // buffered: a late worker never blocks
+	next := make(chan int, len(cells))
 	for k := range cells {
 		next <- k
 	}
 	close(next)
-	wg.Wait()
+	for range min(weatherPar, len(cells)) {
+		go func() {
+			for k := range next {
+				p, err := rt.conditions(ctx, step, cells[k])
+				answers <- answer{k, p, err}
+			}
+		}()
+	}
+	deadline := time.NewTimer(weatherWithin)
+	defer deadline.Stop()
+	answered := 0
+wait:
+	for answered < len(cells) {
+		select {
+		case a := <-answers:
+			out[a.k], refusals[a.k] = a.p, a.err
+			answered++
+		case <-deadline.C:
+			break wait
+		}
+	}
 	points := []*weatherPoint{}
 	for _, p := range out {
 		if p != nil {
@@ -289,7 +316,10 @@ func (rt *Routing) weatherGrid(w http.ResponseWriter, r *http.Request) {
 		log.Printf("google weather: key refused: %s", ge.Msg)
 		refused = ge.Msg
 	}
-	writeData(w, map[string]any{"enabled": true, "step": step, "points": points, "refused": refused})
+	writeData(w, map[string]any{
+		"enabled": true, "step": step, "points": points, "refused": refused,
+		"pending": len(cells) - answered,
+	})
 }
 
 // ── the road ahead of one unit ──

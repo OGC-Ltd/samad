@@ -1,0 +1,89 @@
+/* Hallmark · component: weather readout · genre: modern-minimal · theme: the map's own
+ * states: default · per weather (sunny, clear, partly, cloudy, windy, rain, storm) · note (loading, failed)
+ *   (n/a: hover, focus, active, disabled: it is read, never clicked)
+ * Flat card with one slate hairline, like the account menu and the toast: no
+ * shadow. The weather's own colour is the icon and a 3px edge, nothing else. */
+.wx-readout {
+  --wx-line: #94a3b8;
+  --wx-ink: #0f172a;
+  --wx-ink-2: #334155;
+  --wx-ink-3: #64748b;
+  --wx-tone: #64748b;
+  position: absolute;
+  left: 12px;
+  bottom: 84px;
+  z-index: 445;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 200px;
+  max-width: calc(100% - 88px);
+  padding: 9px 12px 9px 10px;
+  background: #fff;
+  border: 1px solid var(--wx-line);
+  border-left: 3px solid var(--wx-tone);
+  border-radius: 6px;
+  color: var(--wx-ink-2);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.wx-readout--sunny  { --wx-tone: #ca8a04; }
+.wx-readout--clear  { --wx-tone: #475569; }
+.wx-readout--partly { --wx-tone: #ca8a04; }
+.wx-readout--cloudy { --wx-tone: #64748b; }
+.wx-readout--windy  { --wx-tone: #0d9488; }
+.wx-readout--rain   { --wx-tone: #2563eb; }
+.wx-readout--storm  { --wx-tone: #7c3aed; }
+
+.wx-readout__icon {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--wx-tone);
+  margin-top: 1px;
+}
+.wx-readout__body { min-width: 0; }
+.wx-readout__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  justify-content: space-between;
+}
+.wx-readout__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wx-ink);
+  white-space: nowrap;
+}
+.wx-readout__temp {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wx-ink);
+  font-variant-numeric: tabular-nums;
+}
+.wx-readout__wind {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.wx-readout__arrow {
+  font-size: 14px;
+  color: var(--wx-tone);
+  display: inline-block;
+}
+.wx-readout__soft { color: var(--wx-ink-3); }
+
+.wx-readout--note {
+  align-items: center;
+  min-width: 0;
+  border-left-width: 1px;
+  color: var(--wx-ink-3);
+}
+.wx-readout--note i { font-size: 16px; }
+
+/* Phones: a little lower and as narrow as it needs. */
+@media (max-width: 767px) {
+  .wx-readout { bottom: 72px; min-width: 0; }
+}

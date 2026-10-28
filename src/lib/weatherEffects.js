@@ -8,6 +8,9 @@
  * drops for rain, as dense as the rain is heavy and slanted by the wind;
  * travelling wave lines for wind, in the direction it blows, as many and as
  * fast as it is strong; a darkened sky, heavy rain and lightning for a storm.
+ * Sun and cloud are not drawn: the readout card says them, with the
+ * temperature (operator, 2026-10-28: "remove the clouds but we can keep the
+ * card", then "remove the sunny temp icons").
  * Cells side by side join up, so a band of rain reads as one band.
  *
  * One canvas in the weather pane, redrawn every frame from particles kept in
@@ -16,11 +19,11 @@
  * motion" it draws one still frame per view instead of animating.
  */
 import L from "leaflet";
-import { weatherTone, cloudCover, isFair } from "./weatherChip";
+import { weatherTone, isFair } from "./weatherChip";
 
 /** Particles at most per cell, so a country-wide view cannot run away. */
 const MAX_DROPS = 140;
-const MAX_WAVES = 14;
+const MAX_WAVES = 18;
 
 /** How hard it is raining, 0–1, from Google's type, chance and amount. */
 export function rainStrength(p) {
@@ -35,11 +38,15 @@ export function rainStrength(p) {
   return s;
 }
 
-/** How much wind to draw, 0–1: calm under 10 km/h, full from 50. */
+/**
+ * How much wind to draw, 0–1: calm under 3 km/h, a few lines for a light
+ * breeze, full from 40. It used to start at 10 km/h, which left the ordinary
+ * breeze of most afternoons undrawn.
+ */
 export function windStrength(p) {
   const k = Math.max(p?.windKmh ?? 0, (p?.gustKmh ?? 0) * 0.7);
-  const s = k < 10 ? 0 : Math.min(1, (k - 10) / 40);
-  return p?.type?.startsWith("WIND") ? Math.max(s, 0.5) : s;
+  const s = k < 3 ? 0 : Math.max(0.2, Math.min(1, (k - 3) / 37));
+  return p?.type?.startsWith("WIND") ? Math.max(s, 0.6) : s;
 }
 
 /** The way the wind blows TO, as a unit screen vector (y down). */
@@ -67,7 +74,6 @@ function makeCell(p, step) {
     south: p.lat - step / 2, north: p.lat + step / 2,
     west: p.lng - step / 2,  east: p.lng + step / 2,
     rain, wind, storm,
-    cloud: cloudCover(p),
     dir: windVector(p),
     drops: Array.from({ length: Math.round(MAX_DROPS * rain) }, () => ({ x: Math.random(), y: Math.random(), v: rand(0.7, 1.3) })),
     waves: Array.from({ length: Math.round(MAX_WAVES * wind) }, () => ({ x: Math.random(), y: Math.random(), ph: rand(0, Math.PI * 2), life: Math.random() })),
@@ -122,7 +128,7 @@ export function createWeatherEffects(l, pane) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const size = l.getSize();
     for (const c of cells) {
-      if (!c.rain && !c.wind && !c.storm && !c.cloud) continue;
+      if (!c.rain && !c.wind && !c.storm) continue;
       const nw = l.latLngToContainerPoint([c.north, c.west]);
       const se = l.latLngToContainerPoint([c.south, c.east]);
       // Each cell's weather spills a little past its edges and fades out
@@ -134,12 +140,12 @@ export function createWeatherEffects(l, pane) {
       const cx = x0 + w / 2, cy = y0 + h / 2, r = Math.max(w, h) / 2;
       ctx.save();
 
-      // Cloud greys its sky, rain gives it a wet blue, a storm darkens it.
-      // All soft-edged, and strong enough to read on satellite imagery.
-      if (c.storm || c.rain || c.cloud) {
+      // Rain gives its sky a wet blue, a storm darkens it. Soft-edged, and
+      // strong enough to read on satellite imagery.
+      if (c.storm || c.rain) {
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        const tint = c.storm ? "30, 41, 59" : c.rain ? "37, 99, 235" : "100, 116, 139";
-        const a = c.storm ? 0.34 : c.rain ? 0.14 + 0.14 * c.rain : 0.08 + 0.16 * c.cloud;
+        const tint = c.storm ? "30, 41, 59" : "37, 99, 235";
+        const a = c.storm ? 0.34 : 0.14 + 0.14 * c.rain;
         g.addColorStop(0, `rgba(${tint}, ${a})`);
         g.addColorStop(0.6, `rgba(${tint}, ${a})`);
         g.addColorStop(1, `rgba(${tint}, 0)`);
@@ -188,7 +194,9 @@ export function createWeatherEffects(l, pane) {
           wv.ph += dt * 5;
         }
         // Halo then core, like the rain, so the lines read on any base map.
-        for (const [style, lw] of [["rgba(15, 23, 42, 0.4)", 3.4], ["rgba(255, 255, 255, 0.92)", 1.6]]) {
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (const [style, lw] of [["rgba(15, 23, 42, 0.5)", 4.2], ["rgba(255, 255, 255, 0.98)", 2]]) {
           ctx.strokeStyle = style;
           ctx.lineWidth = lw;
           for (const wv of c.waves) {
@@ -205,6 +213,11 @@ export function createWeatherEffects(l, pane) {
               const py = by + dy * span * t + ny * swing;
               if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             }
+            // An arrowhead at the leading end: which way it blows, at a glance.
+            const hx = bx + dx * span, hy = by + dy * span;
+            ctx.moveTo(hx - dx * 7 + nx * 5, hy - dy * 7 + ny * 5);
+            ctx.lineTo(hx, hy);
+            ctx.lineTo(hx - dx * 7 - nx * 5, hy - dy * 7 - ny * 5);
             ctx.stroke();
           }
         }

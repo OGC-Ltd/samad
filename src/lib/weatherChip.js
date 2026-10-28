@@ -39,3 +39,32 @@ export function cloudCover(p) {
     default: return weatherTone(p) ? 0.8 : 0; // rain and storms come with cloud
   }
 }
+
+/** Steady wind or gusts from this many km/h make the cell read "Windy". */
+export const WINDY_KMH = 25;
+
+/**
+ * The one word for a cell's weather, the way the map draws it (operator,
+ * 2026-10-28: "should be crystal clear, its windy, cloudy, sunny or
+ * temperature"). Rain and storms first, then wind, then the sky.
+ */
+export function weatherKind(p) {
+  const tone = weatherTone(p);
+  if (tone === "storm") return { kind: "storm", label: "Storm", icon: "ti-cloud-storm" };
+  if (tone === "rain") return { kind: "rain", label: "Rain", icon: "ti-cloud-rain" };
+  const gust = Math.max(p?.windKmh ?? 0, (p?.gustKmh ?? 0) * 0.7);
+  if (gust >= WINDY_KMH || p?.type?.startsWith("WIND")) return { kind: "windy", label: "Windy", icon: "ti-wind" };
+  const cloud = cloudCover(p);
+  if (cloud >= 0.65) return { kind: "cloudy", label: "Cloudy", icon: "ti-cloud" };
+  const night = p?.isDay === false;
+  if (cloud > 0) return { kind: "partly", label: "Partly cloudy", icon: night ? "ti-cloud" : "ti-sun-low" }; // no ti-cloud-sun in Tabler 3.19
+  return night
+    ? { kind: "clear", label: "Clear", icon: "ti-moon" }
+    : { kind: "sunny", label: "Sunny", icon: "ti-sun" };
+}
+
+/** Where the wind blows FROM, as a compass point ("NE"), from Google's degrees. */
+export function compass(deg) {
+  if (deg == null || !Number.isFinite(deg)) return null;
+  return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}

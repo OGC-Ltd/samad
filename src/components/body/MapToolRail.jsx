@@ -1,8 +1,10 @@
 /**
  * The map's left tool rail, beside the sidebar.
  *
- * Eleven tools in three groups — finding (search, names, layers, fit), measuring
- * (ruler, route covered, traffic, geofences, halted, fuel alerts, dashcam alarms) and the rail's own expander. Desktop only:
+ * Tools in three groups — finding (search, names, layers, fit), measuring
+ * (ruler, traffic, weather, halted, fuel alerts, dashcam alarms) and the rail's own expander.
+ * Route covered and geofences left the rail on 2026-10-28 (operator): the
+ * route opens from the unit itself, geofences are a row in the Maps panel. Desktop only:
  * FleetMap renders it where the sidebar exists (not `isCompact`), because a
  * phone already has its own controls and no room for a second column of them.
  *
@@ -244,9 +246,8 @@ export default function MapToolRail({
   bases, base, onBase, baseNote,   // base map choice, shown in the Maps panel
   onFitFleet,
   measuring, measureText, onToggleMeasure,
-  traffic,         // the "traffic" map layer ({ on, onToggle }) or null
+  traffic,          // the "traffic" map layer ({ on, onToggle }) or null
   weather,          // the "weather" map layer ({ on, onToggle, note }) or null
-  zones,            // the "zones" map layer ({ on, onToggle, label }) or null
   halted,           // { count, open, onOpen } or null without map:filter
   dashcam,          // { count, critical, onOpen } or null where there are no VSS cameras
 }) {
@@ -311,16 +312,6 @@ export default function MapToolRail({
               ? (weather.on && weather.note ? `Weather: ${weather.note}` : `${weather.on ? "Hide" : "Show"} live weather on the map`)
               : "Weather is not available"}
             on={Boolean(weather?.on)} disabled={!weather} expanded={expanded} onClick={weather?.onToggle}
-          />
-          {/* Drawn for every company, disabled where no geofence layer is
-              offered — a tool that comes and goes between companies reads as
-              a broken rail. */}
-          <RailButton
-            icon="ti-map-pins" label={zones?.on ? "Hide geofences" : "Show geofences"}
-            title={zones
-              ? `${zones.on ? "Hide" : "Show"} geofences (${zones.label})`
-              : "No geofences are drawn for this company"}
-            on={Boolean(zones?.on)} disabled={!zones} expanded={expanded} onClick={zones?.onToggle}
           />
           </>)}
           {/* Halted (operator, 2026-10-07: "right below geofences"): units
