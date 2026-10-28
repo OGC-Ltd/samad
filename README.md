@@ -43,18 +43,29 @@ VITE_PROXY_TARGET=http://<host> npm run dev
 ## How it fits together
 
 ```
-Browser (dashboard)
-  │ /api/v1/…, SSE /live
-  ▼
-Traefik (TLS) ──▶ samad (Go server + built dashboard) ──▶ PostgreSQL 18 + PostGIS
-                        │
-                        ├──▶ IntelliFleet360 Partner API   positions, events, geofences, dashcam clips
-                        ├──▶ Google Routes / Weather       road routes, arrivals, weather layer
-                        └──▶ OpenAI (optional)             the Fleet summary's AI brief
-
-Browser ──▶ Google Maps     hybrid, satellite and terrain maps, live traffic
-        ──▶ OpenStreetMap   default base map (no key)
+        Browser (dashboard)
+              │  /api/v1/…, SSE /live
+              ▼
+        Traefik (TLS)
+              │
+              ▼
+   samad: Go server + built dashboard
+              │
+     ┌────────┼────────┬───────────┐
+     ▼        ▼        ▼           ▼
+ PostGIS   Partner   Google     OpenAI
+             API     Routes,  (optional)
+                     Weather
 ```
+
+| Service | Called from | What for |
+|---|---|---|
+| PostgreSQL 18 + PostGIS | Server | The database |
+| IntelliFleet360 Partner API | Server | Positions, events, geofences, dashcam clips |
+| Google Routes and Weather | Server | Road routes, arrivals, the weather layer |
+| OpenAI (optional) | Server | The Fleet summary's AI brief |
+| Google Maps | Browser | Hybrid, satellite and terrain maps, live traffic |
+| OpenStreetMap | Browser | The default base map (no key) |
 
 - The server polls the partner every 30 s for positions and events, keeps the
   trips and kilometres per truck and driver, and pushes updates to the
