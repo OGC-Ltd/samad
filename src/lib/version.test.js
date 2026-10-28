@@ -3,7 +3,7 @@ import { APP_VERSION, versionLabel, copyrightLabel, buildDetail } from './versio
 
 describe('version', () => {
   it('is the deploy number vite.config.js injected (1.0, 1.1, …, or dev)', () => {
-    expect(APP_VERSION).toMatch(/^(\d+\.\d(-dev)?|dev)$/);
+    expect(APP_VERSION).toMatch(/^(\d+\.\d{1,2}(-dev)?|dev)$/);
     expect(versionLabel()).toBe(`v${APP_VERSION}`);
     expect(buildDetail().startsWith(`Version ${APP_VERSION}`)).toBe(true);
   });

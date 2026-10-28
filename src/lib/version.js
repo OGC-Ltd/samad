@@ -1,7 +1,7 @@
 // The app's version, as shown in the sidebar foot and on the login page.
 //
 // Injected by vite.config.js `define` at build (and dev) time: the deploy's
-// number (1.0, 1.1, … one tenth up per production deploy), worked out by the
+// number (… 1.7, 1.71, 1.72 … one hundredth up per production deploy), worked out by the
 // pipeline. The `typeof` guards keep this importable anywhere the define did
 // not run.
 

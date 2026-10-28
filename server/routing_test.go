@@ -196,7 +196,7 @@ func TestWeatherGridAnswersWithin(t *testing.T) {
 
 	ask := func() (pending, points int) {
 		rec := httptest.NewRecorder()
-		rt.weatherGrid(rec, httptest.NewRequest("GET", "/weather/grid?south=0&west=0&north=0.1&east=0.1", nil))
+		rt.weatherGrid(rec, httptest.NewRequest(http.MethodGet, "/weather/grid?south=0&west=0&north=0.1&east=0.1", nil))
 		d := decodeData[struct {
 			Points  []weatherPoint
 			Pending int

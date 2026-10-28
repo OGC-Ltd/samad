@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 
 /* The version the app shows (sidebar foot, login page). Every production
- * deploy is 0.1 higher than the last, starting at 1.0: the pipeline works it
+ * deploy is 0.01 higher than the last (1.7 → 1.71): the pipeline works it
  * out from the newest v* tag and passes it in as APP_VERSION, and the deploy
  * tags the commit with it (DevOps.md §11). A local build shows the newest tag
  * with "-dev"; package.json's version is not used. The commit is read at build
