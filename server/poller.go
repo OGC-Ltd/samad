@@ -50,20 +50,25 @@ func (p *Poller) Run(ctx context.Context) {
 }
 
 func (p *Poller) reference(ctx context.Context) {
-	if list, err := p.client.Vehicles(ctx); err != nil {
+	list, err := p.client.Vehicles(ctx)
+	obs.job("vehicles", err)
+	if err != nil {
 		log.Printf("poll vehicles: %v", err)
 	} else {
 		p.store.SetVehicles(list)
 	}
-	if list, err := p.client.Geofences(ctx); err != nil {
+	fences, err := p.client.Geofences(ctx)
+	obs.job("geofences", err)
+	if err != nil {
 		log.Printf("poll geofences: %v", err)
 	} else {
-		p.store.SetGeofences(list)
+		p.store.SetGeofences(fences)
 	}
 }
 
 func (p *Poller) positions(ctx context.Context) {
 	list, err := p.client.Positions(ctx)
+	obs.job("positions", err)
 	if err != nil {
 		log.Printf("poll positions: %v", err)
 		return

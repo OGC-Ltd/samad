@@ -60,7 +60,7 @@ func NewGoogle(key string) *Google {
 		return nil
 	}
 	return &Google{
-		key: key, client: &http.Client{Timeout: googleTimeout},
+		key: key, client: instrument(&http.Client{Timeout: googleTimeout}, "google"),
 		routesBase: "https://routes.googleapis.com", weatherBase: "https://weather.googleapis.com",
 	}
 }

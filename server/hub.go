@@ -25,6 +25,13 @@ func (h *Hub) Subscribe() chan Frame {
 	return ch
 }
 
+// Count is how many live streams are open now.
+func (h *Hub) Count() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.subs)
+}
+
 func (h *Hub) Unsubscribe(ch chan Frame) {
 	h.mu.Lock()
 	delete(h.subs, ch)

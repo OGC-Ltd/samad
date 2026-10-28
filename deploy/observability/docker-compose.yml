@@ -1,0 +1,126 @@
+# Samad's observability stack: Prometheus (metrics and the system-check
+# alerts), Grafana (the dashboard) and Jaeger (request traces).
+#
+# Its own stack, like deploy/traefik, outside Samad's release: the app ships
+# nothing to look at; it exposes /metrics and sends traces, and this reads
+# them. It joins the shared `proxy` network, which is how Prometheus reaches
+# `samad:8080` and Samad reaches `jaeger:4318`; Samad's compose file is not
+# changed, and Samad runs the same whether or not this stack is up.
+#
+# Reached from outside: Grafana only, through Traefik at
+# https://SAMAD_DOMAIN/grafana (no DNS record of its own), with its own login. Prometheus and Jaeger have no login, so they listen on the
+# box's loopback alone (ssh -L 9090:127.0.0.1:9090 / -L 16686:127.0.0.1:16686),
+# and Grafana shows both through its datasources.
+#
+# Set up once: see README.md beside this file.
+
+name: observability
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Two weeks, or 1 GB, whichever comes first: the box has a 15 GB disk.
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=1GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - ./secrets/metrics-token:/run/secrets/metrics-token:ro
+      - prometheus:/prometheus
+    networks: [proxy, obs]
+    ports:
+      - "127.0.0.1:9090:9090"
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-320m}
+    cpus: 0.5
+    security_opt: ["no-new-privileges:true"]
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: https://${SAMAD_DOMAIN:?set SAMAD_DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-admin-password
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/samad.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./secrets/grafana-admin-password:/run/secrets/grafana-admin-password:ro
+      - grafana:/var/lib/grafana
+    networks: [proxy, obs]
+    depends_on: [prometheus, jaeger]
+    mem_limit: ${GRAFANA_MEM_LIMIT:-256m}
+    cpus: 0.5
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+      # Above Samad's own catch-all router for the same host.
+      - traefik.http.routers.grafana.rule=Host(`${SAMAD_DOMAIN}`) && PathPrefix(`/grafana`)
+      - traefik.http.routers.grafana.priority=200
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
+      - traefik.http.routers.grafana.service=grafana
+      - traefik.http.routers.grafana.middlewares=grafana-headers,grafana-login-limit
+      - traefik.http.middlewares.grafana-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.grafana-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.grafana-headers.headers.frameDeny=true
+      - traefik.http.middlewares.grafana-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.grafana-headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
+      # Grafana has its own brute-force lockout; this keeps the login page cheap.
+      - traefik.http.middlewares.grafana-login-limit.ratelimit.average=60
+      - traefik.http.middlewares.grafana-login-limit.ratelimit.period=1m
+      - traefik.http.middlewares.grafana-login-limit.ratelimit.burst=40
+
+  # All-in-one: collector (OTLP on 4317 gRPC / 4318 HTTP), storage and UI.
+  # Traces are kept in memory: a restart empties them, and the memory limit
+  # below is the ceiling. Sample in Samad (OTEL_TRACES_SAMPLER_ARG) if busy.
+  jaeger:
+    image: jaegertracing/jaeger:2.5.0
+    container_name: jaeger
+    restart: unless-stopped
+    environment:
+      # The built-in config listens on this host; localhost would take OTLP
+      # from inside the container only.
+      JAEGER_LISTEN_HOST: 0.0.0.0
+    networks: [proxy, obs]
+    expose: ["4317", "4318"]
+    ports:
+      - "127.0.0.1:16686:16686"
+    mem_limit: ${JAEGER_MEM_LIMIT:-384m}
+    cpus: 0.5
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+volumes:
+  prometheus:
+    name: observability-prometheus
+  grafana:
+    name: observability-grafana
+
+networks:
+  proxy:
+    name: proxy
+    external: true
+  # Grafana ↔ Prometheus ↔ Jaeger among themselves.
+  obs:
+    name: observability

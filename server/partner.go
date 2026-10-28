@@ -28,7 +28,7 @@ type PartnerClient struct {
 }
 
 func NewPartnerClient(base, key string) *PartnerClient {
-	return &PartnerClient{base: base, key: key, http: &http.Client{Timeout: 30 * time.Second}}
+	return &PartnerClient{base: base, key: key, http: instrument(&http.Client{Timeout: 30 * time.Second}, "partner")}
 }
 
 const partnerGap = 600 * time.Millisecond

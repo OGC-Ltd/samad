@@ -61,11 +61,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTracing := setupTracing(ctx)
+	obs.streams = hub.Count
+	go obs.runSampler(ctx.Done(), cfg.DataDir)
 	go (&Poller{cfg: cfg, client: client, store: store, hub: hub}).Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           routes(srv, auth),
+		Handler:           traceRequests(routes(srv, auth)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	go func() {
@@ -78,6 +81,7 @@ func main() {
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdown)
+	_ = shutdownTracing(shutdown)
 	store.Save()
 }
 
@@ -104,6 +108,9 @@ func healthy() bool {
 func routes(s *Server, a *Auth) http.Handler {
 	r := mux.NewRouter()
 	r.Use(logRequests, cors(s.cfg.AllowOrigin))
+
+	// Prometheus scrapes this (system.go): served only with METRICS_TOKEN set.
+	r.Handle("/metrics", prometheus(s, os.Getenv("METRICS_TOKEN"))).Methods("GET")
 
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -258,25 +265,16 @@ func cors(origin string) mux.MiddlewareFunc {
 	}
 }
 
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(s int) { w.status = s; w.ResponseWriter.WriteHeader(s) }
-
-// Flush keeps the live stream working through the logging wrapper.
-func (w *statusWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w, status: 200}
+		route := routeLabel(r)
+		nameSpan(r, route)
+		obs.begin()
+		sw := &obsWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
+		stream := strings.HasPrefix(sw.Header().Get("Content-Type"), "text/event-stream")
+		obs.done(r.Method, route, sw.status, sw.bytes, time.Since(start), stream)
 		// %q: a path with an encoded newline cannot forge a log line.
 		log.Printf("%q %q %d %s", r.Method, r.URL.Path, sw.status, time.Since(start).Round(time.Millisecond)) //nolint:gosec // G706: both values are quoted
 	})

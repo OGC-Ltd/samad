@@ -151,7 +151,7 @@ func (s *Server) vssAlarms(w http.ResponseWriter, r *http.Request) {
 
 // No timeout: a long clip may stream for a while; the request's own
 // context ends it when the viewer goes.
-var clipClient = &http.Client{}
+var clipClient = instrument(&http.Client{}, "vss")
 
 func (s *Server) vssFile(w http.ResponseWriter, r *http.Request) {
 	if !s.orgParam(w, r) {

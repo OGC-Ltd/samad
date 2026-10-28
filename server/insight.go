@@ -48,7 +48,7 @@ func NewInsighter(cfg Config) *Insighter {
 	}
 	return &Insighter{
 		key: cfg.OpenAIKey, model: cfg.OpenAIModel, base: strings.TrimRight(cfg.OpenAIBaseURL, "/"),
-		client: &http.Client{Timeout: briefTimeout},
+		client: instrument(&http.Client{Timeout: briefTimeout}, "openai"),
 	}
 }
 
