@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -186,7 +187,8 @@ func TestWeatherGridAnswersWithin(t *testing.T) {
 		_, _ = w.Write([]byte(`{"weatherCondition":{"type":"CLOUDY"}}`))
 	}))
 	t.Cleanup(srv.Close)
-	t.Cleanup(func() { close(release) })
+	let := sync.OnceFunc(func() { close(release) }) // the handler reads release, so it is never reassigned
+	t.Cleanup(let)
 	g := NewGoogle("k")
 	g.weatherBase = srv.URL
 	rt := NewRouting(g, nil)
@@ -208,8 +210,7 @@ func TestWeatherGridAnswersWithin(t *testing.T) {
 	if pending == 0 || points != 0 || time.Since(start) > time.Second {
 		t.Fatalf("first ask: %d pending, %d points after %v", pending, points, time.Since(start))
 	}
-	close(release) // let the lookups finish into the cache
-	release = make(chan struct{})
+	let() // let the lookups finish into the cache
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		if pending, points = ask(); pending == 0 && points > 0 {
