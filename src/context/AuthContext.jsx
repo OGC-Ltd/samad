@@ -21,10 +21,17 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, setAccessToken, setSessionLostHandler, refreshOnce } from "../services/api";
 import { ACCESS_CHANGED } from "../lib/accessChanged";
+import { setGoogleKey } from "../lib/googleKey";
 
 export const authKeys = { me: ["auth", "me"] };
 
-const readMe = async () => (await apiFetch("/api/v1/auth/me")).data;
+// Who this is, and the browser's Google Maps key with it: the key is not in
+// the bundle, and is set here before any map can mount (lib/googleBase).
+const readMe = async () => {
+  const me = (await apiFetch("/api/v1/auth/me")).data;
+  setGoogleKey(me?.maps?.googleKey);
+  return me;
+};
 
 /**
  * Silent re-login, then who this is. The access token lives in memory and is
@@ -57,6 +64,7 @@ const meQuery = {
 /** Signed out: forget the token, the user, and everything read as them. */
 function signOutLocally(queryClient) {
   setAccessToken(null);
+  setGoogleKey("");
   queryClient.setQueryData(authKeys.me, null);
   // On the next tick, once the login screen has replaced the app: removed
   // while its screens are still mounted, a query would just be re-created by

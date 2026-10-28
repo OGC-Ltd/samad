@@ -79,8 +79,10 @@ VITE_PROXY_TARGET=http://<host> npm run dev
 
 | Variable | Needed for | Without it |
 |---|---|---|
-| `VITE_GOOGLE_MAPS_API_KEY` | Google hybrid/satellite/terrain maps and live traffic | OpenStreetMap only, no traffic |
 | `VITE_PROXY_TARGET` | Dev only: where `/api` is proxied | `http://localhost:8080` |
+
+The Google Maps key is not built in: the server hands it to the dashboard
+after sign-in, from its own `GOOGLE_MAPS_API_KEY`.
 
 **Server** (`server/.env`, gitignored): every setting is listed with a comment
 in [server/.env.example](server/.env.example): the Partner API key,

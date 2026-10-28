@@ -226,8 +226,8 @@ cd /opt/traefik && docker compose up -d
 
 `Dockerfile` (repo root) builds one image with three stages:
 
-1. **web**: `node:24.19.0-alpine`, `npm ci`, `npm run build`. The Google Maps key
-   comes in as a BuildKit **secret** (`id=google_maps_key`), never a layer.
+1. **web**: `node:26.12.1-alpine`, `npm ci`, `npm run build`. No Google key is
+   built in (the server hands the Maps key over after sign-in, §8).
 2. **api**: `golang:1.27.3-alpine`, a static binary (`CGO_ENABLED=0 -trimpath -s -w`).
 3. **run**: `gcr.io/distroless/static-debian12:nonroot`: no shell, no package
    manager, user 65532. Holds the binary, the built app (`/app/web`), an empty
@@ -243,9 +243,7 @@ asking for `/.env` or `/secrets.json` get nothing.
 - CI builds and pushes it ([§9](#9-the-cicd-pipeline)); you normally never build by hand.
 - To build on a workstation with Docker:
   ```bash
-  VITE_GOOGLE_MAPS_API_KEY=... docker build \
-    --secret id=google_maps_key,env=VITE_GOOGLE_MAPS_API_KEY \
-    --build-arg APP_COMMIT=$(git rev-parse --short HEAD) -t samad:local .
+  docker build --build-arg APP_COMMIT=$(git rev-parse --short HEAD) -t samad:local .
   ```
 - `.dockerignore` keeps `.env` files, `secrets/`, `node_modules/`, `.git/` and
   build output out of the build context.
@@ -402,13 +400,12 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
 | Partner API key | `server/.env` → `PARTNER_API_KEY` | the app, server side |
 | Token signing secret | `server/.env` → `JWT_SECRET` (different per stack) | the app |
 | Default super admin | `server/.env` → `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` | the app |
-| Google Maps key | CI secret `GOOGLE_MAPS_API_KEY` (built into the dashboard) and `server/.env` → `GOOGLE_MAPS_API_KEY` | Google hybrid/satellite/terrain maps and live traffic (browser); road routes, arrivals and the weather layer (server) |
-| Google server key (Routes + Weather) | GitHub **repository** secret `GOOGLE_ROUTING_API_KEY`, built into the server binary by the pipeline (no box setting needed). Without it the server uses the Maps key. A `GOOGLE_ROUTING_API_KEY` or `GOOGLE_MAPS_API_KEY` in `server/.env` still wins | road routes, arrivals, the weather layer; restrict it by API (Routes, Weather) or the box's IP, not by website |
+| Google Maps key | GitHub **production environment** secret `GOOGLE_MAPS_API_KEY`; every deploy writes it into the box's `server/.env` (§12.1). Never in the image or the bundle: the server gives it to the dashboard in `/auth/me`, after sign-in | Google hybrid/satellite/terrain maps and live traffic (browser); road routes, arrivals and the weather layer (server, unless the key below is set) |
+| Google server key (Routes + Weather) | GitHub **production environment** secret `GOOGLE_ROUTING_API_KEY` (optional), written into `server/.env` the same way | road routes, arrivals, the weather layer; restrict it by API (Routes, Weather) or the box's IP, not by website |
 | Driver roster | `drivers.json` in the `samad-data` volume (not git: ID and phone numbers) | drivers per truck, units labelled Truck |
 | OpenAI key | `server/.env` → `OPENAI_API_KEY` (optional), `OPENAI_MODEL` | the Fleet summary's AI brief |
 | Uploaded files | `server/.env` → `S3_BUCKET` (`samad-522505217087-af-south-1-an`), `S3_REGION`, `S3_PREFIX`; access from the box's IAM role (`s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the bucket's objects). Empty `S3_BUCKET`: files stay in the `samad-data` volume | group organisation logos |
 | Database password | `secrets/postgres_password` | `db`, `migrate` |
-| Google Maps key | GitHub secret `GOOGLE_MAPS_API_KEY`; local `.env.local` | baked into the dashboard at build |
 | CI deploy key | GitHub secret `SAMAD_DEPLOY_KEY` | the deploy job |
 | Box host key | GitHub secret `SAMAD_DEPLOY_KNOWN_HOSTS` | the deploy job |
 
@@ -425,14 +422,15 @@ sudo -u deploy docker compose run --rm migrate force <last good version>
   otherwise), then `sudo -u deploy docker compose up -d --wait`.
 - **Rotate the Partner, OpenAI or JWT secret**: edit `server/.env` in each
   stack, then `docker compose up -d --wait`. A new `JWT_SECRET` signs everyone out.
-- **Rotate the Google Maps key**: update the GitHub secret, then re-run the
-  pipeline (the key is in the built bundle, so it needs a new image).
+- **Rotate a Google key**: update the secret in the GitHub `production`
+  environment, then deploy again (Actions → deploy, or the next pipeline run):
+  the deploy writes it into `server/.env`. No new image is needed.
 - **Rotate the database password**: change it in Postgres
   (`ALTER USER samad PASSWORD '…'`), then write the same value to
   `secrets/postgres_password` and `docker compose up -d --wait`.
-- **The Google Maps key is public by nature** (every browser gets it). Protect
-  it in Google Cloud Console → Credentials: HTTP referrers = the site's
-  domains, API = Maps JavaScript API only.
+- **The Google Maps key still reaches signed-in browsers** (the Maps
+  JavaScript API needs it in the page). Protect it in Google Cloud Console →
+  Credentials: HTTP referrers = the site's domains, API = Maps JavaScript API.
 - **The OpenAI account needs credits** for the AI brief; without them the card
   says "AI unavailable" and shows the plain facts. The model only sees counts,
   alarm types and plates, never driver names, and `store: false` is sent.
@@ -590,12 +588,15 @@ and started in CI) are the test before production.
 ### 12.1 What a deploy does (`deploy/deploy.sh`)
 
 1. Checks the bundle (only `docker-compose.yml`, `server/migrations/*.sql`,
-   `.ghcr-token`; at most 5 MB; no links) and the image
-   (`ghcr.io/ogc-ltd/samad@sha256:<64 hex>`).
+   `.ghcr-token` and an optional `.google-keys`; at most 5 MB; no links) and
+   the image (`ghcr.io/ogc-ltd/samad@sha256:<64 hex>`). `.google-keys` may
+   only hold `GOOGLE_MAPS_API_KEY=` / `GOOGLE_ROUTING_API_KEY=` lines.
 2. Logs in to GHCR with the job's short-lived token, pulls, logs out.
 3. Production: `pg_dump` to `backups/pre-deploy-<time>.dump` (last 10 kept).
 4. Saves the running release to `releases/<time>/` (last 5 kept).
-5. Installs the new compose file and migrations, sets `SAMAD_IMAGE`.
+5. Installs the new compose file and migrations, sets `SAMAD_IMAGE`, and
+   writes the Google keys (from the GitHub production environment) into
+   `server/.env`.
 6. `docker compose up -d --wait`: migrations, then a healthy app (3 min limit).
 7. Asks `https://<domain>/api/v1/health` through Traefik (60 s).
 8. If 6 or 7 fails: puts the saved compose file and image back, and fails the job.

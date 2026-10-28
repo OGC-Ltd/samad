@@ -15,12 +15,13 @@
  * Loaded on first use only: nobody who stays on OpenStreetMap downloads the
  * Google API or the plugin.
  *
- * The key is VITE_GOOGLE_MAPS_API_KEY, baked in at build time and restricted by
- * HTTP referrer in the Google Cloud console — it answers on the live domain
- * and not on localhost, so in development this reports an error and the map
- * stays on OpenStreetMap.
+ * The key is not in the bundle: lib/googleKey holds it, set after sign-in
+ * from /auth/me. Restrict it by HTTP referrer in the Google Cloud console.
  */
 import L from "leaflet";
+import { GOOGLE_KEY, GOOGLE_BASE_AVAILABLE, LIVE_TRAFFIC_AVAILABLE } from "./googleKey";
+
+export { GOOGLE_KEY, GOOGLE_BASE_AVAILABLE, LIVE_TRAFFIC_AVAILABLE, setGoogleKey } from "./googleKey";
 
 export const GOOGLE_TYPE_ID = "google";
 
@@ -37,9 +38,7 @@ export const GOOGLE_BASES = {
 };
 export const isGoogleBase = (id) => Object.prototype.hasOwnProperty.call(GOOGLE_BASES, id);
 const GOOGLE_NAMES = { google: "Google Hybrid", "google-satellite": "Google Satellite", "google-terrain": "Google Terrain" };
-export const GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim();
-/** Offered only when a key was built in. */
-export const GOOGLE_BASE_AVAILABLE = GOOGLE_KEY.length > 0;
+
 
 let apiPromise = null;
 
@@ -75,7 +74,7 @@ function loadMutant() {
  * `map.setMapTypeId(id)`.
  */
 export async function installGoogleBase(map, id = GOOGLE_TYPE_ID) {
-  if (!GOOGLE_BASE_AVAILABLE) throw new Error("No Google Maps key in this build");
+  if (!GOOGLE_BASE_AVAILABLE) throw new Error("No Google Maps key from the server");
   if (!isGoogleBase(id)) throw new Error(`Not a Google base map: ${id}`);
   if (map.mapTypes.get(id)) return;
   const [GoogleMutant] = await Promise.all([loadMutant(), loadGoogleApi()]);
@@ -102,7 +101,6 @@ export const GOOGLE_ATTRIBUTION = [];
  * redrawn every TRAFFIC_REDRAW_MS to pick that up, without a new map load.
  */
 
-export const LIVE_TRAFFIC_AVAILABLE = GOOGLE_BASE_AVAILABLE;
 export const TRAFFIC_REDRAW_MS = 2 * 60_000;
 
 /** Google's traffic colours, for the layer's legend. */
@@ -118,7 +116,7 @@ export const GOOGLE_TRAFFIC_LEGEND = [
  * Rejects when the key is refused on this site (localhost, see above).
  */
 export async function addGoogleTraffic(map) {
-  if (!LIVE_TRAFFIC_AVAILABLE) throw new Error("No Google Maps key in this build");
+  if (!LIVE_TRAFFIC_AVAILABLE) throw new Error("No Google Maps key from the server");
   const [GoogleMutant] = await Promise.all([loadMutant(), loadGoogleApi()]);
   const layer = new GoogleMutant({
     type: "roadmap",

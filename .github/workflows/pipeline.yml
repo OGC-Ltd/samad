@@ -231,19 +231,6 @@ jobs:
           else n=$(( ${last%.*} * 10 + ${last#*.} + 1 )); next="$(( n / 10 )).$(( n % 10 ))"; fi
           echo "version=$next" >> "$GITHUB_OUTPUT"
           echo "Version $next (last deployed: ${last:-none})" >> "$GITHUB_STEP_SUMMARY"
-      # The Maps key is baked into the bundle; without it the Google map types
-      # and the traffic layer quietly disappear. It must be at REPOSITORY level,
-      # as a secret or a variable (it is public in the bundle anyway): this job
-      # does not run in the production environment, so one saved there is empty.
-      - name: Google Maps key present
-        if: github.event_name == 'push'
-        env:
-          KEY: ${{ secrets.GOOGLE_MAPS_API_KEY || vars.GOOGLE_MAPS_API_KEY }}
-        run: |
-          if [ -z "$KEY" ]; then
-            echo "::error::GOOGLE_MAPS_API_KEY is empty. Add it under Settings → Secrets and variables → Actions as a REPOSITORY secret or variable; one saved in an environment (production) is not visible to this job."
-            exit 1
-          fi
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -264,9 +251,6 @@ jobs:
           build-args: |
             APP_COMMIT=${{ github.sha }}
             APP_VERSION=${{ steps.version.outputs.version }}
-          secrets: |
-            google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY || vars.GOOGLE_MAPS_API_KEY }}
-            google_server_key=${{ secrets.GOOGLE_ROUTING_API_KEY || secrets.GOOGLE_MAPS_API_KEY || vars.GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: trivy (image)
@@ -307,9 +291,6 @@ jobs:
           build-args: |
             APP_COMMIT=${{ github.sha }}
             APP_VERSION=${{ steps.version.outputs.version }}
-          secrets: |
-            google_maps_key=${{ secrets.GOOGLE_MAPS_API_KEY || vars.GOOGLE_MAPS_API_KEY }}
-            google_server_key=${{ secrets.GOOGLE_ROUTING_API_KEY || secrets.GOOGLE_MAPS_API_KEY || vars.GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha
           provenance: mode=max
           sbom: true

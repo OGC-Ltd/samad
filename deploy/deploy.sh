@@ -15,7 +15,10 @@
 #
 # The release bundle holds exactly: docker-compose.yml, server/migrations/*.sql
 # and .ghcr-token (a short-lived GitHub token, used to pull the image, then
-# dropped). <image> must be ghcr.io/ogc-ltd/samad pinned by digest.
+# dropped), and optionally .google-keys (GOOGLE_MAPS_API_KEY= and
+# GOOGLE_ROUTING_API_KEY= lines from the GitHub production environment,
+# written into server/.env so no key is ever in the image). <image> must be
+# ghcr.io/ogc-ltd/samad pinned by digest.
 #
 # A deploy: unpack and check the bundle → pull the image → (prod) back up the
 # database → install the files, point .env at the image → `compose up --wait`
@@ -51,9 +54,10 @@ exec 9>"$dir/.deploy.lock"
 flock -n 9 || die "another deploy of $envname is running"
 
 envget() { sed -n "s/^$1=//p" .env | tail -1; }
+# envset KEY VALUE [FILE]: the stack's .env unless another file is named.
 envset() {
-  local k=$1 v=$2
-  if grep -q "^$k=" .env; then sed -i "s|^$k=.*|$k=$v|" .env; else printf '%s=%s\n' "$k" "$v" >> .env; fi
+  local k=$1 v=$2 f=${3:-.env}
+  if grep -q "^$k=" "$f"; then sed -i "s|^$k=.*|$k=$v|" "$f"; else printf '%s=%s\n' "$k" "$v" >> "$f"; fi
 }
 
 # Through Traefik, as a browser would, but without leaving the box.
@@ -131,10 +135,15 @@ deploy)
   # The bundle: at most 5 MB, only the expected names, no links or ..
   head -c 5242880 | tar -xz -C "$stage" --no-same-owner --no-same-permissions
   bad=$(cd "$stage" && find . -mindepth 1 \( -type l -o -type b -o -type c -o -type p \) -print -o -type f -print \
-        | grep -vE '^\./(docker-compose\.yml|\.ghcr-token|server/migrations/[0-9]{6}_[a-z0-9_]+\.(up|down)\.sql)$' || true)
+        | grep -vE '^\./(docker-compose\.yml|\.ghcr-token|\.google-keys|server/migrations/[0-9]{6}_[a-z0-9_]+\.(up|down)\.sql)$' || true)
   [ -z "$bad" ] || die "unexpected files in the bundle: $bad"
   [ -s "$stage/docker-compose.yml" ] || die "bundle has no docker-compose.yml"
   [ -s "$stage/.ghcr-token" ] || die "bundle has no registry token"
+  # Google keys: only these two names, only key characters, nothing else.
+  if [ -e "$stage/.google-keys" ]; then
+    grep -vqE '^GOOGLE_(MAPS|ROUTING)_API_KEY=[A-Za-z0-9_-]{20,100}$' "$stage/.google-keys" \
+      && die ".google-keys holds something other than GOOGLE_MAPS_API_KEY / GOOGLE_ROUTING_API_KEY lines"
+  fi
 
   log "pulling $image"
   docker login ghcr.io -u github-actions --password-stdin < "$stage/.ghcr-token" >/dev/null
@@ -156,6 +165,12 @@ deploy)
   # Readable by migrate (uid 65532, not in our group); they are in git, not secret.
   chmod -R u=rwX,go=rX server/migrations
   envset SAMAD_IMAGE "$image"
+  if [ -e "$stage/.google-keys" ]; then
+    while IFS='=' read -r k v; do
+      envset "$k" "$v" server/.env
+    done < "$stage/.google-keys"
+    log "Google keys written to server/.env"
+  fi
 
   log "starting $image (migrations first)"
   if up && smoke; then

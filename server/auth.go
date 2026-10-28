@@ -206,6 +206,9 @@ func (a *Auth) Me(w http.ResponseWriter, r *http.Request) {
 		},
 		"isPlatform":    u.IsPlatform(),
 		"organisations": []any{orgAccess(u)},
+		// The browser's Maps key, handed over only after sign-in instead of
+		// being built into the public bundle. Empty: OpenStreetMap only.
+		"maps": map[string]any{"googleKey": a.cfg.GoogleMapsAPIKey},
 	})
 }
 

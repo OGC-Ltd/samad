@@ -6,18 +6,10 @@
 #
 #   docker compose build --build-arg APP_COMMIT=$(git rev-parse --short HEAD) --build-arg APP_VERSION=1.0
 #
-# The Google Maps key (satellite, terrain and traffic layers) arrives as a
-# BuildKit secret, so it is never written into a layer or the image history.
-# It does end up in the JavaScript bundle, as every browser key must: lock it
-# to the site's domains in the Google Cloud console. Without it the map is
-# OpenStreetMap only.
-#
-#   VITE_GOOGLE_MAPS_API_KEY=… docker build --secret id=google_maps_key,env=VITE_GOOGLE_MAPS_API_KEY .
-#
-# The server's own Google key (Routes and Weather) arrives the same way, as
-# the secret google_server_key, and is built into the server binary only, so
-# the box needs no .env entry for it. A GOOGLE_ROUTING_API_KEY or
-# GOOGLE_MAPS_API_KEY in server/.env still wins.
+# No key is built in. The Google keys live in the GitHub production
+# environment; the deploy writes them into the box's server/.env, the server
+# uses them for routes and weather, and hands the Maps key to the dashboard
+# after sign-in (/auth/me).
 
 # ── the dashboard ──────────────────────────────────────────────────────────
 FROM node:26.12.1-alpine AS web
@@ -30,8 +22,7 @@ COPY src ./src
 ARG APP_COMMIT=""
 ARG APP_VERSION=dev
 ENV APP_COMMIT=${APP_COMMIT} APP_VERSION=${APP_VERSION} NODE_OPTIONS=--max-old-space-size=1536
-RUN --mount=type=secret,id=google_maps_key,env=VITE_GOOGLE_MAPS_API_KEY,required=false \
-    npm run build
+RUN npm run build
 
 # ── the API ────────────────────────────────────────────────────────────────
 FROM golang:1.27.3-alpine AS api
@@ -40,10 +31,7 @@ COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/*.go ./
 ARG APP_VERSION=dev
-RUN --mount=type=secret,id=google_server_key,env=GOOGLE_SERVER_KEY,required=false \
-    CGO_ENABLED=0 go build -trimpath \
-      -ldflags="-s -w -X main.version=${APP_VERSION} -X main.builtGoogleKey=${GOOGLE_SERVER_KEY}" \
-      -o /out/samad-server . \
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${APP_VERSION}" -o /out/samad-server . \
  && mkdir -p /out/data
 
 # ── what runs: no shell, no package manager, not root ─────────────────────

@@ -9,6 +9,9 @@
 # Secrets (per environment or repository):
 #   SAMAD_DEPLOY_KEY          the CI private key (keys/samad-deploy)
 #   SAMAD_DEPLOY_KNOWN_HOSTS  optional: the box's host key line (default below)
+#   GOOGLE_MAPS_API_KEY       the browser Maps key (production environment);
+#                             written into the box's server/.env on deploy
+#   GOOGLE_ROUTING_API_KEY    optional: the server's own Routes/Weather key
 # Variables:
 #   SAMAD_DEPLOY_HOST         optional override of the box (default below)
 #   SAMAD_URL                 the stack's https URL (shown on the deploy)
@@ -113,6 +116,10 @@ jobs:
       - name: ${{ env.ACTION }}
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Google keys, from this (production) environment: written into
+          # the box's server/.env by the deploy, never into the image.
+          MAPS_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          ROUTING_KEY: ${{ secrets.GOOGLE_ROUTING_API_KEY }}
         # SC2029: the arguments are meant to expand here; the box's forced
         # command reads them as words.
         run: |
@@ -125,7 +132,17 @@ jobs:
             cp docker-compose.yml "$bundle/"
             mkdir -p "$bundle/server" && cp -r server/migrations "$bundle/server/"
             printf '%s' "$GHCR_TOKEN" > "$bundle/.ghcr-token"
-            tar -C "$bundle" -czf - docker-compose.yml server .ghcr-token | ssh box "deploy $TARGET $IMAGE_REF"
+            files=(docker-compose.yml server .ghcr-token)
+            if [ -n "$MAPS_KEY$ROUTING_KEY" ]; then
+              {
+                [ -z "$MAPS_KEY" ] || printf 'GOOGLE_MAPS_API_KEY=%s\n' "$MAPS_KEY"
+                [ -z "$ROUTING_KEY" ] || printf 'GOOGLE_ROUTING_API_KEY=%s\n' "$ROUTING_KEY"
+              } > "$bundle/.google-keys"
+              files+=(.google-keys)
+            else
+              echo "::warning::No GOOGLE_MAPS_API_KEY in the production environment: the box keeps the keys it has."
+            fi
+            tar -C "$bundle" -czf - "${files[@]}" | ssh box "deploy $TARGET $IMAGE_REF"
             rm -rf "$bundle"
           else
             ssh box "$ACTION $TARGET" < /dev/null

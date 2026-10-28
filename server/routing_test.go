@@ -131,15 +131,13 @@ func TestRoutingWithoutKey(t *testing.T) {
 }
 
 func TestGoogleKeyOrder(t *testing.T) {
-	defer func(k string) { builtGoogleKey = k }(builtGoogleKey)
-	builtGoogleKey = "built"
 	for _, c := range []struct {
 		cfg  Config
 		want string
 	}{
 		{Config{GoogleRoutingAPIKey: "routing", GoogleMapsAPIKey: "maps"}, "routing"},
 		{Config{GoogleMapsAPIKey: "maps"}, "maps"},
-		{Config{}, "built"},
+		{Config{}, ""},
 	} {
 		if got := c.cfg.GoogleKey(); got != c.want {
 			t.Errorf("%+v: %q, want %q", c.cfg, got, c.want)

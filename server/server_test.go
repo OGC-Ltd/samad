@@ -411,3 +411,21 @@ func TestAlertKind(t *testing.T) {
 		}
 	}
 }
+
+// The browser's Maps key reaches the dashboard only after sign-in.
+func TestMapsKeyAfterSignIn(t *testing.T) {
+	h := newHarness(t)
+	h.auth.cfg.GoogleMapsAPIKey = "browser-key"
+	if rec := h.do("GET", "/api/v1/auth/me", "", nil); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("me signed out: %d", rec.Code)
+	}
+	token, _ := h.login()
+	me := decodeData[struct {
+		Maps struct {
+			GoogleKey string `json:"googleKey"`
+		} `json:"maps"`
+	}](t, h.do("GET", "/api/v1/auth/me", token, nil).Body.Bytes())
+	if me.Maps.GoogleKey != "browser-key" {
+		t.Fatalf("maps key %q", me.Maps.GoogleKey)
+	}
+}
