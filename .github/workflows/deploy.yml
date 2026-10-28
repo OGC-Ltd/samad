@@ -10,7 +10,7 @@
 #   SAMAD_DEPLOY_KEY          the CI private key (keys/samad-deploy)
 #   SAMAD_DEPLOY_KNOWN_HOSTS  the box's host key line, so the first connect is not trust-on-first-use
 # Variables:
-#   SAMAD_DEPLOY_HOST         ec2-13-247-156-214.af-south-1.compute.amazonaws.com
+#   SAMAD_DEPLOY_HOST         optional override of the box (default below)
 #   SAMAD_URL                 the stack's https URL (shown on the deploy)
 
 name: deploy
@@ -56,9 +56,10 @@ jobs:
       ACTION: ${{ inputs.action || 'deploy' }}
       TARGET: ${{ inputs.target }}
       IMAGE_REF: ${{ inputs.image }}
-      # A variable is the right place (the host is not secret), but a secret
-      # of the same name works too.
-      HOST: ${{ vars.SAMAD_DEPLOY_HOST || secrets.SAMAD_DEPLOY_HOST }}
+      # The box. Not a secret (SAMAD_DEPLOY_KNOWN_HOSTS pins its key, so a
+      # wrong host is refused, never trusted); a SAMAD_DEPLOY_HOST variable or
+      # secret overrides it, e.g. after a rebuild.
+      HOST: ${{ vars.SAMAD_DEPLOY_HOST || secrets.SAMAD_DEPLOY_HOST || 'ec2-13-247-156-214.af-south-1.compute.amazonaws.com' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

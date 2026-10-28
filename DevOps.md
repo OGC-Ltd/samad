@@ -526,7 +526,7 @@ pipeline, or the deploy jobs fail (the checks still run).
 
 | Name | Value |
 | --- | --- |
-| `SAMAD_DEPLOY_HOST` | `ec2-13-247-156-214.af-south-1.compute.amazonaws.com` |
+| `SAMAD_DEPLOY_HOST` | optional: only if the box moves (the workflow defaults to `ec2-13-247-156-214.af-south-1.compute.amazonaws.com`) |
 | `ENABLE_ATTESTATIONS` | optional: `true` only on GitHub Enterprise Cloud |
 
 **Step 4: Branch protection** (Settings → Rules → New branch ruleset), for `main` and `develop`:
