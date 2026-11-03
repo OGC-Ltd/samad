@@ -250,6 +250,28 @@
   background: var(--lf-accent);
 }
 
+/* A dashcam alarm with a clip: a small video mark; the click opens the clip
+   on the Camera page (lib/dashcamJump). Spins while that is being checked. */
+.live-feed__clip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--lf-accent-ink);
+  background: var(--lf-accent-soft);
+}
+.live-feed__item--busy { cursor: progress; }
+.live-feed__item--busy .live-feed__clip i { animation: lf-spin 0.9s linear infinite; }
+@keyframes lf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .live-feed__item--busy .live-feed__clip i { animation: none; }
+}
+
 /* ── Entering ──────────────────────────────────────────────────────────────── */
 /* A live arrival: drops in from above with a brief accent flash. */
 .live-feed__item--enter-top { animation: lf-arrive 260ms var(--lf-ease) both, lf-flash 1.4s var(--lf-ease) 260ms; }

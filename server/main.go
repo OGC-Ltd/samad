@@ -148,6 +148,9 @@ func routes(s *Server, a *Auth) http.Handler {
 	in.Handle("/vss/alarms", needFunc(s.vssAlarms, "telemetry:read")).Methods("GET")
 	in.Handle("/vss/file", needFunc(s.vssFile, "telemetry:read")).Methods("GET")
 
+	// The Reports page: movements, policy breaches, end of shift (reports.go).
+	in.Handle("/reports/fleet", unitsVisible(needFunc(s.reportFleet, "telemetry:read"))).Methods("GET")
+
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
 	org.Use(ourOrg)
 	org.Handle("/vehicles/snapshot", needFunc(s.snapshot, "telemetry:read")).Methods("GET")

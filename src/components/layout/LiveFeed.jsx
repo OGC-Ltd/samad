@@ -26,7 +26,11 @@ import { feedClock } from '../../lib/feedTime';
 import { driverIndex, driverFor } from '../../lib/feedDriver';
 import { feedItemFollowUp, openFollowUp } from '../../lib/fuelFollowUps';
 import { useVehicleFeed } from '../../hooks/useVehicleFeed';
-import { usePermissions } from '../../hooks/usePermissions';
+import { usePermissions, VSS_ALARMS } from '../../hooks/usePermissions';
+import { useAppActions } from '../../context/AppContext';
+import { useQuery } from '@tanstack/react-query';
+import { vssIncidentsQuery } from '../../api/vssAlarms';
+import { isDashcamItem, findDashcamAlarm, openDashcamAlarm } from '../../lib/dashcamJump';
 import { isUnread } from '../../lib/feedReads';
 import { useAuth } from '../../context/AuthContext';
 import { nearBottom } from '../shared/FeedFooter';
@@ -76,7 +80,8 @@ const NO_READS = { reads: { since: Date.now(), ids: new Map() }, markRead: () =>
 export default function LiveFeed({ open, onClose, reads: marks = NO_READS }) {
   const { feed: liveFeed = [], vehicles = [], orgId } = useFleetLiveShared();
   // A technician's feed is their repair notices, kept past midnight.
-  const { flaggedOnly } = usePermissions();
+  const { flaggedOnly, can: canSee } = usePermissions();
+  const { setDesktopActiveTab } = useAppActions();
   const { items: feed, loading, loadingMore, atEnd, loadMore } = useVehicleFeed(null, open ? orgId : null, liveFeed, null, { allDays: flaggedOnly });
   const { focusVehicle } = useMapLayers();
   const drivers = useMemo(() => driverIndex(vehicles), [vehicles]);
@@ -143,11 +148,34 @@ export default function LiveFeed({ open, onClose, reads: marks = NO_READS }) {
     setHeldNew(0);
   };
 
-  const activate = (item) => {
+  // A dashcam notification whose alarm brought a clip opens that clip on the
+  // Camera page (lib/dashcamJump); everything else opens as before. `busyId`
+  // marks the row while the page's list is checked (usually already cached).
+  const [busyId, setBusyId] = useState(null);
+  // Today's alarms with evidence (the Camera page's own query, shared with the
+  // map rail's badge): which rows get the video mark.
+  const cameraOn = open && canSee(VSS_ALARMS);
+  const clipQ = useQuery({ ...vssIncidentsQuery(orgId, 'today'), enabled: Boolean(cameraOn && orgId) });
+  const clipIds = useMemo(
+    () => new Set((cameraOn ? clipQ.data ?? [] : []).filter((i) => i.hasClip || i.hasPhoto).map((i) => i.id)),
+    [cameraOn, clipQ.data],
+  );
+  const activate = async (item) => {
     markRead(item);
     const followUp = feedItemFollowUp(item);
-    if (typeof followUp === 'string') openFollowUp(followUp);
-    else if (item.vehicleId) focusVehicle?.(item.vehicleId);
+    if (typeof followUp === 'string') { openFollowUp(followUp); return; }
+    if (isDashcamItem(item) && canSee(VSS_ALARMS)) {
+      setBusyId(item.id);
+      const range = await findDashcamAlarm(item, orgId);
+      setBusyId(null);
+      if (range) {
+        openDashcamAlarm(item.id, range);
+        setDesktopActiveTab('dashcam');
+        onClose?.();
+        return;
+      }
+    }
+    if (item.vehicleId) focusVehicle?.(item.vehicleId);
   };
 
   const sub = [
@@ -218,6 +246,7 @@ export default function LiveFeed({ open, onClose, reads: marks = NO_READS }) {
                     `live-feed__item--${tone}`,
                     fresh ? 'live-feed__item--unread' : '',
                     link ? 'live-feed__item--link' : '',
+                    busyId === item.id ? 'live-feed__item--busy' : '',
                     e?.kind === 'arrive' ? 'live-feed__item--enter-top' : '',
                     e?.kind === 'append' ? 'live-feed__item--enter-page' : '',
                   ].filter(Boolean).join(' ')}
@@ -239,6 +268,11 @@ export default function LiveFeed({ open, onClose, reads: marks = NO_READS }) {
                       <FeedText text={item.text} type={item.type} plate={item.plate} driver={driverFor(drivers, item)} />
                     </div>
                   </div>
+                  {(clipIds.has(String(item.id)) || busyId === item.id) && (
+                    <span className="live-feed__clip" title="Opens the camera clip" aria-hidden="true">
+                      <i className={`ti ${busyId === item.id ? 'ti-loader-2' : 'ti-video'}`} />
+                    </span>
+                  )}
                   {fresh && <span className="live-feed__unread-dot" aria-label="Unread" />}
                 </div>
               </div>

@@ -1,0 +1,87 @@
+// Reports (ReportsScreen.jsx): the tab strip, the period controls, then the
+// report itself as its letterhead pages — the very page the PDF is drawn from.
+
+.rpt-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  .sp4-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.rpt-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  padding: 12px var(--sp4-gutter, 20px);
+  border-bottom: 1px solid var(--sp4-line);
+}
+
+.rpt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  > span {
+    font-size: var(--sp4-body, 12.5px);
+    color: var(--sp4-text-3);
+    font-weight: 600;
+  }
+
+  input {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--sp4-line);
+    background: var(--sp4-surface);
+    color: var(--sp4-text-1);
+    font: inherit;
+    color-scheme: dark;
+  }
+  input:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+}
+
+.rpt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rpt-dim { opacity: 0.7; font-weight: 400; margin-left: 4px; }
+.rpt-now { align-self: flex-end; }
+
+.rpt-error,
+.rpt-progress {
+  margin: 10px var(--sp4-gutter, 20px) 0;
+  font-size: var(--sp4-body, 12.5px);
+}
+.rpt-limited {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px var(--sp4-gutter, 20px) 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--sp4-line);
+  background: var(--sp4-surface);
+  color: var(--sp4-text-2, var(--sp4-text-3));
+  font-size: var(--sp4-body, 12.5px);
+  i { margin-top: 2px; }
+}
+.rpt-error { color: var(--sp4-crit, #f87171); }
+.rpt-progress { color: var(--sp4-text-3); }
+
+.rpt-preview {
+  flex: 1;
+  min-height: 480px;
+  width: 100%;
+  border: 0;
+  background: #8a8f96;
+}

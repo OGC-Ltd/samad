@@ -27,6 +27,7 @@ import { usePlaceName } from '../../hooks/usePlaceName'
 import { CATEGORIES, RANGES } from '../../lib/dashcamIncidents'
 import { vssIncidentsQuery, ensureVssSession } from '../../api/vssAlarms'
 import { useDashcamReviewed } from '../../lib/dashcamReviewed'
+import { useDashcamJump, clearDashcamJump } from '../../lib/dashcamJump'
 import { diagnoseMedia } from '../../lib/mediaDiagnose'
 import TableToolbar from '../body/TableToolbar'
 import FilterBar from '../body/FilterBar'
@@ -107,6 +108,20 @@ export default function DashcamIncidentsScreen() {
   // A different organisation is a different inbox.
   useEffect(() => { setSearch(''); setSelectedId(null); setCategory('all'); setReview('all') }, [orgId])
 
+  // Sent here from a notification (lib/dashcamJump): open THAT alarm and play
+  // its clip. Filters are cleared so nothing hides it, and the period is the
+  // one the notification falls in. `target` wins the selection until the
+  // alarm is in the list; `playId` is the one alarm whose clip starts itself.
+  const jump = useDashcamJump()
+  const [target, setTarget] = useState(null)
+  const [playId, setPlayId] = useState(null)
+  useEffect(() => {
+    if (!jump) return
+    setRange(jump.range ?? 'today'); setCategory('all'); setReview('all'); setSearch('')
+    setTarget(jump.id); setPlayId(jump.id)
+    clearDashcamJump()
+  }, [jump])
+
   const q = useQuery({
     ...vssIncidentsQuery(orgId, range),
     placeholderData: keepPreviousData,
@@ -148,11 +163,27 @@ export default function DashcamIncidentsScreen() {
   const critical = list.filter((i) => i.severity === 'critical' && !reviewed.has(i.id)).length
 
   // Keep a selection: the first row when nothing (or something filtered away) is picked.
-  const selected = list.find((i) => i.id === selectedId) ?? list[0] ?? null
+  const targeted = target ? list.find((i) => i.id === target) ?? null : null
+  const selected = targeted ?? list.find((i) => i.id === selectedId) ?? list[0] ?? null
   useEffect(() => { if (selected && selected.id !== selectedId) setSelectedId(selected.id) }, [selected, selectedId])
 
   // Up and down move through the inbox from anywhere in the list.
   const listRef = useRef(null)
+
+  // The notification's alarm has arrived in the list: bring its row into view
+  // and hand the selection back. If the period's real answer is in and the
+  // alarm is not there, give up quietly (the first row stays selected).
+  useEffect(() => {
+    if (!target) return
+    if (targeted) {
+      requestAnimationFrame(() => listRef.current
+        ?.querySelector(`[data-id="${CSS.escape(target)}"]`)
+        ?.scrollIntoView({ block: 'nearest' }))
+      setTarget(null)
+    } else if (q.isSuccess && !q.isPlaceholderData && !q.isFetching) {
+      setTarget(null); setPlayId(null)
+    }
+  }, [target, targeted, q.isSuccess, q.isPlaceholderData, q.isFetching])
   const onListKey = (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     e.preventDefault()
@@ -204,7 +235,7 @@ export default function DashcamIncidentsScreen() {
              role="list" aria-label="Dashcam alarms" onKeyDown={onListKey}>
           {list.map((i) => (
             <AlarmRow key={i.id} inc={i} on={selected?.id === i.id} reviewed={reviewed.has(i.id)}
-                      plate={plateOf(i)} driver={driverOf(i)} onClick={() => setSelectedId(i.id)} />
+                      plate={plateOf(i)} driver={driverOf(i)} onClick={() => { setSelectedId(i.id); setPlayId(null) }} />
           ))}
         </div>
         <section className="dci-detail" aria-label="Selected alarm">
@@ -212,6 +243,7 @@ export default function DashcamIncidentsScreen() {
             <Detail key={selected.id} inc={selected} orgId={orgId} company={company}
                     vehicle={byVehicle.get(selected.vehicleId)} plate={plateOf(selected)} driver={driverOf(selected)}
                     reviewed={reviewed.has(selected.id)} onReviewed={() => toggleReviewed(selected.id)}
+                    autoPlay={selected.id === playId}
                     onMap={() => openOnMap(selected)}
                     onUnit={() => setSearch(plateOf(selected))} unitFiltered={term === String(plateOf(selected)).toLowerCase()} />
           )}
@@ -327,7 +359,7 @@ function AlarmRow({ inc, on, reviewed, plate, driver, onClick }) {
   )
 }
 
-function Detail({ inc, orgId, company, vehicle, plate, driver, reviewed, onReviewed, onMap, onUnit, unitFiltered }) {
+function Detail({ inc, orgId, company, vehicle, plate, driver, reviewed, onReviewed, onMap, onUnit, unitFiltered, autoPlay = false }) {
   const place = usePlaceName(inc.lat, inc.lng, { enabled: inc.lat != null && inc.lng != null })
   const where = place ?? (inc.lat != null ? `${inc.lat.toFixed(4)}, ${inc.lng.toFixed(4)}` : null)
   const model = vehicle?.name ? vehicle.name.replace(vehicle.id, '').trim() : ''
@@ -366,7 +398,7 @@ function Detail({ inc, orgId, company, vehicle, plate, driver, reviewed, onRevie
       <div className="dci-evidence">
         <div className="dci-evidence__media">
           {shown
-            ? <MediaPlayer inc={inc} orgId={orgId} company={company} items={items} shown={shown} plate={plate} onPick={setShownKey} />
+            ? <MediaPlayer inc={inc} orgId={orgId} company={company} items={items} shown={shown} plate={plate} onPick={setShownKey} autoPlay={autoPlay} />
             : (
               <div className="dci-stage dci-stage--empty">
                 <i className="ti ti-video-off" aria-hidden="true" />
@@ -442,7 +474,7 @@ function FailMessage({ reason, fresh, item, company, onRetry }) {
 }
 
 /** The clip or snapshot, with a switch between cameras, and honest failure states. */
-function MediaPlayer({ inc, orgId, company, items, shown, plate, onPick }) {
+function MediaPlayer({ inc, orgId, company, items, shown, plate, onPick, autoPlay = false }) {
   const [state, setState] = useState('loading')        // loading | ready | failed
   const [reason, setReason] = useState(null)           // why it failed — see FailMessage
   const [attempt, setAttempt] = useState(0)
@@ -475,7 +507,8 @@ function MediaPlayer({ inc, orgId, company, items, shown, plate, onPick }) {
     <figure className="dci-player">
       <div className={`dci-stage${state === 'loading' ? ' dci-stage--loading' : ''}`}>
         {src && shown.kind === 'video' && (
-          <video key={`${src}#${attempt}`} src={src} controls playsInline preload="metadata"
+          <video key={`${src}#${attempt}`} src={src} controls playsInline preload={autoPlay ? 'auto' : 'metadata'}
+            autoPlay={autoPlay}
             onLoadedMetadata={checkPicture}
             onLoadedData={() => setState((s) => (s === 'failed' ? s : 'ready'))}
             onError={fail} />
