@@ -12,7 +12,7 @@
 # after sign-in (/auth/me).
 
 # ── the dashboard ──────────────────────────────────────────────────────────
-FROM node:26.12.1-alpine AS web
+FROM node:26.13.0-alpine AS web
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
