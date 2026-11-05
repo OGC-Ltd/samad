@@ -106,3 +106,20 @@ describe('distance in a shift', () => {
     expect(d.get('9')).toBeNull()
   })
 })
+
+describe('long periods and place names', () => {
+  it('asks the trip history in 72-hour pieces', async () => {
+    apiFetch.mockReset()
+    apiFetch.mockImplementation(async () => ({ data: { points: [] } }))
+    const { distancesIn } = await import('./fleetReport')
+    await distancesIn({ orgId: 'samad', from: 0, to: 7 * 24 * 3_600_000, vehicles: [{ vehicleId: '7' }] })
+    expect(apiFetch).toHaveBeenCalledTimes(3)
+  })
+  it('names a place by its road and town, never the country or a plus code', async () => {
+    const { placeWords } = await import('./fleetReport')
+    const comp = (long_name, ...types) => ({ long_name, types })
+    expect(placeWords({ address_components: [comp('A109', 'route'), comp('Voi', 'locality'), comp('Taita-Taveta', 'administrative_area_level_1'), comp('Kenya', 'country')] })).toBe('A109, Voi')
+    expect(placeWords({ address_components: [comp('Unnamed Road', 'route'), comp('Kwale', 'administrative_area_level_1')] })).toBe('Kwale')
+    expect(placeWords({ address_components: [], formatted_address: 'QJ7V+2F, Mariakani, Kenya' })).toBe('Mariakani')
+  })
+})

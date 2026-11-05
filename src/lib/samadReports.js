@@ -16,7 +16,7 @@
 // Pure: each `*Report` returns the model the screen shows; each `*Html`
 // returns the letterhead page (lib/letterhead) the PDF is drawn from.
 
-import { renderLetterheadHtml, table, cells, tag, esc } from './letterhead'
+import { renderLetterheadHtml, table, cells, esc } from './letterhead'
 
 export const COMPANY = 'Samad Resources'
 
@@ -142,6 +142,20 @@ export function stateNow(v) {
   return v.moving ? 'Moving' : 'Stopped'
 }
 
+/**
+ * Current location, in words (operator, 2026-11-05: not "x km from South KE"):
+ * the place name looked up for the unit (api/fleetReport placesNow: its zone,
+ * or the town and road), else its zone, else its coordinates.
+ */
+export function currentLocation(v, places) {
+  const named = places?.get(String(v?.vehicleId))
+  if (named) return named
+  if (!v || v.lat == null) return 'No position'
+  if (v.zoneNow) return v.zoneNow
+  return `${Number(v.lat).toFixed(4)}, ${Number(v.lng).toFixed(4)}`
+}
+const kmOf = (distances, v) => { const d = distances?.get(String(v.vehicleId)); return Number.isFinite(d) ? d : null }
+
 /** Is the unit out of every zone now, having last LEFT one? Since when. */
 export function outSince(v) {
   if (!v || v.zoneNow || v.lat == null) return null
@@ -208,7 +222,7 @@ const breachCells = (list) => (r) => [
  * Order: units out of a zone first (longest out first), then those moving,
  * then the rest by plate.
  */
-export function movementsReport(data) {
+export function movementsReport(data, { distances = null, places = null } = {}) {
   const vs = vehicleIndex(data)
   const crossings = data.events.filter((e) => e.kind === 'geofence' && e.action)
     .map((e) => ({ ...e, plate: vs.get(String(e.vehicleId))?.plate || e.plate }))
@@ -221,28 +235,18 @@ export function movementsReport(data) {
     return {
       vehicleId: String(v.vehicleId), plate: v.plate, driver: driverOf(v), v,
       status: v.zoneNow ? 'in' : out ? 'out' : v.lat == null ? 'none' : 'away',
-      out, place: placeNow(v), state: stateNow(v), fixAt: v.fixAt, crossings: inPeriod.get(String(v.vehicleId)) ?? 0,
-      last: v.lastCrossing,
+      out, place: currentLocation(v, places), state: stateNow(v), fixAt: v.fixAt, crossings: inPeriod.get(String(v.vehicleId)) ?? 0,
+      last: v.lastCrossing, km: kmOf(distances, v),
     }
   })
-  const rank = { out: 0, away: 1, in: 2, none: 3 }
-  rows.sort((a, b) => rank[a.status] - rank[b.status]
-    || (a.status === 'out' ? a.out.at - b.out.at : 0)
-    || (b.state === 'Moving') - (a.state === 'Moving')
-    || byPlate(a, b))
-  const n = (s) => rows.filter((r) => r.status === s).length
-  const limited = !hasOf(data).crossings
+  // Furthest first (operator, 2026-11-05: the distance in the period replaces the status).
+  rows.sort((a, b) => (b.km ?? -1) - (a.km ?? -1) || (b.state === 'Moving') - (a.state === 'Moving') || byPlate(a, b))
+  const totalKm = Math.round(rows.reduce((s, r) => s + (r.km ?? 0), 0) * 10) / 10
   const kpis = [
     { label: 'Units', value: rows.length },
-    { label: 'In a zone now', value: n('in') },
-    { label: 'Out of zones now', value: n('out') + n('away') },
     { label: 'Moving now', value: rows.filter((r) => r.state === 'Moving').length },
-    ...(limited ? [{ label: 'Offline', value: rows.filter((r) => r.state === 'Offline').length }] : [
-      { label: 'Exits', value: crossings.filter((c) => c.action === 'exit').length },
-      { label: 'Entries', value: crossings.filter((c) => c.action === 'entry').length },
-    ]),
   ]
-  return { rows, crossings, kpis, limited }
+  return { rows, crossings, kpis, totalKm, limited: !hasOf(data).crossings }
 }
 
 /** The Status column: "In Mombasa Yard", "Out since 2 Nov 14:05 (left Mombasa Yard)". */
@@ -266,7 +270,7 @@ const isCritical = (e) => e.kind === 'critical'
  */
 // `_now` is kept so callers need not change; the report does not measure from it.
 // eslint-disable-next-line no-unused-vars
-export function shiftReport(data, _now = Date.now(), { distances = null } = {}) {
+export function shiftReport(data, _now = Date.now(), { distances = null, places = null } = {}) {
   const vs = vehicleIndex(data)
   const plateOf = (e) => vs.get(String(e.vehicleId))?.plate || e.plate
   const critical = data.events.filter(isCritical).sort((a, b) => a.at - b.at).map((e) => ({
@@ -286,7 +290,7 @@ export function shiftReport(data, _now = Date.now(), { distances = null } = {}) 
   // Every unit: how far it went in the shift and where it is now, furthest first.
   const units = data.vehicles.map((v) => {
     const d = distances?.get(String(v.vehicleId))
-    return { plate: v.plate, km: Number.isFinite(d) ? d : null, place: placeNow(v), state: stateNow(v) }
+    return { plate: v.plate, km: Number.isFinite(d) ? d : null, place: currentLocation(v, places), state: stateNow(v) }
   }).sort((a, b) => (b.km ?? -1) - (a.km ?? -1) || String(a.plate).localeCompare(String(b.plate)))
   const breachUnits = new Set(data.events.filter(isBreach).map((e) => String(e.vehicleId))).size
   const kpis = [
@@ -343,38 +347,20 @@ export function breachesHtml(data, model, { logos, now = Date.now() }) {
 
 export function movementsHtml(data, model, { logos, now = Date.now() }) {
   const flow = [`<h2>1. Overview <small>At ${esc(when(now, now))}</small></h2>`, kpiCells(model.kpis)]
-  flow.push(`<h2>2. Where each unit is <small>${model.rows.length} units</small></h2>`)
+  flow.push(`<h2>2. Assets Location <small>${model.rows.length} units · ${model.totalKm} km in the period</small></h2>`)
   flow.push(table(fit([
-    { h: 'Vehicle', w: 22 }, { h: 'Driver', w: 30 }, { h: 'Status', w: 52 }, { h: 'Location now', w: 44 },
-    { h: 'State', w: 16 }, { h: 'Last fix', w: 20 },
+    { h: 'Vehicle', w: 24 }, { h: 'Driver', w: 40 }, { h: 'Distance', w: 26, r: true }, { h: 'Current location', w: 70 }, { h: 'State', w: 18 },
   ]), model.rows.map((r) => [
-    { html: esc(r.plate) + (r.status === 'out' ? tag('Out', true) : ''), cls: 'b' },
+    { html: esc(r.plate), cls: 'b' },
     r.driver ? esc(r.driver) : { html: '-', cls: 'm' },
-    { html: esc(statusWords(r, now)), cls: r.status === 'in' ? 'wrap' : 'b wrap' },
+    r.km == null ? { html: 'Not available', cls: 'm' } : `${r.km.toFixed(1)} km`,
     { html: esc(r.place), cls: 'wrap' },
     r.state === 'Offline' ? { html: 'Offline', cls: 'm' } : esc(r.state),
-    r.fixAt ? esc(when(r.fixAt, now)) : { html: '-', cls: 'm' },
   ])))
-  if (model.limited) {
-    flow.push('<div class="note">Zones are the geofences set up in Samad\'s IntelliFleet360 account.</div>')
-    return page({
-      title: 'Movements Report', prefix: 'MV', now, from: data.from, to: data.to, logos, flow,
-      info: [['Units', String(model.rows.length)], ['Zones', String(data.zones.length)]],
-    })
-  }
-  flow.push(`<h2>3. Zone crossings <small>${model.crossings.length} in the period</small></h2>`)
-  if (!model.crossings.length) flow.push('<div class="none">No unit entered or left a zone in this period.</div>')
-  else {
-    flow.push(table(fit([{ h: 'Time', w: 26 }, { h: 'Vehicle', w: 26 }, { h: 'Crossing', w: 20 }, { h: 'Zone', w: 70 }, { h: 'Speed', w: 18, r: true }]),
-      model.crossings.map((c) => [
-        esc(when(c.at, data.from)), { html: esc(c.plate), cls: 'b' }, c.action === 'exit' ? { html: 'Left', cls: 'b' } : 'Entered',
-        esc(c.zone || '-'), Number.isFinite(c.speed) && c.speed > 0 ? `${Math.round(c.speed)} km/h` : { html: '-', cls: 'm' },
-      ])))
-  }
-  flow.push('<div class="note">Zones are the geofences set up in Samad\'s IntelliFleet360 account. "Out since" is the unit\'s last exit from a zone, as far back as events are kept (30 days).</div>')
+  if (model.rows.some((r) => r.km == null)) flow.push('<div class="note">Not available: the unit\'s trip history for the period could not be read.</div>')
   return page({
     title: 'Movements Report', prefix: 'MV', now, from: data.from, to: data.to, logos, flow,
-    info: [['Units', String(model.rows.length)], ['Zones', String(data.zones.length)]],
+    info: [['Units', String(model.rows.length)]],
   })
 }
 
@@ -408,7 +394,7 @@ export function shiftHtml(data, model, { logos, now = Date.now(), shiftWords }) 
   // The units (operator, 2026-11-03: in place of the handover lines).
   const totalKm = model.units.reduce((s, u) => s + (u.km ?? 0), 0)
   flow.push(`<h2>${k++}. Units <small>${model.units.length} · ${Math.round(totalKm * 10) / 10} km in the shift</small></h2>`)
-  flow.push(table(fit([{ h: 'Vehicle', w: 30 }, { h: 'Distance in shift', w: 34, r: true }, { h: 'Location now', w: 90 }, { h: 'State', w: 22 }]),
+  flow.push(table(fit([{ h: 'Vehicle', w: 30 }, { h: 'Distance in shift', w: 34, r: true }, { h: 'Current location', w: 90 }, { h: 'State', w: 22 }]),
     model.units.map((u) => [
       { html: esc(u.plate), cls: 'b' },
       u.km == null ? { html: 'Not available', cls: 'm' } : `${u.km.toFixed(1)} km`,

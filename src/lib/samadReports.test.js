@@ -56,18 +56,24 @@ describe('policy breaches', () => {
 })
 
 describe('movements', () => {
-  const m = movementsReport(data)
-  it('puts units out of a zone first, with since when', () => {
-    expect(m.rows[0].plate).toBe('KD1')
-    expect(m.rows[0].status).toBe('out')
-    expect(m.rows.find((r) => r.plate === 'KD2').status).toBe('in')
-    expect(m.crossings).toHaveLength(1)
+  const distances = new Map([['1', 42.5], ['2', 120.25]])
+  const places = new Map([['1', 'A109, Voi'], ['2', 'Nairobi Depot']])
+  const m = movementsReport(data, { distances, places })
+  it('lists every unit by distance in the period, furthest first, with a place name', () => {
+    expect(m.rows.map((r) => [r.plate, r.km, r.place])).toEqual([
+      ['KD2', 120.25, 'Nairobi Depot'], ['KD1', 42.5, 'A109, Voi'], ['KD3', null, '-1.0000, 37.0000'],
+    ])
+    expect(m.kpis.map((k) => k.label)).toEqual(['Units', 'Moving now'])
   })
-  it('makes a page', () => {
+  it('makes a page: Distance and Current location, no status, last fix or crossings', () => {
     const { html } = movementsHtml(data, m, { logos: { left: 'l', ogc: 'o' }, now: NOW })
     expect(html).toContain('MOVEMENTS REPORT')
-    expect(html).toContain('Out since')
-    expect(html).toContain('12.4 km from Mombasa Yard')
+    expect(html).toContain('Current location')
+    expect(html).toContain('120.3 km')
+    expect(html).toContain('A109, Voi')
+    for (const gone of ['Zones</th>', 'Status', 'Last fix', 'Zone crossings', 'Out since', 'km from', 'In a zone now', 'Out of zones now', 'Exits', 'Entries']) {
+      expect(html).not.toContain(gone)
+    }
   })
 })
 
