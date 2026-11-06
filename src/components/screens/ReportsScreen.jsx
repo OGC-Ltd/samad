@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useFleetLiveShared } from '../../context/FleetLiveContext'
 import { useAppActions } from '../../context/AppContext'
-import { loadFleetReport, distancesIn } from '../../api/fleetReport'
+import { loadFleetReport, distancesIn, placesNow } from '../../api/fleetReport'
 import { saveLetterheadPdf, saveLetterheadJpeg, letterheadLogos } from '../../api/letterheadPdf'
 import {
   PRESETS, presetRange, SHIFTS, shiftRange, currentShift, periodWords,
@@ -89,28 +89,38 @@ export default function ReportsScreen() {
   const distancesQ = useQuery({
     queryKey: ['reports', 'distances', orgId, data?.from, data?.to],
     queryFn: ({ signal }) => distancesIn({ orgId, vehicles: data.vehicles, from: data.from, to: data.to, signal }),
-    enabled: tab === 'shift' && Boolean(data),
+    enabled: (tab === 'shift' || tab === 'movements') && Boolean(data),
     retry: 0,
     staleTime: 60_000,
   })
-  const distances = tab === 'shift' ? distancesQ.data ?? null : null
-  const waitReported = tab === 'shift' && distancesQ.isPending && Boolean(data)
+  // Movements and End of Shift: where each unit is, as a place name.
+  const placesQ = useQuery({
+    queryKey: ['reports', 'places', orgId, data?.generatedAt],
+    queryFn: () => placesNow(data.vehicles),
+    enabled: (tab === 'shift' || tab === 'movements') && Boolean(data),
+    retry: 0,
+    staleTime: 5 * 60_000,
+  })
+  const needsUnits = tab === 'shift' || tab === 'movements'
+  const distances = needsUnits ? distancesQ.data ?? null : null
+  const places = needsUnits ? placesQ.data ?? null : null
+  const waitReported = needsUnits && Boolean(data) && (distancesQ.isPending || placesQ.isPending)
 
   const built = useMemo(() => {
     if (!data || waitReported) return null
     const now = data.generatedAt
     const logos = letterheadLogos()
     if (tab === 'movements') {
-      const model = movementsReport(data)
+      const model = movementsReport(data, { distances, places })
       return { model, ...movementsHtml(data, model, { logos, now }) }
     }
     if (tab === 'shift') {
-      const model = shiftReport(data, now, { distances })
+      const model = shiftReport(data, now, { distances, places })
       return { model, ...shiftHtml(data, model, { logos, now, shiftWords }) }
     }
     const model = breachesReport(data)
     return { model, ...breachesHtml(data, model, { logos, now }) }
-  }, [data, tab, shiftWords, waitReported, distances])
+  }, [data, tab, shiftWords, waitReported, distances, places])
 
   useEffect(() => { setSaveError(null) }, [tab, range.from, range.to])
 
@@ -130,11 +140,11 @@ export default function ReportsScreen() {
 
   const summary = (() => {
     if (problem) return <span className="sp4-muted">{problem}</span>
-    if (!data || !built) return <span className="sp4-muted">{waitReported ? 'Measuring each unit\'s distance in the shift…' : `Reading ${periodWords(range.from, range.to)}…`}</span>
+    if (!data || !built) return <span className="sp4-muted">{waitReported ? 'Measuring each unit\'s distance and finding where it is…' : `Reading ${periodWords(range.from, range.to)}…`}</span>
     const m = built?.model
     const words = periodWords(data.from, data.to)
     if (tab === 'breaches') return <><b>{m.total}</b> breach{m.total === 1 ? '' : 'es'} · <b>{m.rows.length}</b> vehicle{m.rows.length === 1 ? '' : 's'} · {words}</>
-    if (tab === 'movements') return <><b>{m.crossings.length}</b> crossing{m.crossings.length === 1 ? '' : 's'} · <b>{m.rows.filter((r) => r.status === 'out').length}</b> out of a zone · {words}</>
+    if (tab === 'movements') return <><b>{m.totalKm}</b> km · <b>{m.rows.filter((r) => r.state === 'Moving').length}</b> moving now · {words}</>
     return <><b>{m.critical.length}</b> critical · <b>{m.breachTotal}</b> breaches · <b>{m.reporting}</b> of {data.vehicles.length} units reporting · {words}</>
   })()
 
@@ -247,7 +257,7 @@ export default function ReportsScreen() {
           </EmptyNote>
         ) : !built ? (
           <EmptyNote icon="ti-loader-2" tone="busy" title={waitReported ? 'Checking Each Unit' : 'Reading the Fleet'}>
-            {waitReported ? 'Reading each unit\'s trip history for the shift.' : periodWords(range.from, range.to)}
+            {waitReported ? 'Reading each unit\'s trip history and current location.' : periodWords(range.from, range.to)}
           </EmptyNote>
         ) : (
           <iframe className="rpt-preview" title={`${TABS.find((t) => t.key === tab)?.label} preview`}

@@ -205,6 +205,9 @@ async function loadFromExistingRoutes({ orgId, from, to, signal }) {
 
 // ── distance each unit covered in a period (operator, 2026-11-03) ────────
 
+/** The longest window the server's track route answers in one go. */
+const TRACK_MAX_MS = 72 * 3_600_000
+
 /** Faster than this between two fixes is a GPS jump, not driving: not counted. */
 export const MAX_KMH = 160
 
@@ -230,13 +233,21 @@ export function distanceKm(points) {
  */
 export async function distancesIn({ orgId, vehicles, from, to, signal }) {
   const org = encodeURIComponent(orgId)
-  const q = `from=${encodeURIComponent(new Date(from).toISOString())}&to=${encodeURIComponent(new Date(to).toISOString())}`
+  // The track route answers 72 hours at most (handlers.go track): a longer
+  // period is asked for in 72-hour pieces and the pieces' points joined.
+  const pieces = []
+  for (let a = from; a < to; a += TRACK_MAX_MS) pieces.push([a, Math.min(to, a + TRACK_MAX_MS)])
   const out = new Map()
   const one = async (v) => {
     try {
-      const res = await apiFetch(`/api/v1/organisations/${org}/vehicles/${encodeURIComponent(v.vehicleId)}/track?${q}`,
-        signal ? { signal } : undefined)
-      out.set(String(v.vehicleId), distanceKm(Array.isArray(res?.data?.points) ? res.data.points : []))
+      const points = []
+      for (const [a, b] of pieces) {
+        const q = `from=${encodeURIComponent(new Date(a).toISOString())}&to=${encodeURIComponent(new Date(b).toISOString())}`
+        const res = await apiFetch(`/api/v1/organisations/${org}/vehicles/${encodeURIComponent(v.vehicleId)}/track?${q}`,
+          signal ? { signal } : undefined)
+        if (Array.isArray(res?.data?.points)) points.push(...res.data.points)
+      }
+      out.set(String(v.vehicleId), distanceKm(points))
     } catch (e) {
       if (signal?.aborted) throw e
       out.set(String(v.vehicleId), null)
@@ -244,5 +255,64 @@ export async function distancesIn({ orgId, vehicles, from, to, signal }) {
   }
   const list = vehicles ?? []
   for (let i = 0; i < list.length; i += 3) await Promise.all(list.slice(i, i + 3).map(one))
+  return out
+}
+
+// ── a place name for where each unit is now (operator, 2026-11-05: "Current
+//    location … i dont want to see the from south KE") ─────────────────────
+
+const placeCache = new Map()
+
+/** "A109 Road, Voi", from one Google geocoder answer: the road and the town, never the country or a plus code. */
+export function placeWords(result) {
+  const parts = result?.address_components ?? []
+  const of = (type) => parts.find((p) => p.types?.includes(type))?.long_name ?? null
+  const road = of('route')
+  const town = of('locality') ?? of('sublocality') ?? of('postal_town') ?? of('administrative_area_level_3') ?? of('administrative_area_level_2')
+  const county = of('administrative_area_level_1')
+  const words = [road && road !== 'Unnamed Road' ? road : null, town ?? county].filter(Boolean)
+  if (words.length) return [...new Set(words)].join(', ')
+  const text = String(result?.formatted_address ?? '').replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3},?\s*/, '').replace(/,?\s*Kenya$/, '').trim()
+  return text || null
+}
+
+/** One point's place name through the Maps API the live map loads, or null. */
+async function lookUp(lat, lng) {
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`
+  if (placeCache.has(key)) return placeCache.get(key)
+  let name = null
+  try {
+    const { loadGoogleApi, GOOGLE_BASE_AVAILABLE } = await import('../lib/googleBase')
+    if (GOOGLE_BASE_AVAILABLE) {
+      await loadGoogleApi()
+      const Geocoder = window.google?.maps?.Geocoder
+      if (Geocoder) {
+        name = await new Promise((resolve) => {
+          const t = setTimeout(() => resolve(null), 6000)
+          new Geocoder().geocode({ location: { lat, lng } }, (res, status) => {
+            clearTimeout(t)
+            resolve(status === 'OK' && res?.length ? placeWords(res[0]) : null)
+          })
+        })
+      }
+    }
+  } catch { name = null }
+  placeCache.set(key, name)
+  return name
+}
+
+/**
+ * vehicleId → where the unit is now, in words: the zone it is in, else the
+ * place Google names for its position, else its coordinates.
+ */
+export async function placesNow(vehicles) {
+  const out = new Map()
+  const list = (vehicles ?? []).filter((v) => v.lat != null && v.lng != null && (v.lat !== 0 || v.lng !== 0))
+  for (let i = 0; i < list.length; i += 4) {
+    await Promise.all(list.slice(i, i + 4).map(async (v) => {
+      const name = v.zoneNow ? v.zoneNow : await lookUp(v.lat, v.lng)
+      out.set(String(v.vehicleId), name ?? `${Number(v.lat).toFixed(4)}, ${Number(v.lng).toFixed(4)}`)
+    }))
+  }
   return out
 }
