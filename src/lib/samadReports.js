@@ -61,19 +61,26 @@ export function presetRange(key, now = Date.now()) {
   return { from: today, to: now }
 }
 
-/** The day shift is 06:00–18:00, the night 18:00–06:00 the next morning. */
+/** The day shift is 07:30–19:30, the night 19:30–07:30 the next morning
+ *  (operator, 2026-11-07). `start` is in hours. */
 export const SHIFTS = [
-  { key: 'day',   label: 'Day',   words: '06:00 to 18:00', start: 6 },
-  { key: 'night', label: 'Night', words: '18:00 to 06:00', start: 18 },
+  { key: 'day',   label: 'Day',   words: '07:30 to 19:30', start: 7.5 },
+  { key: 'night', label: 'Night', words: '19:30 to 07:30', start: 19.5 },
 ]
 export function shiftRange(day, shift) {
   const s = SHIFTS.find((x) => x.key === shift) ?? SHIFTS[0]
   const from = dayOf(day) + s.start * HOUR
   return { from, to: from + 12 * HOUR }
 }
-/** The shift running at `now`, or just ended: the one a control room hands over. */
+/**
+ * The shift "This shift" opens (operator, 2026-11-07): the day shift from
+ * 08:00 until 20:00, the night shift from 20:00 until 08:00 the next
+ * morning. For the first half hour after a change it is still the shift that
+ * just ended, the one being handed over.
+ */
 export function currentShift(now = Date.now()) {
-  const h = new Date(now + EAT_MS).getUTCHours()
-  if (h >= 6 && h < 18) return { day: dayKey(now), shift: 'day' }
-  return { day: dayKey(h < 6 ? now - DAY : now), shift: 'night' }
+  const t = new Date(now + EAT_MS)
+  const m = t.getUTCHours() * 60 + t.getUTCMinutes()
+  if (m >= 8 * 60 && m < 20 * 60) return { day: dayKey(now), shift: 'day' }
+  return { day: dayKey(m < 8 * 60 ? now - DAY : now), shift: 'night' }
 }

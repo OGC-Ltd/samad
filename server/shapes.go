@@ -123,33 +123,6 @@ func severityOf(e PEvent) string {
 	return "info"
 }
 
-// feedItem is one SSE `feed` item (the bell's notifications).
-func feedItem(e PEvent) map[string]any {
-	label := e.TypeLabel
-	if label == "" {
-		label = strings.ReplaceAll(e.Type, "_", " ")
-	}
-	text := strings.ToUpper(label)
-	if e.Geofence != nil && e.Geofence.ZoneName != "" {
-		text += ": " + e.Geofence.ZoneName
-	}
-	if e.Speed != nil && *e.Speed > 0 {
-		text += fmt.Sprintf(" at %.0f km/h", *e.Speed)
-	}
-	return map[string]any{
-		"id":        e.EventID,
-		"orgId":     OrgID,
-		"ts":        e.OccurredAt,
-		"type":      strings.ToUpper(e.Type),
-		"alertType": strings.ToUpper(e.Type),
-		"severity":  severityOf(e),
-		"text":      text,
-		"plate":     e.Registration,
-		"vehicleId": vehicleKey(e.VehicleID),
-		"source":    e.Source,
-	}
-}
-
 func parseTime(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339, s)
 	return t

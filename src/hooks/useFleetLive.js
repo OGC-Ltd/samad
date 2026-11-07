@@ -27,7 +27,9 @@ import { createFrameStore } from '../lib/positionDelta'
 
 const fleetCacheKey = (companyId) => `ft-fleet:${companyId}`
 const orgCacheKey   = (companyId) => `ft-org:${companyId}`
-const feedCacheKey  = (companyId) => `ft-feed:${companyId}`
+// "hours": since 2026-11-07 the bell holds driver-hours breaches only; the
+// new key leaves behind the partner events browsers had stored under the old.
+const feedCacheKey  = (companyId) => `ft-feed-hours:${companyId}`
 
 /**
  * How much activity the panel keeps.

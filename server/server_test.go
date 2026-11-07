@@ -410,8 +410,9 @@ func TestAlertKind(t *testing.T) {
 		{PEvent{Type: "geofence_speeding"}, kindSpeeding},
 		{PEvent{Type: "no_seatbelt", Source: "device", Severity: "critical"}, kindCamera},
 		{PEvent{Type: "lane_departure", Source: "device", Severity: "warning"}, kindCamera},
-		{PEvent{Type: "road_facing_camera_occlusion", Source: "device", Severity: "informational"}, ""},
-		{PEvent{Type: "geofence_entry", Source: "platform", Severity: "informational"}, ""},
+		{PEvent{Type: "road_facing_camera_occlusion", Source: "device", Severity: "informational"}, kindCamera},
+		{PEvent{Type: "geofence_entry", Source: "platform", Severity: "informational"}, kindEvent},
+		{PEvent{Type: "no_break", Source: "hours", Severity: "warning"}, kindHours},
 	} {
 		if got := alertKind(tc.e); got != tc.want {
 			t.Errorf("%s/%s: got %q, want %q", tc.e.Type, tc.e.Severity, got, tc.want)

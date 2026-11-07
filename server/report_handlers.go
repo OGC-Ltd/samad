@@ -3,7 +3,10 @@ package main
 // The Reports page's two routes:
 //
 //	GET  /reports/{breaches|movements|shift}/document?org=&from=&to=
-//	     (End of Shift: ?org=&day=YYYY-MM-DD&shift=day|night)
+//	     (End of Shift: ?org=&day=YYYY-MM-DD&shift=day|night, or
+//	     ?org=&shift=custom&from=&to= for a period picked by hand)
+//	GET  /reports/weekly/document?org=&weeks=N
+//	     the last N finished weeks (1 to 12)
 //	     → { data: ReportDoc }, the report the server built, ready to edit
 //	POST /reports/render?org=&format=pdf|jpeg|csv|preview[&sheet=N]
 //	     body: a ReportDoc, as built or as edited on the page
@@ -30,10 +33,11 @@ const (
 	renderBodyMax      = 8 << 20
 )
 
+// The shifts start at 07:30 and 19:30 (operator, 2026-11-07); minutes past midnight.
 var shiftStarts = map[string]struct {
 	label string
-	hour  int
-}{"day": {"Day", 6}, "night": {"Night", 18}}
+	start int
+}{"day": {"Day", 7*60 + 30}, "night": {"Night", 19*60 + 30}}
 
 func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 	if !s.orgParam(w, r) {
@@ -43,7 +47,31 @@ func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	var from, to time.Time
 	shiftWords := ""
-	if kind == "shift" {
+	if kind == "weekly" {
+		n, err := strconv.Atoi(r.URL.Query().Get("weeks"))
+		if err != nil || n < 1 || n > weeklyMax {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("pick 1 to %d weeks", weeklyMax))
+			return
+		}
+		doc := s.buildWeekly(n, now)
+		if r.URL.Query().Get("orientation") == "portrait" {
+			doc.Orientation = "portrait"
+		}
+		writeData(w, doc)
+		return
+	}
+	if kind == "shift" && r.URL.Query().Get("shift") == "custom" {
+		var problem string
+		from, to, problem = reportPeriod(r, now)
+		if problem == "" && now.Sub(from) > reportMaxDays*24*time.Hour {
+			problem = "events are kept for 30 days; pick a later start"
+		}
+		if problem != "" {
+			writeError(w, http.StatusBadRequest, problem)
+			return
+		}
+		shiftWords = shiftCustom
+	} else if kind == "shift" {
 		q := r.URL.Query()
 		day, err := time.ParseInLocation("2006-01-02", q.Get("day"), fleetZone)
 		sh, ok := shiftStarts[q.Get("shift")]
@@ -51,7 +79,7 @@ func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "pick a day (YYYY-MM-DD) and a shift (day or night)")
 			return
 		}
-		from = day.Add(time.Duration(sh.hour) * time.Hour)
+		from = day.Add(time.Duration(sh.start) * time.Minute)
 		to = from.Add(12 * time.Hour)
 		if !from.Before(now) {
 			writeError(w, http.StatusBadRequest, "that shift has not started yet")
@@ -64,7 +92,8 @@ func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "events are kept for 30 days; pick a later shift")
 			return
 		}
-		shiftWords = fmt.Sprintf("%s, %02d:00 to %02d:00", sh.label, sh.hour, (sh.hour+12)%24)
+		end := (sh.start + 12*60) % (24 * 60)
+		shiftWords = fmt.Sprintf("%s, %02d:%02d to %02d:%02d", sh.label, sh.start/60, sh.start%60, end/60, end%60)
 	} else {
 		var problem string
 		from, to, problem = reportPeriod(r, now)

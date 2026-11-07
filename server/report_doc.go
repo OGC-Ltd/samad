@@ -16,7 +16,7 @@ import (
 
 // ReportDoc is one report, ready to draw.
 type ReportDoc struct {
-	Kind        string     `json:"kind"` // breaches | movements | shift
+	Kind        string     `json:"kind"` // breaches | movements | shift | weekly | conduct
 	Title       string     `json:"title"`
 	ReportNo    string     `json:"reportNo"`
 	Date        string     `json:"date"` // shown beside the number
@@ -44,18 +44,36 @@ type InfoPair struct {
 //	note     a small grey line, wrapped
 //	empty    "nothing here" in italics
 //	spacer   a little room
+//	counts   a strip of figures: label, value and Sub under it, centred
+//	groups   small titled tables, two side by side
+//	bars     a bar per figure (Value read as a number), Sub after it
+//	lines    N ruled lines to write on
+//	sign     a signature line per figure, its Label under it
 type Block struct {
-	Type  string   `json:"type"`
-	Text  string   `json:"text,omitempty"`
-	Small string   `json:"small,omitempty"`
-	KPIs  []KPI    `json:"kpis,omitempty"`
-	Cols  []Col    `json:"cols,omitempty"`
-	Rows  [][]Cell `json:"rows,omitempty"`
+	Type   string     `json:"type"`
+	Text   string     `json:"text,omitempty"`
+	Small  string     `json:"small,omitempty"`
+	KPIs   []KPI      `json:"kpis,omitempty"`
+	Cols   []Col      `json:"cols,omitempty"`
+	Rows   [][]Cell   `json:"rows,omitempty"`
+	Groups []SubTable `json:"groups,omitempty"`
+	N      int        `json:"n,omitempty"`
 }
 
 type KPI struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
+	Sub   string `json:"sub,omitempty"`
+}
+
+// SubTable is one small table of a groups block: a title, a note on the right,
+// and its rows, or Empty when it has none.
+type SubTable struct {
+	Text  string   `json:"text"`
+	Small string   `json:"small,omitempty"`
+	Empty string   `json:"empty,omitempty"`
+	Cols  []Col    `json:"cols,omitempty"`
+	Rows  [][]Cell `json:"rows,omitempty"`
 }
 
 // Col is a table column: W is its share of the width, not a measure.
@@ -82,9 +100,45 @@ const (
 	docMaxKPIs   = 16
 	docMaxInfo   = 20
 	docMaxText   = 600 // characters in any one field
+	docMaxGroups = 40
+	docMaxLines  = 30
 )
 
-var docBlockTypes = map[string]bool{"heading": true, "kpis": true, "table": true, "note": true, "empty": true, "spacer": true}
+var docBlockTypes = map[string]bool{"heading": true, "kpis": true, "table": true, "note": true, "empty": true, "spacer": true,
+	"counts": true, "groups": true, "bars": true, "lines": true, "sign": true}
+
+// tidyTable checks a table's columns and makes every row as wide as the
+// header: short rows padded, long ones cut. It returns the cells it holds.
+func tidyTable(cols []Col, rows [][]Cell) (int, error) {
+	if len(cols) == 0 || len(cols) > docMaxCols {
+		return 0, fmt.Errorf("a table has 1 to %d columns", docMaxCols)
+	}
+	if len(rows) > docMaxRows {
+		return 0, fmt.Errorf("a table holds %d rows at most", docMaxRows)
+	}
+	for c := range cols {
+		cols[c].H = clean(cols[c].H)
+		if !(cols[c].W > 0) || cols[c].W > 1000 {
+			cols[c].W = 1
+		}
+	}
+	cells := 0
+	for r := range rows {
+		row := rows[r]
+		if len(row) > len(cols) {
+			row = row[:len(cols)]
+		}
+		for len(row) < len(cols) {
+			row = append(row, Cell{})
+		}
+		for c := range row {
+			row[c].Text = clean(row[c].Text)
+		}
+		rows[r] = row
+		cells += len(row)
+	}
+	return cells, nil
+}
 
 // clean keeps a field to one line of printable text, at most docMaxText long.
 func clean(s string) string {
@@ -109,7 +163,7 @@ func clean(s string) string {
 // Check tidies an edited document and refuses one that is not a report.
 func (d *ReportDoc) Check() error {
 	switch d.Kind {
-	case "breaches", "movements", "shift":
+	case "breaches", "movements", "shift", "weekly", "conduct":
 	default:
 		return errors.New("unknown report")
 	}
@@ -142,38 +196,37 @@ func (d *ReportDoc) Check() error {
 			return fmt.Errorf("section %d: %d figures at most", bi+1, docMaxKPIs)
 		}
 		for k := range b.KPIs {
-			b.KPIs[k].Label, b.KPIs[k].Value = clean(b.KPIs[k].Label), clean(b.KPIs[k].Value)
+			b.KPIs[k].Label, b.KPIs[k].Value, b.KPIs[k].Sub = clean(b.KPIs[k].Label), clean(b.KPIs[k].Value), clean(b.KPIs[k].Sub)
 		}
-		if b.Type != "table" {
+		b.N = min(max(b.N, 0), docMaxLines)
+		switch b.Type {
+		case "table":
+			b.Groups = nil
+			n, err := tidyTable(b.Cols, b.Rows)
+			if err != nil {
+				return fmt.Errorf("section %d: %w", bi+1, err)
+			}
+			cells += n
+		case "groups":
 			b.Cols, b.Rows = nil, nil
-			continue
-		}
-		if len(b.Cols) == 0 || len(b.Cols) > docMaxCols {
-			return fmt.Errorf("section %d: a table has 1 to %d columns", bi+1, docMaxCols)
-		}
-		if len(b.Rows) > docMaxRows {
-			return fmt.Errorf("section %d: a table holds %d rows at most", bi+1, docMaxRows)
-		}
-		for c := range b.Cols {
-			b.Cols[c].H = clean(b.Cols[c].H)
-			if !(b.Cols[c].W > 0) || b.Cols[c].W > 1000 {
-				b.Cols[c].W = 1
+			if len(b.Groups) > docMaxGroups {
+				return fmt.Errorf("section %d: %d tables at most", bi+1, docMaxGroups)
 			}
-		}
-		for r := range b.Rows {
-			row := b.Rows[r]
-			// Every row as wide as the header: short rows padded, long ones cut.
-			if len(row) > len(b.Cols) {
-				row = row[:len(b.Cols)]
+			for g := range b.Groups {
+				gr := &b.Groups[g]
+				gr.Text, gr.Small, gr.Empty = clean(gr.Text), clean(gr.Small), clean(gr.Empty)
+				if len(gr.Cols) == 0 {
+					gr.Rows = nil
+					continue
+				}
+				n, err := tidyTable(gr.Cols, gr.Rows)
+				if err != nil {
+					return fmt.Errorf("section %d, %q: %w", bi+1, gr.Text, err)
+				}
+				cells += n
 			}
-			for len(row) < len(b.Cols) {
-				row = append(row, Cell{})
-			}
-			for c := range row {
-				row[c].Text = clean(row[c].Text)
-			}
-			b.Rows[r] = row
-			cells += len(row)
+		default:
+			b.Cols, b.Rows, b.Groups = nil, nil, nil
 		}
 	}
 	if cells > docMaxCells {

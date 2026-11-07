@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  alertPager, bulkPlan, bulkWords, canTake, choiceWords, companyForOrgCode, alertTrend, countWhere, trendUnit, daysBounds, daysWords, decisionWords,
-  duration, figureOf, fleetDay, fleetMidnight, headline, kindOf, periodDays, periodFrom, reportedLate, statusOf, unitQueues,
+  alertDays, alertPager, bulkPlan, bulkWords, canTake, choiceWords, companyForOrgCode, alertTrend, countWhere, trendUnit, daysBounds, daysWords, decisionWords,
+  duration, figureOf, fleetDay, fleetMidnight, headline, kindOf, periodDays, periodFrom, reportedLate, statusOf, unitQueues, orgsWhere,
 } from "./alertsView";
 
 describe("alertPager", () => {
@@ -192,23 +192,23 @@ describe("alerts over time", () => {
   it("counts camera alarms on their own line", () => {
     const withCamera = [...history, { orgId: "b", kind: "camera", day: "2026-10-13", n: 7 }];
     expect(alertTrend(withCamera, {}, NOW).points.at(-1)).toEqual(
-      { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 7 });
+      { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 7, hours: 0, event: 0 });
   });
 
   it("runs from the first alert to today, empty days at 0, both kinds apart", () => {
     expect(alertTrend(history, {}, NOW)).toEqual({
       unit: "day",
       points: [
-        { start: "2026-10-11", words: "11 Oct", fuel: 2, speeding: 1, camera: 0 },
-        { start: "2026-10-12", words: "12 Oct", fuel: 0, speeding: 0, camera: 0 },
-        { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 0 },
+        { start: "2026-10-11", words: "11 Oct", fuel: 2, speeding: 1, camera: 0, hours: 0, event: 0 },
+        { start: "2026-10-12", words: "12 Oct", fuel: 0, speeding: 0, camera: 0, hours: 0, event: 0 },
+        { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 0, hours: 0, event: 0 },
       ],
     });
   });
 
   it("follows the organisation filter", () => {
     expect(alertTrend(history, { orgs: ["b"] }, NOW).points).toEqual([
-      { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 0 },
+      { start: "2026-10-13", words: "13 Oct", fuel: 0, speeding: 4, camera: 0, hours: 0, event: 0 },
     ]);
   });
 
@@ -217,7 +217,7 @@ describe("alerts over time", () => {
     expect(trendUnit("2024-01-01", "2026-10-13")).toBe("month");
     const weeks = alertTrend([{ orgId: "a", kind: "fuel", day: "2026-08-05", n: 3 }, { orgId: "a", kind: "fuel", day: "2026-08-09", n: 1 }], {}, NOW);
     expect(weeks.unit).toBe("week");
-    expect(weeks.points[0]).toEqual({ start: "2026-08-03", words: "Week of 3 Aug", fuel: 4, speeding: 0, camera: 0 });
+    expect(weeks.points[0]).toEqual({ start: "2026-08-03", words: "Week of 3 Aug", fuel: 4, speeding: 0, camera: 0, hours: 0, event: 0 });
     expect(weeks.points.at(-1).start).toBe("2026-10-12");
     const months = alertTrend([{ orgId: "a", kind: "speeding", day: "2024-06-30", n: 2 }], {}, NOW);
     expect(months.points.slice(0, 2).map((p) => [p.words, p.speeding])).toEqual([["Jun 2024", 2], ["Jul 2024", 0]]);
@@ -265,5 +265,54 @@ describe("camera alarms", () => {
     expect(decisionWords("camera", { outcome: "DEESCALATED" })).toBe("De-escalated as a false alarm");
     expect(choiceWords("camera", { outcome: "DEESCALATED" }).label).toBe("False alarm");
     expect(kindOf("camera")).toMatchObject({ tag: "Camera", icon: "ti-video", title: "Camera alarm" });
+  });
+});
+
+describe("alertDays and orgsWhere (the stats strip)", () => {
+  const history = [
+    { orgId: "a", kind: "speeding", day: "2026-10-20", n: 2 },
+    { orgId: "a", kind: "camera", day: "2026-10-21", n: 5 },
+    { orgId: "b", kind: "camera", day: "2026-10-21", n: 1 },
+    { orgId: "a", kind: "camera", day: "2026-10-30", n: 9 },
+  ];
+
+  it("counts each kind a day, every day in the period, empty days at 0", () => {
+    expect(alertDays(history, { fromDay: "2026-10-20", toDay: "2026-10-22" })).toEqual([
+      { day: "2026-10-20", fuel: 0, speeding: 2, camera: 0, hours: 0, event: 0 },
+      { day: "2026-10-21", fuel: 0, speeding: 0, camera: 6, hours: 0, event: 0 },
+      { day: "2026-10-22", fuel: 0, speeding: 0, camera: 0, hours: 0, event: 0 },
+    ]);
+    expect(alertDays(history, { orgs: ["b"], fromDay: "2026-10-21", toDay: "2026-10-21" })).toEqual([
+      { day: "2026-10-21", fuel: 0, speeding: 0, camera: 1, hours: 0, event: 0 },
+    ]);
+    expect(alertDays(null, { fromDay: "2026-10-20", toDay: "2026-10-22" })).toBeNull();
+  });
+
+  it("counts the organisations holding a matching alert", () => {
+    const counts = [
+      { orgId: "a", kind: "camera", status: "open", read: false, n: 3 },
+      { orgId: "b", kind: "camera", status: "open", read: true, n: 1 },
+      { orgId: "b", kind: "speeding", status: "escalated", read: false, n: 0 },
+    ];
+    expect(orgsWhere(counts, { status: "open" })).toBe(2);
+    expect(orgsWhere(counts, { status: "open", read: "unread" })).toBe(1);
+    expect(orgsWhere(counts, { kind: "speeding" })).toBe(0);
+    expect(orgsWhere(null)).toBeNull();
+  });
+});
+
+describe("driver hours alerts", () => {
+  const alert = { kind: "hours", hours: { rule: "no_break", title: "No break", detail: "4 h 34 min driving without a 30 min break", driverName: "Jane" } };
+
+  it("reads the rule and what happened", () => {
+    expect(headline(alert)).toEqual({ figure: "No break", words: "4 h 34 min driving without a 30 min break" });
+    expect(kindOf("hours")).toMatchObject({ tag: "Hours", title: "Driver hours breach" });
+    expect(figureOf(alert)).toBeNull();
+  });
+
+  it("is decided as a breach or not", () => {
+    expect(choiceWords("hours", { outcome: "ESCALATED" }).label).toBe("Confirmed breach");
+    expect(choiceWords("hours", { outcome: "DEESCALATED" }).label).toBe("Not a breach");
+    expect(decisionWords("hours", { outcome: "DEESCALATED" })).toBe("De-escalated as not a breach");
   });
 });

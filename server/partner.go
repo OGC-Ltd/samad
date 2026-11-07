@@ -191,7 +191,9 @@ type PEvent struct {
 	Latitude     *float64 `json:"latitude"`
 	Longitude    *float64 `json:"longitude"`
 	Speed        *float64 `json:"speed"`
-	Clips        *struct {
+	// Ours, on driver-hours breaches only: who had the vehicle (hours.go).
+	Driver string `json:"driver,omitempty"`
+	Clips  *struct {
 		RoadFacing   *string `json:"road_facing"`
 		DriverFacing *string `json:"driver_facing"`
 	} `json:"clips"`

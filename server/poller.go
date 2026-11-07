@@ -76,6 +76,10 @@ func (p *Poller) positions(ctx context.Context) {
 	for _, v := range p.store.ApplyPositions(list) {
 		p.publish("position", positionFrame(v))
 	}
+	// Driver-hours breaches go to the bell (hours.go).
+	for _, e := range p.store.TakeHours() {
+		p.publish("feed", hoursFeedItem(e))
+	}
 }
 
 // events drains the feed from the stored cursor. On the very first run there
@@ -89,9 +93,9 @@ func (p *Poller) events(ctx context.Context) {
 			log.Printf("poll events: %v", err)
 			return
 		}
-		for _, e := range p.store.AddEvents(page.Events, page.NextCursor) {
-			p.publish("feed", feedItem(e))
-		}
+		// The partner's events are listed on the Alerts page, not sent to
+		// the bell: the bell is for driver hours (operator, 2026-11-07).
+		p.store.AddEvents(page.Events, page.NextCursor)
 		if page.NextCursor != "" {
 			cursor = page.NextCursor
 		}

@@ -38,11 +38,11 @@ import { hushFuelAlarm, useFuelAlarm } from "../../hooks/useFuelAlarm";
 import { plateIn } from "../../lib/plate";
 import { settleLimited } from "../../lib/settleLimited";
 import {
-  ALERT_KINDS, KINDS, OVER_BY, PERIODS, READS, STATUSES, alertPager, figureOf, kindOf, bulkPlan, bulkWords, choiceWords, companyForOrgCode, alertTrend, countWhere,
+  ALERT_KINDS, KINDS, OVER_BY, PERIODS, READS, STATUSES, alertPager, figureOf, kindOf, bulkPlan, bulkWords, choiceWords, companyForOrgCode, alertDays, countWhere,
   daysBounds, daysWords, decisionWords, duration, fleetDay, headline, kmh, litres, periodDays,
   reportedLate, ruleWords, statusOf, unitQueues, when,
 } from "../../lib/alertsView";
-import { Card, Gauge } from "./FuelReportOverview";
+import AlertsStrip from "./AlertsStrip";
 import TableToolbar from "../body/TableToolbar";
 import TablePager, { PAGE_STEP } from "../body/TablePager";
 import FilterBar from "../body/FilterBar";
@@ -130,22 +130,6 @@ function DayField({ label, value, max, onPick }) {
   );
 }
 
-/** One figure as a gauge against the period's whole, like the Fuel Audit's cards. */
-function StatCard({ title, n, of, color, note, loading }) {
-  const shown = n == null ? "-" : n;
-  const unit = of > 0 ? `of ${of} alert${of === 1 ? "" : "s"}` : loading ? "reading" : "no alerts";
-  return (
-    <Card title={title} note={note} className="aud-stat">
-      <Gauge ratio={of > 0 && n != null ? n / of : 0} color={color} value={shown} unit={unit}
-             ariaLabel={`${title}: ${shown} of ${of ?? 0} alerts.`} />
-    </Card>
-  );
-}
-
-const TREND_W = 240;
-const TREND_H = 100;
-const TREND_LINES = Object.entries(ALERT_KINDS).map(([key, k]) => ({ key, label: k.tag, cls: `alr-trend__line--${k.line}` }));
-
 /** The kind's tag: its icon and word, as in the table. */
 function KindTag({ kind }) {
   const k = kindOf(kind);
@@ -157,83 +141,6 @@ function KindTag({ kind }) {
   );
 }
 
-const UNIT_WORDS = { day: "a day", week: "a week", month: "a month" };
-
-/**
- * Every alert ever received, one line for fuel and one for overspeeding, a
- * day, week or month a point (alertsView alertTrend). Pointing at (or arrowing
- * along) the chart reads out that point; otherwise the key holds the totals.
- */
-function TrendCard({ trend, loading, kinds }) {
-  const [at, setAt] = useState(null);
-  const series = trend?.points ?? null;
-  const n = series?.length ?? 0;
-  // Only the kinds the organisations on the page hold: a fleet with no fuel
-  // data has no fuel line.
-  const lines = TREND_LINES.filter((l) => !kinds || kinds.has(l.key));
-  const top = Math.max(1, ...(series ?? []).flatMap((d) => lines.map((l) => d[l.key])));
-  const xPct = (i) => (n < 2 ? 50 : (i / (n - 1)) * 100);
-  // Room above the top line for its figure.
-  const y = (v) => 16 + (1 - v / top) * (TREND_H - 20);
-  const path = (k) => series.map((d, i) => `${i ? "L" : "M"}${((xPct(i) / 100) * TREND_W).toFixed(1)},${y(d[k]).toFixed(1)}`).join("");
-  const sum = (k) => (series ?? []).reduce((t, d) => t + d[k], 0);
-  const point = at != null && series?.[at] ? series[at] : null;
-
-  const pointAt = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    if (!n || r.width <= 0) return;
-    setAt(Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1)))));
-  };
-  const onKey = (e) => {
-    if (!n || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
-    e.preventDefault();
-    setAt((i) => Math.max(0, Math.min(n - 1, (i ?? n) + (e.key === "ArrowLeft" ? -1 : 1))));
-  };
-  const readout = point ? point.words : n ? `Since ${series[0].words.replace(/^Week of /, "")}` : "";
-
-  return (
-    <Card title="Alerts over time" className="aud-stat alr-trend">
-      <ul className="alr-trend__key" aria-live="polite">
-        {lines.map((l) => (
-          <li key={l.key} className={l.cls}>
-            <i aria-hidden="true" />{l.label}
-            <b>{series ? (point ? point[l.key] : sum(l.key)) : "-"}</b>
-          </li>
-        ))}
-        <li className="alr-trend__when">{series ? readout : loading ? "Reading…" : ""}</li>
-      </ul>
-      <div className="alr-trend__plot" tabIndex={n ? 0 : -1}
-           role="img"
-           aria-label={series
-             ? `Alerts ${UNIT_WORDS[trend.unit]}, ${readout.toLowerCase()}: ${lines.map((l) => `${sum(l.key)} ${kindOf(l.key).noun}`).join(", ")}. Arrow keys read one point.`
-             : "Alerts over time: reading."}
-           onPointerMove={pointAt} onPointerDown={pointAt} onPointerLeave={() => setAt(null)}
-           onKeyDown={onKey} onBlur={() => setAt(null)}>
-        <svg viewBox={`0 0 ${TREND_W} ${TREND_H}`} preserveAspectRatio="none" aria-hidden="true">
-          {[0, 0.5, 1].map((f) => (
-            <line key={f} x1="0" x2={TREND_W} y1={y(top * f)} y2={y(top * f)} className="alr-trend__grid" />
-          ))}
-          {n > 1 && lines.map((l) => (
-            <path key={l.key} d={path(l.key)} className={`alr-trend__line ${l.cls}`} />
-          ))}
-          {point && (
-            <line x1={(xPct(at) / 100) * TREND_W} x2={(xPct(at) / 100) * TREND_W} y1="0" y2={TREND_H}
-                  className="alr-trend__cursor" />
-          )}
-        </svg>
-        {/* Points in HTML, so they stay round however the chart stretches. */}
-        {series && (n === 1 || point) && lines.map((l) => {
-          const i = point ? at : 0;
-          return (
-            <span key={l.key} className={`alr-trend__dot ${l.cls}`}
-                  style={{ left: `${xPct(i)}%`, top: `${(y(series[i][l.key]) / TREND_H) * 100}%` }} />
-          );
-        })}
-        <span className="alr-trend__top">{top} {series ? UNIT_WORDS[trend.unit] : ""}</span>
-      </div>
-    </Card>
-  );
-}
 
 function Chip({ on, onClick, children, n, title }) {
   return (
@@ -523,7 +430,10 @@ function Facts({ alert, org }) {
     if (f.location) rows.push(["Where", f.location]);
     if (f.driverName) rows.push(["Driver", f.driverName]);
     if (f.probeHold) rows.push(["Probe", "Reported for a fuel probe repair, not yet fixed"]);
-  } else if (alert.kind === "camera") {
+  } else if (alert.hours) {
+    const h = alert.hours;
+    rows.push(["Rule", h.title], ["What", h.detail], ["When", when(alert.at)], ["Driver", h.driverName || "Not recorded"]);
+  } else if (alert.camera) {
     const c = alert.camera;
     rows.push(["Alarm", c.label], ["Severity", c.severity === "critical" ? "Critical" : c.severity === "warning" ? "Warning" : "Information"]);
     if (c.speedKmh != null) rows.push(["Speed", kmh(c.speedKmh)]);
@@ -615,7 +525,7 @@ function AlertPanel({ alert, org, start, canMap, onClose, onDecided, onToast, on
       </DetailSidebarIdent>
 
       <DetailSidebarFacts facts={[
-        { label: alert.kind === "fuel" ? "Lost" : alert.kind === "camera" ? "Alarm" : "Over by", value: h.figure },
+        { label: alert.kind === "fuel" ? "Lost" : alert.kind === "camera" ? "Alarm" : alert.kind === "event" ? "Event" : alert.kind === "hours" ? "Rule" : "Over by", value: h.figure },
         { label: "When", value: when(alert.at) },
         { label: "State", value: <span className={`sp4-pill sp4-pill--${st.tone}`} title={st.meaning}>{st.label}</span> },
       ]} />
@@ -848,8 +758,7 @@ export default function AlertsScreen() {
   const nOrg = (id) => countWhere(counts, { orgs: [id], kind, status, read: readF });
   const nRead = (r) => countWhere(counts, { orgs, kind, status, read: r });
   const unread = nRead("unread");
-  const total = nStatus("all");
-  const trend = useMemo(() => alertTrend(history.data ?? null, { orgs }), [history.data, orgs]);
+  const daySeries = useMemo(() => alertDays(history.data ?? null, { orgs, ...days }), [history.data, orgs, days]);
   const pager = {
     ...alertPager({ page: at.page, rows: rows.length, hasNext: Boolean(page?.hasNextPage), listed: nStatus(status), step: PAGE_STEP }),
     setPage: goTo,
@@ -989,14 +898,15 @@ export default function AlertsScreen() {
       )}
 
       {/* Where the period stands, for the organisations and kind picked. */}
-      <div data-tour="alerts-stats" className="aud-stats alr-stats">
-        <StatCard title="Open" n={nStatus("open")} of={total} color="var(--frv-s2)" loading={first.loading}
-                  note="Waiting for somebody to escalate or de-escalate them." />
-        <StatCard title="Escalated" n={nStatus("escalated")} of={total} color="var(--frv-crit)" loading={first.loading}
-                  note="Confirmed as real and taken up." />
-        <StatCard title="De-escalated" n={nStatus("deescalated")} of={total} color="var(--frv-s3)" loading={first.loading}
-                  note="Looked at and found not to be one." />
-        <TrendCard trend={trend} loading={history.isLoading} kinds={kindsHeld} />
+      <div data-tour="alerts-stats" className="aud-stats alr-stats dr-tones">
+        <AlertsStrip
+          counts={counts} countsLoading={first.loading}
+          series={daySeries} seriesLoading={history.isLoading}
+          kinds={Object.keys(ALERT_KINDS).filter((k) => kindsHeld.has(k))}
+          orgs={orgs} kind={kind} read={readF}
+          scope={orgs.length === 1 ? (shortName(orgById.get(orgs[0])) ?? "one organisation")
+            : orgs.length ? `${orgs.length} organisations` : "all organisations"}
+        />
       </div>
 
       <div className="sp4-body">
@@ -1233,8 +1143,10 @@ export default function AlertsScreen() {
                         <td className="sp4-td--left alr-details">
                           {a.kind === "fuel"
                             ? <>{ruleWords(a.fuel.rule)}{a.fuel.driverName ? ` · ${a.fuel.driverName}` : ""}</>
-                            : a.kind === "camera"
-                              ? <>{a.camera.severity === "critical" ? "Critical" : "Warning"}{a.camera.clips?.roadFacing || a.camera.clips?.driverFacing ? " · clip" : ""}{a.camera.driverName ? ` · ${a.camera.driverName}` : ""}</>
+                            : a.hours
+                              ? <>{a.hours.driverName || "Driver not recorded"}</>
+                            : a.camera
+                              ? <>{a.camera.severity === "critical" ? "Critical" : a.camera.severity === "warning" ? "Warning" : "Information"}{a.camera.clips?.roadFacing || a.camera.clips?.driverFacing ? " · clip" : ""}{a.camera.driverName ? ` · ${a.camera.driverName}` : ""}</>
                               : <>+{Math.round(a.speeding.overByKmh)} km/h for {duration(a.speeding.durationSec)}{a.speeding.driverName ? ` · ${a.speeding.driverName}` : ""}</>}
                         </td>
                         <td className="sp4-td--left">

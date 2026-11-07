@@ -79,7 +79,8 @@ export async function decideAlert(alert, outcome, note, reason = null) {
     return reviewIncident(alert.orgId, alert.id, outcome, note, outcome === "ESCALATED" ? reason ?? "theft" : undefined);
   }
   const res = await apiFetch(
-    `/api/v1/organisations/${alert.orgId}/incidents/${alert.kind === "camera" ? "camera" : "speeding"}/${encodeURIComponent(alert.id)}/review`,
+    // The alert's own kind: speeding, camera, hours or event (server/alerts.go).
+    `/api/v1/organisations/${alert.orgId}/incidents/${alert.kind}/${encodeURIComponent(alert.id)}/review`,
     { method: "POST", body: JSON.stringify({ outcome, note }) },
   );
   return res?.data?.review ?? null;

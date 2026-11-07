@@ -135,7 +135,8 @@
 /* Driver Analytics page — shares the Analytics/Maintenance design language:
    Geist, --color-* theme tokens, card shell, KPI tiles, ranked bars. Light +
    dark safe. Mirrors the token bridge used in AnalyticsScreen.css. */
-.drivers-page {
+.drivers-page,
+.dr-tones {
   --card: var(--color-card, #0a0a0b);
   --border: var(--color-border, #2a2d35);
   --border-hi: var(--color-text-sec, var(--text-sec-adaptive, #7c8899));
@@ -166,7 +167,10 @@
      #1f9d55 / #e34948 measured 3.5 and 3.9:1. */
   --tone-up:      #15803d;
   --tone-down:    #c42b2b;
-
+}
+/* .dr-tones carries the same tokens to a page that borrows the strip (the
+   Alerts page, 2026-11-07, after new-ui) without this page's scroll box. */
+.drivers-page {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -181,7 +185,8 @@
 
 /* Dark-surface steps, chosen for the dark band rather than derived by
    lightening the light ones — same rule the analytics palette follows. */
-.app--dark .drivers-page {
+.app--dark .drivers-page,
+.app--dark .dr-tones {
   --accent:     #3987e5;
   --tone-theft: #e66767;
   --tone-speed: #c98500;
@@ -872,6 +877,10 @@
 }
 .dr-statchart--tonnes  { --tone: var(--tone-tonnes); }
 .dr-statchart--mileage { --tone: var(--tone-mileage); }
+.dr-statchart--theft   { --tone: var(--tone-theft); }
+.dr-statchart--speed   { --tone: var(--tone-speed); }
+.dr-statchart--camera  { --tone: var(--tone-mileage); }
+.dr-statchart--hours   { --tone: var(--tone-theft); }
 
 .dr-spark__base { stroke: var(--border); stroke-width: 1; }
 .dr-spark__line {
@@ -980,8 +989,12 @@
    the same red/amber dichromat reason. */
 .dr-summary__incident--theft { color: var(--tone-theft); }
 .dr-summary__incident--speed { color: var(--tone-speed); }
+.dr-summary__incident--camera { color: var(--tone-mileage); }
+.dr-summary__incident--hours { color: var(--tone-theft); }
 .dr-summary__incident--theft .dr-summary__name,
-.dr-summary__incident--speed .dr-summary__name { color: var(--ink); }
+.dr-summary__incident--speed .dr-summary__name,
+.dr-summary__incident--camera .dr-summary__name,
+.dr-summary__incident--hours .dr-summary__name { color: var(--ink); }
 .dr-summary__who { font-weight: 500; color: var(--text-2); }
 
 /* ══ Roster cell ═══════════════════════════════════════════════════════════
@@ -1944,3 +1957,11 @@
   font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--tone-speed) 75%, var(--ink));
 }
+
+/* Bars a pointer can read (TrendStat, shared with the Alerts strip): the
+   column under the pointer stays full, the rest dim. */
+.dr-spark__hit { fill: transparent; cursor: crosshair; }
+.dr-spark__hit:focus { outline: none; }
+.dr-spark__hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dr-spark--reading .dr-spark__bar { opacity: 0.4; }
+.dr-spark--reading .dr-spark__bar--on { opacity: 1; }

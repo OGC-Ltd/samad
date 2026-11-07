@@ -6,8 +6,14 @@
 //   Policy Breaches  overspeeding, harsh braking/acceleration, no seatbelt,
 //                    on phone and camera covered, per unit
 //   Movements        every unit: distance in the period, where it is, its state
-//   End of Shift     the shift's critical alarms, breaches by unit, and every
-//                    unit's distance and place
+//   End of Shift     laid out after the Menengai end-of-shift sheet (operator,
+//                    2026-11-07): the shift at a glance, critical alarms, the
+//                    breaches with the top units for each, and the handover
+//   Weekly Incidents breaches per driver and truck, week by week, to watch
+//                    them come down (operator, 2026-11-07)
+//   Driver Conduct   each driver's incidents per vehicle, by vehicle type,
+//                    after the Menengai Driver Conduct sheet (operator,
+//                    2026-11-07); End of Shift also takes a custom period
 //
 // The server builds the report as a document (api/reportDocs); Edit opens it
 // in a form; the preview is the server's own drawing of the pages, so what is
@@ -17,8 +23,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAppActions } from '../../context/AppContext'
 import { loadReportDoc, previewReport, downloadReport } from '../../api/reportDocs'
-import { PRESETS, presetRange, SHIFTS, currentShift, periodWords, dayKey } from '../../lib/samadReports'
-import TableToolbar from '../body/TableToolbar'
+import { PRESETS, presetRange, SHIFTS, currentShift, shiftRange, periodWords, dayKey } from '../../lib/samadReports'
 import EmptyNote from '../shared/EmptyNote'
 import ReportEditor from './ReportEditor'
 import '../body/SensorPanel.scss'
@@ -27,9 +32,13 @@ import './ReportsScreen.scss'
 
 const TABS = [
   { key: 'breaches',  label: 'Policy Breaches' },
+  { key: 'conduct',   label: 'Driver Conduct' },
   { key: 'movements', label: 'Movements' },
   { key: 'shift',     label: 'End of Shift' },
+  { key: 'weekly',    label: 'Weekly Incidents' },
 ]
+
+const WEEKS = [4, 8, 12]
 
 const MAX_DAYS = 30
 const DAY = 86_400_000
@@ -48,11 +57,30 @@ function useSettled(value, ms) {
   return settled
 }
 
-function summaryOf(doc) {
+/** The report's own figures, as label and value pairs for the status bar. */
+function figuresOf(doc) {
   const s = doc?.summary ?? {}
-  if (doc?.kind === 'breaches') return <><b>{s.breaches}</b> breach{s.breaches === 1 ? '' : 'es'} · <b>{s.vehicles}</b> vehicle{s.vehicles === 1 ? '' : 's'} · {s.period}</>
-  if (doc?.kind === 'movements') return <><b>{s.km}</b> km · <b>{s.moving}</b> moving now · {s.period}</>
-  return <><b>{s.critical}</b> critical · <b>{s.breaches}</b> breaches · <b>{s.reporting}</b> of {s.units} units reporting · {s.period}</>
+  if (doc?.kind === 'breaches') return [[s.breaches === 1 ? 'Breach' : 'Breaches', s.breaches], [s.vehicles === 1 ? 'Vehicle' : 'Vehicles', s.vehicles]]
+  if (doc?.kind === 'conduct') return [[s.incidents === 1 ? 'Incident' : 'Incidents', s.incidents], [s.vehicles === 1 ? 'Vehicle' : 'Vehicles', s.vehicles]]
+  if (doc?.kind === 'movements') return [['Km', s.km], ['Moving now', s.moving]]
+  if (doc?.kind === 'weekly') return [[`Incidents in ${s.week}`, s.incidents], ['Change', s.change], ['Drivers', s.drivers], ['Trucks', s.trucks]]
+  return [['Critical', s.critical], ['Breaches', s.breaches], ['Units reporting', `${s.reporting} of ${s.units}`]]
+}
+
+/** One choice of a few, as a row of joined buttons. */
+function Segmented({ label, options, value, onPick }) {
+  return (
+    <div className="rpt-seg" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.key} type="button" aria-pressed={value === o.key}
+                className={`rpt-seg-btn${value === o.key ? ' rpt-seg-btn--on' : ''}`} onClick={() => onPick(o.key)}>
+          {o.icon && <i className={`ti ${o.icon}`} aria-hidden="true" />}
+          {o.label}
+          {o.hint && <span className="rpt-seg-hint">{o.hint}</span>}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export default function ReportsScreen() {
@@ -62,10 +90,11 @@ export default function ReportsScreen() {
   const [preset, setPreset] = useState('today')
   const [custom, setCustom] = useState(() => { const r = presetRange('7d'); return { from: toInput(r.from), to: toInput(r.to) } })
   const [shift, setShift] = useState(currentShift)
+  const [weeks, setWeeks] = useState(4)
   // The period is fixed when it is picked (and on Refresh), not on every
   // render: "today" ends at the moment it was asked for.
   const [stamp, setStamp] = useState(() => Date.now())
-  const [orientation, setOrientation] = useState('portrait')
+  const [orientation, setOrientation] = useState('portrait') // each new report sets its own
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)      // the edited document, or null
   const [busy, setBusy] = useState(null)        // 'pdf' | 'jpeg' | 'csv' | null
@@ -77,17 +106,26 @@ export default function ReportsScreen() {
     return presetRange(preset, stamp)
   }, [preset, custom, stamp])
 
-  const problem = tab === 'shift' ? null
-    : !Number.isFinite(range.from) || !Number.isFinite(range.to) ? 'Pick a start and an end.'
-      : range.from >= range.to ? 'The period must start before it ends.'
-        : range.to - range.from > MAX_DAYS * DAY ? `A report covers ${MAX_DAYS} days at most.`
-          : range.from < stamp - MAX_DAYS * DAY ? `Events are kept for ${MAX_DAYS} days; pick a later start.`
+  // End of Shift by hand: the custom period's From and To, shared with the other tabs.
+  const shiftCustom = tab === 'shift' && shift.shift === 'custom'
+  const period = useMemo(() => (shiftCustom
+    ? { from: fromInput(custom.from), to: Math.min(fromInput(custom.to), stamp) }
+    : range), [shiftCustom, custom, stamp, range])
+
+  const problem = tab === 'weekly' || (tab === 'shift' && !shiftCustom) ? null
+    : !Number.isFinite(period.from) || !Number.isFinite(period.to) ? 'Pick a start and an end.'
+      : period.from >= period.to ? 'The period must start before it ends.'
+        : period.to - period.from > MAX_DAYS * DAY ? `A report covers ${MAX_DAYS} days at most.`
+          : period.from < stamp - MAX_DAYS * DAY ? `Events are kept for ${MAX_DAYS} days; pick a later start.`
             : null
 
-  const docKey = ['reports', 'doc', tab, tab === 'shift' ? shift.day : range.from, tab === 'shift' ? shift.shift : range.to, stamp]
+  const docKey = shiftCustom ? ['reports', 'doc', tab, 'custom', period.from, period.to, stamp]
+    : tab === 'shift' ? ['reports', 'doc', tab, shift.day, shift.shift, stamp]
+    : tab === 'weekly' ? ['reports', 'doc', tab, weeks, stamp]
+      : ['reports', 'doc', tab, range.from, range.to, stamp]
   const docQ = useQuery({
     queryKey: docKey,
-    queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: range.from, to: range.to, day: shift.day, shift: shift.shift, signal }),
+    queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: period.from, to: period.to, day: shift.day, shift: shift.shift, weeks, signal }),
     enabled: !problem,
     placeholderData: keepPreviousData,
     retry: 1,
@@ -98,7 +136,10 @@ export default function ReportsScreen() {
   // A new report (another tab, period or Refresh) drops the edits made to the last one.
   const docKeyText = JSON.stringify(docKey)
   useEffect(() => { setDraft(null) }, [docKeyText])
-  useEffect(() => { setSaveError(null) }, [tab, range.from, range.to, shift])
+  // Each report comes in the orientation the server picked for it (End of
+  // Shift and Weekly landscape, like the sheet); the toggle overrides it.
+  useEffect(() => { if (built?.orientation) setOrientation(built.orientation) }, [built])
+  useEffect(() => { setSaveError(null) }, [tab, period.from, period.to, shift])
 
   const doc = useMemo(() => {
     const d = draft ?? built
@@ -131,12 +172,23 @@ export default function ReportsScreen() {
   }
 
   const reload = () => { setStamp(Date.now()) }
-  const waitWords = tab === 'breaches' ? 'Reading the fleet\'s events.'
+  const waitWords = tab === 'breaches' || tab === 'conduct' || tab === 'weekly' ? 'Reading the fleet\'s events.'
     : 'Reading each unit\'s trip history and current location. The first report of a period can take a minute; the next is quick.'
 
-  const summary = problem ? <span className="sp4-muted">{problem}</span>
-    : !built ? <span className="sp4-muted">{docQ.isFetching ? 'Making the report…' : ''}</span>
-      : summaryOf(built)
+  const customFields = (
+    <>
+      <label className="rpt-field">
+        <span>From</span>
+        <input type="datetime-local" value={custom.from}
+               onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))} />
+      </label>
+      <label className="rpt-field">
+        <span>To</span>
+        <input type="datetime-local" value={custom.to}
+               onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))} />
+      </label>
+    </>
+  )
 
   const pages = previewQ.data ?? []
   const rotated = previewQ.isPlaceholderData || (settled !== doc)
@@ -154,104 +206,102 @@ export default function ReportsScreen() {
       </div>
 
       <div className="sp4-body">
-        <TableToolbar
-          summary={<>{summary}{docQ.isFetching && built && <span className="sp4-muted"> · updating…</span>}{draft && <span className="rpt-edited"> · edited</span>}</>}
-          loading={docQ.isFetching}
-          onReload={reload}
-          actions={(
-            <>
-              <div className="rpt-seg" role="group" aria-label="Page orientation">
-                {[['portrait', 'Portrait', 'ti-file'], ['landscape', 'Landscape', 'ti-file-horizontal']].map(([k, label, icon]) => (
-                  <button key={k} type="button" aria-pressed={orientation === k}
-                          className={`rpt-seg-btn${orientation === k ? ' rpt-seg-btn--on' : ''}`} onClick={() => setOrientation(k)}>
-                    <i className={`ti ${icon}`} aria-hidden="true" /> {label}
-                  </button>
-                ))}
+        <header className="rpt-head" data-tour="page-toolbar">
+          <div className="rpt-pick">
+            {tab === 'weekly' ? (
+              <div className="rpt-field">
+                <span>Weeks</span>
+                <Segmented label="Weeks" value={weeks} onPick={(n) => { setWeeks(n); setStamp(Date.now()) }}
+                           options={WEEKS.map((n) => ({ key: n, label: `Last ${n} weeks` }))} />
               </div>
-              <button type="button" className={`sp4-ghost-btn${editing ? ' rpt-on' : ''}`} aria-pressed={editing}
+            ) : tab === 'shift' ? (
+              <>
+                {!shiftCustom && (
+                  <label className="rpt-field">
+                    <span>Date</span>
+                    <input type="date" value={shift.day} max={dayKey(stamp)}
+                           min={dayKey(stamp - (MAX_DAYS - 1) * DAY)}
+                           onChange={(e) => { if (e.target.value) { setShift((s) => ({ ...s, day: e.target.value })); setStamp(Date.now()) } }} />
+                  </label>
+                )}
+                <div className="rpt-field">
+                  <span>Shift</span>
+                  <Segmented label="Shift" value={shift.shift} onPick={(k) => { setShift((x) => ({ ...x, shift: k })); setStamp(Date.now()) }}
+                             options={[...SHIFTS.map((s) => ({ key: s.key, label: s.label, hint: s.words })), { key: 'custom', label: 'Custom' }]} />
+                </div>
+                {shiftCustom && customFields}
+                <button type="button" className="rpt-btn rpt-btn--quiet"
+                        onClick={() => { setShift(currentShift()); setStamp(Date.now()) }}>
+                  This shift
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="rpt-field">
+                  <span>Period</span>
+                  <Segmented label="Period" value={preset} onPick={(k) => { setPreset(k); setStamp(Date.now()) }}
+                             options={PRESETS.map((p) => ({ key: p.key, label: p.label }))} />
+                </div>
+                {preset === 'custom' && customFields}
+              </>
+            )}
+            <div className="rpt-field rpt-setup">
+              <span>Page</span>
+              <Segmented label="Page orientation" value={orientation} onPick={setOrientation}
+                         options={[{ key: 'portrait', label: 'Portrait', icon: 'ti-file' }, { key: 'landscape', label: 'Landscape', icon: 'ti-file-horizontal' }]} />
+            </div>
+            <button type="button" className="rpt-btn rpt-btn--quiet rpt-away" onClick={() => setDesktopActiveTab('fleet')}>
+              <i className="ti ti-map-2" aria-hidden="true" /> Live Map
+            </button>
+          </div>
+
+          <div className="rpt-bar">
+            <div className="rpt-status" aria-live="polite">
+              {problem ? <span className="rpt-quiet">{problem}</span>
+                : !built ? <span className="rpt-quiet">{docQ.isFetching ? 'Making the report…' : ''}</span>
+                  : (
+                    <>
+                      <span className="rpt-period">{built.summary?.period}</span>
+                      <dl className="rpt-figs">
+                        {figuresOf(built).map(([label, value]) => (
+                          <div key={label} className="rpt-fig"><dt>{label}</dt><dd>{value ?? '-'}</dd></div>
+                        ))}
+                      </dl>
+                      {docQ.isFetching && <span className="rpt-quiet">Updating…</span>}
+                      {draft && <span className="rpt-edited">Edited</span>}
+                    </>
+                  )}
+            </div>
+
+            <div className="rpt-actions">
+              <button type="button" className={`rpt-btn${editing ? ' rpt-btn--on' : ''}`} aria-pressed={editing}
                       onClick={() => setEditing((e) => !e)} disabled={!doc}>
                 <i className="ti ti-pencil" aria-hidden="true" /> {editing ? 'Done' : 'Edit'}
               </button>
               {draft && (
-                <button type="button" className="sp4-ghost-btn" onClick={() => setDraft(null)} title="Back to the report as the server made it">
+                <button type="button" className="rpt-btn rpt-btn--quiet" onClick={() => setDraft(null)} title="Back to the report as the server made it">
                   <i className="ti ti-arrow-back-up" aria-hidden="true" /> Undo edits
                 </button>
               )}
-              <button type="button" className="sp4-ghost-btn" onClick={() => save('pdf')} disabled={!doc || Boolean(busy)}>
-                <i className="ti ti-file-type-pdf" aria-hidden="true" /> {busy === 'pdf' ? 'Making PDF…' : 'PDF'}
-              </button>
-              <button type="button" className="sp4-ghost-btn" onClick={() => save('jpeg')} disabled={!doc || Boolean(busy)}
-                      title="Every page in one image, for a WhatsApp group">
-                <i className="ti ti-photo" aria-hidden="true" /> {busy === 'jpeg' ? 'Making JPEG…' : 'JPEG'}
-              </button>
-              <button type="button" className="sp4-ghost-btn" onClick={() => save('csv')} disabled={!doc || Boolean(busy)}
-                      title="The figures and tables, for a spreadsheet">
-                <i className="ti ti-file-spreadsheet" aria-hidden="true" /> {busy === 'csv' ? 'Making CSV…' : 'CSV'}
-              </button>
-              <button type="button" className="sp4-ghost-btn" onClick={() => setDesktopActiveTab('fleet')}>
-                <i className="ti ti-arrow-left" aria-hidden="true" /> Live Map
-              </button>
-            </>
-          )}
-        />
-
-        <div className="rpt-controls">
-          {tab === 'shift' ? (
-            <>
-              <label className="rpt-field">
-                <span>Date</span>
-                <input type="date" value={shift.day} max={dayKey(stamp)}
-                       min={dayKey(stamp - (MAX_DAYS - 1) * DAY)}
-                       onChange={(e) => { if (e.target.value) { setShift((s) => ({ ...s, day: e.target.value })); setStamp(Date.now()) } }} />
-              </label>
-              <div className="rpt-field">
-                <span>Shift</span>
-                <div className="rpt-chips">
-                  {SHIFTS.map((s) => (
-                    <button key={s.key} type="button" aria-pressed={shift.shift === s.key}
-                            className={`sp4-filter-chip${shift.shift === s.key ? ' sp4-filter-chip--on' : ''}`}
-                            onClick={() => { setShift((x) => ({ ...x, shift: s.key })); setStamp(Date.now()) }}>
-                      {s.label} <span className="rpt-dim">{s.words}</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="rpt-save" role="group" aria-label="Download">
+                <button type="button" className="rpt-btn rpt-btn--primary" onClick={() => save('pdf')} disabled={!doc || Boolean(busy)} aria-busy={busy === 'pdf'}>
+                  <i className="ti ti-file-type-pdf" aria-hidden="true" /> {busy === 'pdf' ? 'Making PDF…' : 'PDF'}
+                </button>
+                <button type="button" className="rpt-btn" onClick={() => save('jpeg')} disabled={!doc || Boolean(busy)} aria-busy={busy === 'jpeg'}
+                        title="Every page in one image, for a WhatsApp group">
+                  <i className="ti ti-photo" aria-hidden="true" /> {busy === 'jpeg' ? 'Making JPEG…' : 'JPEG'}
+                </button>
+                <button type="button" className="rpt-btn" onClick={() => save('csv')} disabled={!doc || Boolean(busy)} aria-busy={busy === 'csv'}
+                        title="The figures and tables, for a spreadsheet">
+                  <i className="ti ti-file-spreadsheet" aria-hidden="true" /> {busy === 'csv' ? 'Making CSV…' : 'CSV'}
+                </button>
               </div>
-              <button type="button" className="sp4-ghost-btn rpt-now"
-                      onClick={() => { setShift(currentShift()); setStamp(Date.now()) }}>
-                This shift
+              <button type="button" className="rpt-btn rpt-btn--quiet" onClick={reload} disabled={docQ.isFetching} aria-busy={docQ.isFetching}>
+                <i className="ti ti-refresh" aria-hidden="true" /> {docQ.isFetching ? 'Loading…' : 'Refresh'}
               </button>
-            </>
-          ) : (
-            <>
-              <div className="rpt-field">
-                <span>Period</span>
-                <div className="rpt-chips">
-                  {PRESETS.map((p) => (
-                    <button key={p.key} type="button" aria-pressed={preset === p.key}
-                            className={`sp4-filter-chip${preset === p.key ? ' sp4-filter-chip--on' : ''}`}
-                            onClick={() => { setPreset(p.key); setStamp(Date.now()) }}>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {preset === 'custom' && (
-                <>
-                  <label className="rpt-field">
-                    <span>From</span>
-                    <input type="datetime-local" value={custom.from}
-                           onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))} />
-                  </label>
-                  <label className="rpt-field">
-                    <span>To</span>
-                    <input type="datetime-local" value={custom.to}
-                           onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))} />
-                  </label>
-                </>
-              )}
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        </header>
 
         {saveError && <div className="rpt-error" role="alert">{saveError}</div>}
         {busy && progress && <div className="rpt-progress" role="status">{progress}…</div>}
@@ -265,7 +315,7 @@ export default function ReportsScreen() {
           </EmptyNote>
         ) : !doc ? (
           <EmptyNote icon="ti-loader-2" tone="busy" title="Making the Report">
-            {tab === 'shift' ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(range.from, range.to)}. {waitWords}
+            {tab === 'weekly' ? `The last ${weeks} finished weeks, Monday to Sunday` : tab === 'shift' && !shiftCustom ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(period.from, period.to)}. {waitWords}
           </EmptyNote>
         ) : (
           <div className={`rpt-work${editing ? ' rpt-work--editing' : ''}`}>
@@ -293,6 +343,6 @@ export default function ReportsScreen() {
 
 /** The shift's window, for the waiting line only (the server works it out itself). */
 function shiftWindow(s) {
-  const start = Date.parse(`${s.day}T00:00:00+03:00`) + (s.shift === 'night' ? 18 : 6) * 3_600_000
-  return { from: start, to: Math.min(start + 12 * 3_600_000, Date.now()) }
+  const { from } = shiftRange(s.day, s.shift)
+  return { from, to: Math.min(from + 12 * 3_600_000, Date.now()) }
 }
