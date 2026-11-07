@@ -23,7 +23,7 @@ func spd(f float64) *float64 { return &f }
 func sample(units int) *rptData {
 	d := &rptData{From: dayStartOf(tNow), To: tNow, Now: tNow, Km: map[string]*float64{}, Places: map[string]string{}}
 	for i := 0; i < units; i++ {
-		u := rptUnit{VehicleID: fmt.Sprint(100 + i), Plate: fmt.Sprintf("KDA %03dX", i), Type: "TRUCK", Online: i%5 != 0, Moving: i%3 == 0,
+		u := rptUnit{ID: 100 + i, VehicleID: fmt.Sprint(100 + i), Plate: fmt.Sprintf("KDA %03dX", i), Type: "TRUCK", Online: i%5 != 0, Moving: i%3 == 0,
 			HasPos: true, Lat: -1.2 - float64(i)/100, Lng: 36.8}
 		if i%4 == 0 {
 			u.Driver = fmt.Sprintf("Driver %d", i)
@@ -304,7 +304,7 @@ func (f *fakeHistory) History(_ context.Context, vid int, from, to time.Time) ([
 func TestDistancesCached(t *testing.T) {
 	c := newReportCache()
 	h := &fakeHistory{}
-	units := []rptUnit{{VehicleID: "1"}, {VehicleID: "99"}}
+	units := []rptUnit{{ID: 1, VehicleID: "1"}, {ID: 99, VehicleID: "99"}}
 	yesterday := dayStartOf(tNow).Add(-24 * time.Hour)
 	from, to := yesterday.Add(6*time.Hour), yesterday.Add(8*time.Hour)
 	km, err := c.distances(context.Background(), h, units, from, to, tNow)

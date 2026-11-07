@@ -41,12 +41,11 @@ const ptMM = 25.4 / 72 // one point in millimetres
 type rgb struct{ R, G, B uint8 }
 
 var (
-	cInk   = rgb{0x1c, 0x1c, 0x1c}
-	cMut   = rgb{0x5c, 0x5c, 0x5c}
-	cRule  = rgb{0xbf, 0xbf, 0xbf}
-	cSoft  = rgb{0xe6, 0xe6, 0xe6}
-	cBand  = rgb{0x21, 0x21, 0x21}
-	cWhite = rgb{0xff, 0xff, 0xff}
+	cInk  = rgb{0x1c, 0x1c, 0x1c}
+	cMut  = rgb{0x5c, 0x5c, 0x5c}
+	cRule = rgb{0xbf, 0xbf, 0xbf}
+	cSoft = rgb{0xe6, 0xe6, 0xe6}
+	cBand = rgb{0x21, 0x21, 0x21}
 )
 
 type fontStyle uint8
@@ -86,7 +85,7 @@ func (fc *face) advance(r rune) float64 {
 	}
 	a := 0.5
 	if idx, err := fc.f.GlyphIndex(&fc.buf, r); err == nil && idx != 0 {
-		if v, err := fc.f.GlyphAdvance(&fc.buf, idx, fixed.Int26_6(int(fc.upem)<<6), font.HintingNone); err == nil {
+		if v, err := fc.f.GlyphAdvance(&fc.buf, idx, fixed.I(int(fc.upem)), font.HintingNone); err == nil {
 			a = float64(v) / 64 / fc.upem
 		}
 	}
@@ -146,7 +145,6 @@ func wrapText(st fontStyle, size float64, s string, w float64) []string {
 		}
 		if line != "" {
 			lines = append(lines, line)
-			line = ""
 		}
 		for textW(st, size, word) > w && utf8.RuneCountInString(word) > 1 {
 			r := []rune(word)
