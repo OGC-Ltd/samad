@@ -19,6 +19,7 @@ import { useFleetLiveShared } from '../../context/FleetLiveContext'
 import { useAppActions } from '../../context/AppContext'
 import { loadFleetReport, distancesIn, placesNow } from '../../api/fleetReport'
 import { saveLetterheadPdf, saveLetterheadJpeg, letterheadLogos } from '../../api/letterheadPdf'
+import { layOutLetterhead } from '../../lib/letterhead'
 import {
   PRESETS, presetRange, SHIFTS, shiftRange, currentShift, periodWords,
   breachesReport, movementsReport, shiftReport, breachesHtml, movementsHtml, shiftHtml,
@@ -261,7 +262,8 @@ export default function ReportsScreen() {
           </EmptyNote>
         ) : (
           <iframe className="rpt-preview" title={`${TABS.find((t) => t.key === tab)?.label} preview`}
-                  sandbox="allow-scripts" srcDoc={built.html} />
+                  sandbox="allow-same-origin" srcDoc={built.html}
+                  onLoad={(e) => { layOutLetterhead(e.currentTarget.contentDocument) }} />
         )}
       </div>
     </div>

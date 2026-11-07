@@ -53,6 +53,11 @@ describe('policy breaches', () => {
     expect(html).toContain('PB-SAMAD-20261103-1405')
     expect(filename).toBe('Policy Breaches Report Samad Resources 2026-11-03.pdf')
   })
+  it('carries no script: the production CSP blocks inline scripts, so the app lays the pages out', () => {
+    const { html } = breachesHtml(data, m, { logos: { left: 'samad.png', ogc: 'ogc.png' }, now: NOW })
+    expect(html).not.toMatch(/<script/i)
+    expect(html).toContain('<div id="flow">')
+  })
 })
 
 describe('movements', () => {

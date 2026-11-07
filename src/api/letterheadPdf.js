@@ -1,11 +1,12 @@
 // A letterhead report (lib/letterhead) into a PDF (ported from RaiTrack): the page is laid out in an
-// off-screen frame, its own script deals the flow onto A4 pages, and each page
-// is drawn into the PDF as one image. The same route the End of shift report
+// off-screen frame, the flow is dealt onto A4 pages (layOutLetterhead), and each
+// page is drawn into the PDF as one image. The same route the End of shift report
 // took, so the two come out looking alike. The JPEG takes the same pages,
 // drawn sharper and straight to the image (api/pdfJpeg).
 
 import samadLogo from '../assets/samad-logo-letterhead.png';
 import ogcLogo from '../assets/ogc-monitoring-logo.png';
+import { layOutLetterhead } from '../lib/letterhead';
 
 /** The logos as absolute URLs: the frame's document has no base of its own. */
 export const letterheadLogos = () => ({
@@ -103,8 +104,8 @@ async function drawPages(html, { landscape, scale, onProgress }) {
     const doc = frame.contentDocument;
     await Promise.all([...doc.images].map((img) => (img.complete ? null : img.decode().catch(() => null))));
     await doc.fonts?.ready;
-    // The page lays itself out once its fonts and pictures are in (lib/letterhead): wait for it.
-    for (let i = 0; i < 100 && !doc.body.hasAttribute('data-pages'); i++) await new Promise((r) => setTimeout(r, 50));
+    // Split into A4 pages from here: the CSP stops a script inside the report.
+    await layOutLetterhead(doc);
     const pages = [...doc.querySelectorAll('.page')];
     const { default: html2canvas } = await import('html2canvas');
     const out = [];

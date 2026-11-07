@@ -4,7 +4,8 @@
 // title and report number under a rule, a facts table, then the report as one
 // flow of headings and tables. Black, white and greys only.
 //
-// The flow is dealt onto A4 pages by a small script inside the page: a block
+// The flow is dealt onto A4 pages by layOutLetterhead, run by the app on the
+// frame the page is loaded in (never a script inside the page: the CSP stops it): a block
 // that does not fit moves to the next page, a long table is split between rows
 // with its header repeated, and a heading is never left alone at a page foot.
 // api/letterheadPdf then draws each page into the PDF.
@@ -77,21 +78,24 @@ h2 small { float:right; text-transform:none; letter-spacing:0; font-weight:400; 
 #flow { position:absolute; left:-10000px; top:0; width:${landscape ? '271mm' : '184mm'} }
 `;
 
-const PAGER = `
+// The page layout runs from the app, not from a <script> in the report: the
+// production CSP (script-src without 'unsafe-inline') stops inline scripts,
+// so a report frame that laid itself out never got past one page there.
+
 // Laid out once the fonts and pictures are in: measured earlier, the rows can
 // grow when the real font arrives and run past the page foot (operator,
 // 2026-11-03: "the list is been cut out").
 // Anything still past a page's foot moves to the next page (made if needed),
 // a table a row at a time with its header repeated, so nothing is ever cut.
-function samadSettle() {
-  var tpl = document.getElementById('tpl-next').innerHTML;
-  var pages = Array.prototype.slice.call(document.querySelectorAll('.page'));
+function samadSettle(doc) {
+  var tpl = doc.getElementById('tpl-next').innerHTML;
+  var pages = Array.prototype.slice.call(doc.querySelectorAll('.page'));
   for (var k = 0; k < pages.length; k++) {
     var pb = pages[k].querySelector('.body');
     var guard = 0;
     while (pb.scrollHeight > pb.clientHeight + 1 && pb.children.length > 1 && guard++ < 500) {
       if (k === pages.length - 1) {
-        var np = document.createElement('div'); np.className = 'page'; np.innerHTML = tpl;
+        var np = doc.createElement('div'); np.className = 'page'; np.innerHTML = tpl;
         pages[k].parentNode.insertBefore(np, pages[k].nextSibling); pages.push(np);
       }
       var into = pages[k + 1].querySelector('.body');
@@ -124,16 +128,16 @@ function samadSettle() {
   }
   var n = pages.length;
   pages.forEach(function (p, k) { var f = p.querySelector('.pn'); if (f) f.textContent = 'Page ' + (k + 1) + ' of ' + n; });
-  document.body.setAttribute('data-pages', String(n));
+  doc.body.setAttribute('data-pages', String(n));
 }
-function samadPage() {
-  var flow = document.getElementById('flow');
-  var tpl = document.getElementById('tpl-next').innerHTML;
-  var pages = [document.querySelector('.page')];
+function samadPage(doc) {
+  var flow = doc.getElementById('flow');
+  var tpl = doc.getElementById('tpl-next').innerHTML;
+  var pages = [doc.querySelector('.page')];
   var body = pages[0].querySelector('.body');
   function room() { return body.scrollHeight <= body.clientHeight + 1; }
   function newPage() {
-    var p = document.createElement('div'); p.className = 'page'; p.innerHTML = tpl;
+    var p = doc.createElement('div'); p.className = 'page'; p.innerHTML = tpl;
     var lastPage = pages[pages.length - 1];
     lastPage.parentNode.insertBefore(p, lastPage.nextSibling); pages.push(p); body = p.querySelector('.body');
   }
@@ -162,23 +166,27 @@ function samadPage() {
   var blocks = Array.prototype.slice.call(flow.children);
   blocks.forEach(function (b) { flow.removeChild(b); place(b); });
   flow.remove();
-  samadSettle();
-  pages = Array.prototype.slice.call(document.querySelectorAll('.page'));
+  samadSettle(doc);
+  pages = Array.prototype.slice.call(doc.querySelectorAll('.page'));
   var n = pages.length;
   pages.forEach(function (p, k) { var f = p.querySelector('.pn'); if (f) f.textContent = 'Page ' + (k + 1) + ' of ' + n; });
-  document.body.setAttribute('data-pages', String(n));
+  doc.body.setAttribute('data-pages', String(n));
 }
-(function () {
-  var started = false;
-  function go() { if (started) return; started = true; samadPage(); }
-  var imgs = Array.prototype.slice.call(document.images).map(function (i) {
-    return i.complete ? null : new Promise(function (ok) { i.onload = i.onerror = ok; });
-  });
-  var fonts = document.fonts && document.fonts.ready ? document.fonts.ready : null;
-  Promise.all(imgs.concat([fonts])).then(go, go);
-  setTimeout(go, 3000);
-})();
-`;
+
+/**
+ * Lays out a letterhead report already loaded in `doc` (a frame's document):
+ * once its pictures and fonts are in, or after 3 s, it is split into A4
+ * pages and `data-pages` set on its body. Safe to call more than once.
+ * @param {Document} doc
+ */
+export async function layOutLetterhead(doc) {
+  if (!doc?.body || doc.body.hasAttribute('data-pages') || !doc.getElementById('flow')) return
+  const imgs = [...doc.images].map((i) => (i.complete ? null : new Promise((ok) => { i.onload = i.onerror = ok })))
+  const fonts = doc.fonts?.ready ?? null
+  await Promise.race([Promise.all([...imgs, fonts]).catch(() => null), new Promise((r) => setTimeout(r, 3000))])
+  if (doc.body.hasAttribute('data-pages') || !doc.getElementById('flow')) return
+  samadPage(doc)
+}
 
 /**
  * @param {object} o
@@ -210,6 +218,5 @@ export function renderLetterheadHtml({ title, reportNo, date, companyName, info 
 <div class="page">${first}</div>
 <template id="tpl-next">${next}</template>
 <div id="flow">${flow.filter(Boolean).join('\n')}</div>
-<script>${PAGER}</script>
 </body></html>`;
 }
