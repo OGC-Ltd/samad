@@ -165,7 +165,7 @@ export async function apiFetchBlob(path, options = {}, retried = false) {
   }
   const cd = res.headers.get('Content-Disposition') ?? ''
   const filename = /filename="?([^";]+)"?/i.exec(cd)?.[1] ?? null
-  return { blob: await res.blob(), filename }
+  return { blob: await res.blob(), filename, headers: res.headers }
 }
 
 // EventSource can't send headers, so it must hit the same origin as the app —

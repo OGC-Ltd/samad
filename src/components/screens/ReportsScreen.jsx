@@ -1,32 +1,26 @@
-// Reports — Samad's three letterhead reports (operator, 2026-11-03), built the
-// way RaiTrack's are: Samad Resources' logo on the left of the dark band, OGC
-// Monitoring's on the right.
+// Reports — Samad's three letterhead reports (operator, 2026-11-03), made by
+// the server (operator, 2026-11-07: "the logic for generating pdf or reports
+// to move to the server … both jpeg pdf csv, ability to edit, preview and
+// portrait and landscape"):
 //
 //   Policy Breaches  overspeeding, harsh braking/acceleration, no seatbelt,
 //                    on phone and camera covered, per unit
-//   Movements        where every unit is (in a zone, or out since when) and
-//                    every zone crossing in the period
-//   End of Shift     the shift's critical alarms, breaches (top 5 units of
-//                    each), units still out of a geofence, and the handover
+//   Movements        every unit: distance in the period, where it is, its state
+//   End of Shift     the shift's critical alarms, breaches by unit, and every
+//                    unit's distance and place
 //
-// The figures come from the server's events (api/fleetReport); the reports
-// and their letterhead pages from lib/samadReports. The preview IS the page
-// the PDF is drawn from, so what is on screen is what is saved.
+// The server builds the report as a document (api/reportDocs); Edit opens it
+// in a form; the preview is the server's own drawing of the pages, so what is
+// on screen is what the PDF and JPEG hold.
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { useFleetLiveShared } from '../../context/FleetLiveContext'
 import { useAppActions } from '../../context/AppContext'
-import { loadFleetReport, distancesIn, placesNow } from '../../api/fleetReport'
-import { saveLetterheadPdf, saveLetterheadJpeg, letterheadLogos } from '../../api/letterheadPdf'
-import { layOutLetterhead } from '../../lib/letterhead'
-import {
-  PRESETS, presetRange, SHIFTS, shiftRange, currentShift, periodWords,
-  breachesReport, movementsReport, shiftReport, breachesHtml, movementsHtml, shiftHtml,
-  dayKey, LIMITED_NOTE,
-} from '../../lib/samadReports'
+import { loadReportDoc, previewReport, downloadReport } from '../../api/reportDocs'
+import { PRESETS, presetRange, SHIFTS, currentShift, periodWords, dayKey } from '../../lib/samadReports'
 import TableToolbar from '../body/TableToolbar'
 import EmptyNote from '../shared/EmptyNote'
+import ReportEditor from './ReportEditor'
 import '../body/SensorPanel.scss'
 import './SystemScreen.scss'
 import './ReportsScreen.scss'
@@ -44,94 +38,91 @@ const DAY = 86_400_000
 const toInput = (ms) => new Date(ms + 3 * 3_600_000).toISOString().slice(0, 16)
 const fromInput = (s) => Date.parse(`${s}:00+03:00`)
 
+/** The value, once it has stopped changing for `ms`. */
+function useSettled(value, ms) {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return settled
+}
+
+function summaryOf(doc) {
+  const s = doc?.summary ?? {}
+  if (doc?.kind === 'breaches') return <><b>{s.breaches}</b> breach{s.breaches === 1 ? '' : 'es'} · <b>{s.vehicles}</b> vehicle{s.vehicles === 1 ? '' : 's'} · {s.period}</>
+  if (doc?.kind === 'movements') return <><b>{s.km}</b> km · <b>{s.moving}</b> moving now · {s.period}</>
+  return <><b>{s.critical}</b> critical · <b>{s.breaches}</b> breaches · <b>{s.reporting}</b> of {s.units} units reporting · {s.period}</>
+}
+
 export default function ReportsScreen() {
-  const { orgId } = useFleetLiveShared()
   const { setDesktopActiveTab } = useAppActions()
 
   const [tab, setTab] = useState('breaches')
   const [preset, setPreset] = useState('today')
   const [custom, setCustom] = useState(() => { const r = presetRange('7d'); return { from: toInput(r.from), to: toInput(r.to) } })
   const [shift, setShift] = useState(currentShift)
-  // The period is fixed when it is picked (and on Refresh), not on every render:
-  // "today" ends at the moment it was asked for.
+  // The period is fixed when it is picked (and on Refresh), not on every
+  // render: "today" ends at the moment it was asked for.
   const [stamp, setStamp] = useState(() => Date.now())
-  const [busy, setBusy] = useState(null)        // 'pdf' | 'jpeg' | null
+  const [orientation, setOrientation] = useState('portrait')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(null)      // the edited document, or null
+  const [busy, setBusy] = useState(null)        // 'pdf' | 'jpeg' | 'csv' | null
   const [progress, setProgress] = useState('')
   const [saveError, setSaveError] = useState(null)
 
   const range = useMemo(() => {
-    if (tab === 'shift') {
-      const r = shiftRange(shift.day, shift.shift)
-      return { ...r, to: Math.min(r.to, stamp) }
-    }
     if (preset === 'custom') return { from: fromInput(custom.from), to: Math.min(fromInput(custom.to), stamp) }
     return presetRange(preset, stamp)
-  }, [tab, preset, custom, shift, stamp])
+  }, [preset, custom, stamp])
 
-  const problem = !Number.isFinite(range.from) || !Number.isFinite(range.to) ? 'Pick a start and an end.'
-    : range.from >= range.to ? (tab === 'shift' ? 'That shift has not started yet.' : 'The period must start before it ends.')
-      : range.to - range.from > MAX_DAYS * DAY ? `A report covers ${MAX_DAYS} days at most.`
-        : range.from < stamp - MAX_DAYS * DAY ? `Events are kept for ${MAX_DAYS} days; pick a later start.`
-          : null
+  const problem = tab === 'shift' ? null
+    : !Number.isFinite(range.from) || !Number.isFinite(range.to) ? 'Pick a start and an end.'
+      : range.from >= range.to ? 'The period must start before it ends.'
+        : range.to - range.from > MAX_DAYS * DAY ? `A report covers ${MAX_DAYS} days at most.`
+          : range.from < stamp - MAX_DAYS * DAY ? `Events are kept for ${MAX_DAYS} days; pick a later start.`
+            : null
 
-  const q = useQuery({
-    queryKey: ['reports', 'fleet', orgId, range.from, range.to],
-    queryFn: ({ signal }) => loadFleetReport({ orgId, from: range.from, to: range.to, signal }),
-    enabled: Boolean(orgId) && !problem,
+  const docKey = ['reports', 'doc', tab, tab === 'shift' ? shift.day : range.from, tab === 'shift' ? shift.shift : range.to, stamp]
+  const docQ = useQuery({
+    queryKey: docKey,
+    queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: range.from, to: range.to, day: shift.day, shift: shift.shift, signal }),
+    enabled: !problem,
     placeholderData: keepPreviousData,
     retry: 1,
-    staleTime: 60_000,
+    staleTime: Infinity,          // a report is remade only when asked (Refresh, a new period)
+    refetchOnWindowFocus: false,  // which would also throw the edits away
   })
-  const data = q.data && !q.isPlaceholderData ? q.data : null
+  const built = docQ.data && !docQ.isPlaceholderData ? docQ.data : null
+  // A new report (another tab, period or Refresh) drops the edits made to the last one.
+  const docKeyText = JSON.stringify(docKey)
+  useEffect(() => { setDraft(null) }, [docKeyText])
+  useEffect(() => { setSaveError(null) }, [tab, range.from, range.to, shift])
 
-  const shiftWords = `${SHIFTS.find((s) => s.key === shift.shift)?.label ?? 'Day'}, ${SHIFTS.find((s) => s.key === shift.shift)?.words ?? ''}`
-  // End of Shift: each unit's distance in the shift, from its trip history
-  // (api/fleetReport distancesIn). If it fails, the column says so.
-  const distancesQ = useQuery({
-    queryKey: ['reports', 'distances', orgId, data?.from, data?.to],
-    queryFn: ({ signal }) => distancesIn({ orgId, vehicles: data.vehicles, from: data.from, to: data.to, signal }),
-    enabled: (tab === 'shift' || tab === 'movements') && Boolean(data),
+  const doc = useMemo(() => {
+    const d = draft ?? built
+    return d ? { ...d, orientation } : null
+  }, [draft, built, orientation])
+
+  // The preview follows the edits once typing pauses.
+  const settled = useSettled(doc, draft ? 700 : 0)
+  const settledKey = useMemo(() => (settled ? JSON.stringify(settled) : ''), [settled])
+  const previewQ = useQuery({
+    queryKey: ['reports', 'preview', settledKey],
+    queryFn: ({ signal }) => previewReport(settled, signal),
+    enabled: Boolean(settled),
+    placeholderData: keepPreviousData,
     retry: 0,
-    staleTime: 60_000,
+    staleTime: Infinity,
+    gcTime: 60_000,
   })
-  // Movements and End of Shift: where each unit is, as a place name.
-  const placesQ = useQuery({
-    queryKey: ['reports', 'places', orgId, data?.generatedAt],
-    queryFn: () => placesNow(data.vehicles),
-    enabled: (tab === 'shift' || tab === 'movements') && Boolean(data),
-    retry: 0,
-    staleTime: 5 * 60_000,
-  })
-  const needsUnits = tab === 'shift' || tab === 'movements'
-  const distances = needsUnits ? distancesQ.data ?? null : null
-  const places = needsUnits ? placesQ.data ?? null : null
-  const waitReported = needsUnits && Boolean(data) && (distancesQ.isPending || placesQ.isPending)
 
-  const built = useMemo(() => {
-    if (!data || waitReported) return null
-    const now = data.generatedAt
-    const logos = letterheadLogos()
-    if (tab === 'movements') {
-      const model = movementsReport(data, { distances, places })
-      return { model, ...movementsHtml(data, model, { logos, now }) }
-    }
-    if (tab === 'shift') {
-      const model = shiftReport(data, now, { distances, places })
-      return { model, ...shiftHtml(data, model, { logos, now, shiftWords }) }
-    }
-    const model = breachesReport(data)
-    return { model, ...breachesHtml(data, model, { logos, now }) }
-  }, [data, tab, shiftWords, waitReported, distances, places])
-
-  useEffect(() => { setSaveError(null) }, [tab, range.from, range.to])
-
-  const save = async (kind) => {
-    if (!built || busy) return
-    setBusy(kind); setSaveError(null); setProgress('Laying out the pages')
+  const save = async (format) => {
+    if (!doc || busy) return
+    setBusy(format); setSaveError(null); setProgress('')
     try {
-      const opts = { filename: built.filename, onProgress: setProgress }
-      if (kind === 'pdf') await saveLetterheadPdf(built.html, opts)
-      else await saveLetterheadJpeg(built.html, opts)
+      await downloadReport(doc, format, setProgress)
     } catch (e) {
       setSaveError(e?.message || 'The file could not be made.')
     } finally {
@@ -139,15 +130,16 @@ export default function ReportsScreen() {
     }
   }
 
-  const summary = (() => {
-    if (problem) return <span className="sp4-muted">{problem}</span>
-    if (!data || !built) return <span className="sp4-muted">{waitReported ? 'Measuring each unit\'s distance and finding where it is…' : `Reading ${periodWords(range.from, range.to)}…`}</span>
-    const m = built?.model
-    const words = periodWords(data.from, data.to)
-    if (tab === 'breaches') return <><b>{m.total}</b> breach{m.total === 1 ? '' : 'es'} · <b>{m.rows.length}</b> vehicle{m.rows.length === 1 ? '' : 's'} · {words}</>
-    if (tab === 'movements') return <><b>{m.totalKm}</b> km · <b>{m.rows.filter((r) => r.state === 'Moving').length}</b> moving now · {words}</>
-    return <><b>{m.critical.length}</b> critical · <b>{m.breachTotal}</b> breaches · <b>{m.reporting}</b> of {data.vehicles.length} units reporting · {words}</>
-  })()
+  const reload = () => { setStamp(Date.now()) }
+  const waitWords = tab === 'breaches' ? 'Reading the fleet\'s events.'
+    : 'Reading each unit\'s trip history and current location. The first report of a period can take a minute; the next is quick.'
+
+  const summary = problem ? <span className="sp4-muted">{problem}</span>
+    : !built ? <span className="sp4-muted">{docQ.isFetching ? 'Making the report…' : ''}</span>
+      : summaryOf(built)
+
+  const pages = previewQ.data ?? []
+  const rotated = previewQ.isPlaceholderData || (settled !== doc)
 
   return (
     <div className="sp4-root sys-root rpt-root">
@@ -163,17 +155,38 @@ export default function ReportsScreen() {
 
       <div className="sp4-body">
         <TableToolbar
-          summary={<>{summary}{q.isFetching && data && <span className="sp4-muted"> · updating…</span>}</>}
-          loading={q.isFetching}
-          onReload={() => { setStamp(Date.now()); q.refetch() }}
+          summary={<>{summary}{docQ.isFetching && built && <span className="sp4-muted"> · updating…</span>}{draft && <span className="rpt-edited"> · edited</span>}</>}
+          loading={docQ.isFetching}
+          onReload={reload}
           actions={(
             <>
-              <button type="button" className="sp4-ghost-btn" onClick={() => save('pdf')} disabled={!built || Boolean(busy)}>
+              <div className="rpt-seg" role="group" aria-label="Page orientation">
+                {[['portrait', 'Portrait', 'ti-file'], ['landscape', 'Landscape', 'ti-file-horizontal']].map(([k, label, icon]) => (
+                  <button key={k} type="button" aria-pressed={orientation === k}
+                          className={`rpt-seg-btn${orientation === k ? ' rpt-seg-btn--on' : ''}`} onClick={() => setOrientation(k)}>
+                    <i className={`ti ${icon}`} aria-hidden="true" /> {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className={`sp4-ghost-btn${editing ? ' rpt-on' : ''}`} aria-pressed={editing}
+                      onClick={() => setEditing((e) => !e)} disabled={!doc}>
+                <i className="ti ti-pencil" aria-hidden="true" /> {editing ? 'Done' : 'Edit'}
+              </button>
+              {draft && (
+                <button type="button" className="sp4-ghost-btn" onClick={() => setDraft(null)} title="Back to the report as the server made it">
+                  <i className="ti ti-arrow-back-up" aria-hidden="true" /> Undo edits
+                </button>
+              )}
+              <button type="button" className="sp4-ghost-btn" onClick={() => save('pdf')} disabled={!doc || Boolean(busy)}>
                 <i className="ti ti-file-type-pdf" aria-hidden="true" /> {busy === 'pdf' ? 'Making PDF…' : 'PDF'}
               </button>
-              <button type="button" className="sp4-ghost-btn" onClick={() => save('jpeg')} disabled={!built || Boolean(busy)}
-                      title="One image of every page, for a WhatsApp group">
+              <button type="button" className="sp4-ghost-btn" onClick={() => save('jpeg')} disabled={!doc || Boolean(busy)}
+                      title="Every page in one image, for a WhatsApp group">
                 <i className="ti ti-photo" aria-hidden="true" /> {busy === 'jpeg' ? 'Making JPEG…' : 'JPEG'}
+              </button>
+              <button type="button" className="sp4-ghost-btn" onClick={() => save('csv')} disabled={!doc || Boolean(busy)}
+                      title="The figures and tables, for a spreadsheet">
+                <i className="ti ti-file-spreadsheet" aria-hidden="true" /> {busy === 'csv' ? 'Making CSV…' : 'CSV'}
               </button>
               <button type="button" className="sp4-ghost-btn" onClick={() => setDesktopActiveTab('fleet')}>
                 <i className="ti ti-arrow-left" aria-hidden="true" /> Live Map
@@ -240,32 +253,46 @@ export default function ReportsScreen() {
           )}
         </div>
 
-        {data && data.has?.crossings === false && (
-          <div className="rpt-limited" role="note">
-            <i className="ti ti-info-circle" aria-hidden="true" />
-            {LIMITED_NOTE}
-          </div>
-        )}
         {saveError && <div className="rpt-error" role="alert">{saveError}</div>}
         {busy && progress && <div className="rpt-progress" role="status">{progress}…</div>}
 
         {problem ? (
           <EmptyNote icon="ti-calendar-x" tone="warn" title="Pick Another Period">{problem}</EmptyNote>
-        ) : q.isError && !data ? (
+        ) : docQ.isError && !built ? (
           <EmptyNote icon="ti-alert-triangle" tone="error" title="The Report Could Not Be Made"
-                     action={{ label: 'Try again', onClick: () => q.refetch() }}>
-            {q.error?.message ?? 'The server did not answer.'}
+                     action={{ label: 'Try again', onClick: () => docQ.refetch() }}>
+            {docQ.error?.message ?? 'The server did not answer.'}
           </EmptyNote>
-        ) : !built ? (
-          <EmptyNote icon="ti-loader-2" tone="busy" title={waitReported ? 'Checking Each Unit' : 'Reading the Fleet'}>
-            {waitReported ? 'Reading each unit\'s trip history and current location.' : periodWords(range.from, range.to)}
+        ) : !doc ? (
+          <EmptyNote icon="ti-loader-2" tone="busy" title="Making the Report">
+            {tab === 'shift' ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(range.from, range.to)}. {waitWords}
           </EmptyNote>
         ) : (
-          <iframe className="rpt-preview" title={`${TABS.find((t) => t.key === tab)?.label} preview`}
-                  sandbox="allow-same-origin" srcDoc={built.html}
-                  onLoad={(e) => { layOutLetterhead(e.currentTarget.contentDocument) }} />
+          <div className={`rpt-work${editing ? ' rpt-work--editing' : ''}`}>
+            {editing && (
+              <div className="rpt-editor">
+                <ReportEditor doc={doc} onChange={(d) => setDraft(d)} />
+              </div>
+            )}
+            <div className={`rpt-pages rpt-pages--${orientation}`} aria-busy={previewQ.isFetching}>
+              {previewQ.isError && (
+                <div className="rpt-error" role="alert">{previewQ.error?.message ?? 'The preview could not be drawn.'}</div>
+              )}
+              {pages.length === 0 && previewQ.isFetching && <div className="rpt-progress" role="status">Drawing the pages…</div>}
+              {pages.map((src, i) => (
+                <img key={i} src={src} alt={`Page ${i + 1} of ${pages.length}`}
+                     className={`rpt-page${rotated && previewQ.isFetching ? ' rpt-page--stale' : ''}`} />
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
   )
+}
+
+/** The shift's window, for the waiting line only (the server works it out itself). */
+function shiftWindow(s) {
+  const start = Date.parse(`${s.day}T00:00:00+03:00`) + (s.shift === 'night' ? 18 : 6) * 3_600_000
+  return { from: start, to: Math.min(start + 12 * 3_600_000, Date.now()) }
 }

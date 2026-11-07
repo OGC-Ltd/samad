@@ -50,7 +50,7 @@ func main() {
 	store := NewStore(cfg.DataDir)
 	client := NewPartnerClient(cfg.PartnerBaseURL, cfg.PartnerAPIKey)
 	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg),
-		routing: NewRouting(NewGoogle(cfg.GoogleKey()), store)}
+		routing: NewRouting(NewGoogle(cfg.GoogleKey()), store), reports: newReportCache()}
 	if srv.ai == nil {
 		log.Printf("no OPENAI_API_KEY: the Fleet summary shows facts, not an AI brief")
 	}
@@ -150,6 +150,8 @@ func routes(s *Server, a *Auth) http.Handler {
 
 	// The Reports page: movements, policy breaches, end of shift (reports.go).
 	in.Handle("/reports/fleet", unitsVisible(needFunc(s.reportFleet, "telemetry:read"))).Methods("GET")
+	in.Handle("/reports/{kind:breaches|movements|shift}/document", unitsVisible(needFunc(s.reportDocument, "telemetry:read"))).Methods("GET")
+	in.Handle("/reports/render", unitsVisible(needFunc(s.reportRender, "telemetry:read"))).Methods("POST")
 
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
 	org.Use(ourOrg)
