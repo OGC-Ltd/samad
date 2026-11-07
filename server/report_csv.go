@@ -1,8 +1,9 @@
 package main
 
 // A report as CSV, for a spreadsheet: the title and facts, then each section
-// in order (figures as label, value; tables with their header row), a blank
-// line between sections. UTF-8 with a byte-order mark so Excel reads the
+// in order (figures as label, value[, sub]; tables, and each small table of a
+// groups block, with their header row), a blank line between sections. Lines
+// to write on and signatures are left out. UTF-8 with a byte-order mark so Excel reads the
 // "·" and accented names right.
 
 import (
@@ -38,6 +39,23 @@ func renderCSV(d *ReportDoc) ([]byte, error) {
 		}
 		_ = w.Write(cells)
 	}
+	table := func(cols []Col, rows [][]Cell) {
+		head := make([]string, len(cols))
+		for i, c := range cols {
+			head[i] = c.H
+		}
+		put(head...)
+		for _, row := range rows {
+			cells := make([]string, len(row))
+			for i, c := range row {
+				cells[i] = c.Text
+				if c.Indent {
+					cells[i] = "  " + c.Text
+				}
+			}
+			put(cells...)
+		}
+	}
 	put(d.Title, d.Company)
 	put("Report no.", d.ReportNo)
 	for _, p := range d.Info {
@@ -56,21 +74,21 @@ func renderCSV(d *ReportDoc) ([]byte, error) {
 			for _, k := range b.KPIs {
 				put(k.Label, k.Value)
 			}
-		case "table":
-			head := make([]string, len(b.Cols))
-			for i, c := range b.Cols {
-				head[i] = c.H
+		case "counts", "bars":
+			for _, k := range b.KPIs {
+				put(k.Label, k.Value, k.Sub)
 			}
-			put(head...)
-			for _, row := range b.Rows {
-				cells := make([]string, len(row))
-				for i, c := range row {
-					cells[i] = c.Text
-					if c.Indent {
-						cells[i] = "  " + c.Text
-					}
+		case "table":
+			table(b.Cols, b.Rows)
+		case "groups":
+			for _, g := range b.Groups {
+				put()
+				put(g.Text, g.Small)
+				if len(g.Rows) == 0 {
+					put(g.Empty)
+					continue
 				}
-				put(cells...)
+				table(g.Cols, g.Rows)
 			}
 		case "note", "empty":
 			put(b.Text)

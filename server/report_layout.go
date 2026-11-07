@@ -18,6 +18,7 @@ import (
 	_ "embed"
 	"image"
 	_ "image/png"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -46,6 +47,7 @@ var (
 	cRule = rgb{0xbf, 0xbf, 0xbf}
 	cSoft = rgb{0xe6, 0xe6, 0xe6}
 	cBand = rgb{0x21, 0x21, 0x21}
+	cBar  = rgb{0x7a, 0x7a, 0x7a}
 )
 
 type fontStyle uint8
@@ -399,20 +401,233 @@ func (l *layout) kpiLayout(b Block) (w float64, labels [][]string, h float64) {
 			most = len(ls)
 		}
 	}
-	return w, labels, 1 + lineH(sKPI) + float64(most)*lineH(sFoot) + 1.1
+	return w, labels, 1 + float64(most)*lineH(sFoot) + lineH(sKPI) + 1.1
 }
 
+// kpis: a row of boxes, each a small grey label over its figure in bold.
 func (l *layout) kpis(b Block) {
 	w, labels, h := l.kpiLayout(b)
+	most := 0
+	for _, ls := range labels {
+		most = max(most, len(ls))
+	}
 	for i, k := range b.KPIs {
 		x := side + float64(i)*w
 		l.box(x, l.y, w, h, 0.6, cRule)
-		l.text(x+1.6, l.y+1+baseline(sKPI), fitText(fBold, sKPI, k.Value, w-3.2), fBold, sKPI, cInk)
 		for j, line := range labels[i] {
-			l.text(x+1.6, l.y+1+lineH(sKPI)+float64(j)*lineH(sFoot)+baseline(sFoot), line, fRegular, sFoot, cMut)
+			l.text(x+1.6, l.y+1+float64(j)*lineH(sFoot)+baseline(sFoot), line, fRegular, sFoot, cMut)
 		}
+		l.text(x+1.6, l.y+1+float64(most)*lineH(sFoot)+baseline(sKPI), fitText(fBold, sKPI, k.Value, w-3.2), fBold, sKPI, cInk)
 	}
 	l.y += h
+}
+
+// ── a strip of counts ────────────────────────────────────────────────────
+
+func countsH() float64 { return 2*padY + lineH(sSmall) + 0.6*ptMM + lineH(sKPI) + lineH(sSmall) + 1 }
+
+// counts: one column per figure, centred: the label, a rule, the figure in
+// bold and a grey line under it ("2 units").
+func (l *layout) counts(b Block) {
+	n := len(b.KPIs)
+	if n == 0 {
+		return
+	}
+	w := l.inner / float64(n)
+	y := l.y
+	centred := func(i int, s string, st fontStyle, size, at float64, c rgb) {
+		s = fitText(st, size, s, w-2)
+		l.text(side+float64(i)*w+(w-textW(st, size, s))/2, at, s, st, size, c)
+	}
+	for i, k := range b.KPIs {
+		centred(i, k.Label, fRegular, sSmall, y+padY+baseline(sSmall), cMut)
+	}
+	y += 2*padY + lineH(sSmall)
+	l.hrule(side, y, l.inner, 0.6, cRule)
+	y += 0.6 * ptMM
+	for i, k := range b.KPIs {
+		centred(i, k.Value, fBold, sKPI, y+baseline(sKPI), cInk)
+		centred(i, k.Sub, fRegular, sSmall, y+lineH(sKPI)+baseline(sSmall), cMut)
+	}
+	y += lineH(sKPI) + lineH(sSmall) + 1
+	l.hrule(side, y-0.6*ptMM, l.inner, 0.6, cRule)
+	l.y = y
+}
+
+// ── small tables, two side by side ───────────────────────────────────────
+
+const groupGap = 10.0
+
+func (l *layout) groupW() float64 { return (l.inner - groupGap) / 2 }
+
+func (l *layout) groupTable(g SubTable, x float64) *tableLayout {
+	if len(g.Cols) == 0 || len(g.Rows) == 0 {
+		return nil
+	}
+	return l.tableLayoutAt(Block{Cols: g.Cols, Rows: g.Rows}, x, l.groupW())
+}
+
+func groupTitleH() float64 { return lineH(sBody) + 0.8 }
+
+func (l *layout) groupH(g SubTable) float64 {
+	h := groupTitleH() + 3.4 // the title, and room under the group
+	if t := l.groupTable(g, side); t != nil {
+		h += t.headH
+		for _, r := range t.rowH {
+			h += r
+		}
+		return h
+	}
+	return h + 1 + lineH(sBody)
+}
+
+// pairH is the height of the pair of groups starting at i.
+func (l *layout) pairH(gs []SubTable, i int) float64 {
+	h := l.groupH(gs[i])
+	if i+1 < len(gs) {
+		h = max(h, l.groupH(gs[i+1]))
+	}
+	return h
+}
+
+func (l *layout) group(g SubTable, x float64) {
+	w := l.groupW()
+	y := l.y
+	sw := 0.0
+	if g.Small != "" {
+		sw = textW(fRegular, sSmall, g.Small)
+		l.text(x+w-sw, y+baseline(sBody), g.Small, fRegular, sSmall, cMut)
+	}
+	l.text(x, y+baseline(sBody), fitText(fBold, sBody, g.Text, w-sw-3), fBold, sBody, cInk)
+	y += groupTitleH()
+	t := l.groupTable(g, x)
+	if t == nil {
+		empty := g.Empty
+		if empty == "" {
+			empty = "None."
+		}
+		l.text(x, y+0.5+baseline(sBody), fitText(fItalic, sBody, empty, w), fItalic, sBody, cMut)
+		return
+	}
+	keep := l.y
+	l.y = y
+	l.tableHead(t)
+	for r := range t.rows {
+		l.tableRow(t, r)
+	}
+	l.hrule(t.x0, l.y-0.6*ptMM, t.wid, 0.6, cRule)
+	l.y = keep
+}
+
+func (l *layout) groups(b Block) {
+	for i := 0; i < len(b.Groups); i += 2 {
+		h := l.pairH(b.Groups, i)
+		l.ensure(h)
+		l.group(b.Groups[i], side)
+		if i+1 < len(b.Groups) {
+			l.group(b.Groups[i+1], side+l.groupW()+groupGap)
+		}
+		l.y += h
+	}
+}
+
+// ── bars ─────────────────────────────────────────────────────────────────
+
+// leadingNumber reads "1,204 km" as 1204; nothing readable is 0.
+func leadingNumber(s string) float64 {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(s) {
+		if r == ',' {
+			continue
+		}
+		if (r >= '0' && r <= '9') || r == '.' {
+			b.WriteRune(r)
+			continue
+		}
+		if b.Len() > 0 {
+			break
+		}
+	}
+	f, err := strconv.ParseFloat(b.String(), 64)
+	if err != nil || f < 0 {
+		return 0
+	}
+	return f
+}
+
+func barH() float64 { return lineH(sBody) + 1.6 }
+
+// bars: a horizontal bar per figure, longest for the largest, the label on
+// the left and the figure (and its Sub) after the bar.
+func (l *layout) bars(b Block) {
+	labelW := 0.0
+	most := 0.0
+	for _, k := range b.KPIs {
+		labelW = max(labelW, textW(fRegular, sBody, k.Label))
+		most = max(most, leadingNumber(k.Value))
+	}
+	labelW = min(labelW+3, l.inner*0.3)
+	room := l.inner - labelW - 60
+	for _, k := range b.KPIs {
+		l.ensure(barH())
+		y := l.y
+		base := y + 0.8 + baseline(sBody)
+		l.text(side, base, fitText(fRegular, sBody, k.Label, labelW-3), fRegular, sBody, cInk)
+		w := 0.0
+		if most > 0 {
+			w = room * leadingNumber(k.Value) / most
+		}
+		x := side + labelW
+		if w > 0 {
+			l.rect(x, y+0.8+lineH(sBody)*0.15, w, lineH(sBody)*0.7, cBar)
+		}
+		x += w + 1.6
+		l.text(x, base, k.Value, fBold, sBody, cInk)
+		if k.Sub != "" {
+			x += textW(fBold, sBody, k.Value) + 2
+			l.text(x, base, fitText(fRegular, sSmall, k.Sub, side+l.inner-x), fRegular, sSmall, cMut)
+		}
+		l.y += barH()
+	}
+}
+
+// ── lines to write on, and signatures ────────────────────────────────────
+
+const lineGap = 8.0
+
+// linesH is the room the lines need, with the signatures that follow them:
+// the handover is kept on one page.
+func linesH(blocks []Block, i int) float64 {
+	h := float64(blocks[i].N)*lineGap + 1
+	if i+1 < len(blocks) && blocks[i+1].Type == "sign" {
+		h += signH()
+	}
+	return h
+}
+
+func (l *layout) lines(b Block) {
+	for i := 0; i < b.N; i++ {
+		l.y += lineGap
+		l.hrule(side, l.y, l.inner, 0.5, cRule)
+	}
+	l.y++
+}
+
+func signH() float64 { return 16 + 1.2 + lineH(sSmall) + 2 }
+
+func (l *layout) sign(b Block) {
+	n := len(b.KPIs)
+	if n == 0 {
+		return
+	}
+	l.ensure(signH())
+	w := (l.inner - groupGap*float64(n-1)) / float64(n)
+	for i, k := range b.KPIs {
+		x := side + float64(i)*(w+groupGap)
+		l.hrule(x, l.y+16, w, 0.8, cInk)
+		l.text(x, l.y+16+1.2+baseline(sSmall), fitText(fRegular, sSmall, k.Label, w), fRegular, sSmall, cMut)
+	}
+	l.y += signH()
 }
 
 func (l *layout) note(b Block) {
@@ -435,6 +650,7 @@ func (l *layout) empty(b Block) {
 // ── tables ───────────────────────────────────────────────────────────────
 
 type tableLayout struct {
+	x0, wid float64   // where the table sits
 	x, w    []float64 // each column's left edge and width
 	head    [][]string
 	headSz  []float64 // a header's size: smaller when a word would not fit
@@ -445,15 +661,17 @@ type tableLayout struct {
 	padLeft []float64
 }
 
-func (l *layout) tableLayout(b Block) *tableLayout {
-	t := &tableLayout{b: b}
+func (l *layout) tableLayout(b Block) *tableLayout { return l.tableLayoutAt(b, side, l.inner) }
+
+func (l *layout) tableLayoutAt(b Block, x0, width float64) *tableLayout {
+	t := &tableLayout{b: b, x0: x0, wid: width}
 	sum := 0.0
 	for _, c := range b.Cols {
 		sum += c.W
 	}
-	x := side
+	x := x0
 	for i, c := range b.Cols {
-		w := c.W / sum * l.inner
+		w := c.W / sum * width
 		t.x, t.w = append(t.x, x), append(t.w, w)
 		pl := padX
 		if i == 0 {
@@ -524,7 +742,31 @@ func (l *layout) tableHead(t *tableLayout) {
 		}
 	}
 	l.y += t.headH
-	l.hrule(side, l.y-0.6*ptMM, l.inner, 0.6, cRule)
+	l.hrule(t.x0, l.y-0.6*ptMM, t.wid, 0.6, cRule)
+}
+
+// tableRow draws row r at the current line and moves under it.
+func (l *layout) tableRow(t *tableLayout, r int) {
+	b := t.b
+	for i, lines := range t.rows[r] {
+		c := b.Rows[r][i]
+		st, col := cellStyle(c), cInk
+		if c.Muted {
+			col = cMut
+		}
+		for j, line := range lines {
+			x := t.x[i] + t.padLeft[i]
+			if c.Indent {
+				x += indent
+			}
+			if b.Cols[i].Right {
+				x = t.x[i] + t.w[i] - padX - textW(st, sBody, line)
+			}
+			l.text(x, l.y+padY+float64(j)*lineH(sBody)+baseline(sBody), line, st, sBody, col)
+		}
+	}
+	l.y += t.rowH[r]
+	l.hrule(t.x0, l.y-0.4*ptMM, t.wid, 0.4, cSoft)
 }
 
 func (l *layout) table(b Block) {
@@ -536,34 +778,15 @@ func (l *layout) table(b Block) {
 	l.ensure(first)
 	l.tableHead(t)
 	last := -1.0 // the bottom of the last row drawn on this page
-	for r, cells := range t.rows {
-		h := t.rowH[r]
-		if !l.fits(h) {
+	for r := range t.rows {
+		if !l.fits(t.rowH[r]) {
 			if last >= 0 {
 				l.hrule(side, last-0.6*ptMM, l.inner, 0.6, cRule)
 			}
 			l.newPage()
 			l.tableHead(t)
 		}
-		for i, lines := range cells {
-			c := b.Rows[r][i]
-			st, col := cellStyle(c), cInk
-			if c.Muted {
-				col = cMut
-			}
-			for j, line := range lines {
-				x := t.x[i] + t.padLeft[i]
-				if c.Indent {
-					x += indent
-				}
-				if b.Cols[i].Right {
-					x = t.x[i] + t.w[i] - padX - textW(st, sBody, line)
-				}
-				l.text(x, l.y+padY+float64(j)*lineH(sBody)+baseline(sBody), line, st, sBody, col)
-			}
-		}
-		l.y += h
-		l.hrule(side, l.y-0.4*ptMM, l.inner, 0.4, cSoft)
+		l.tableRow(t, r)
 		last = l.y
 	}
 	if last >= 0 {
@@ -571,9 +794,10 @@ func (l *layout) table(b Block) {
 	}
 }
 
-// firstPartH is how much room the start of a block needs: a heading is kept
-// with it.
-func (l *layout) firstPartH(b Block) float64 {
+// firstPartH is how much room the start of blocks[i] needs: a heading is
+// kept with it.
+func (l *layout) firstPartH(blocks []Block, i int) float64 {
+	b := blocks[i]
 	switch b.Type {
 	case "kpis":
 		_, _, h := l.kpiLayout(b)
@@ -589,6 +813,18 @@ func (l *layout) firstPartH(b Block) float64 {
 		return 0.8 + lineH(sFoot)
 	case "empty":
 		return 2 + lineH(sBody)
+	case "counts":
+		return countsH()
+	case "groups":
+		if len(b.Groups) > 0 {
+			return l.pairH(b.Groups, 0)
+		}
+	case "bars":
+		return barH()
+	case "lines":
+		return linesH(blocks, i)
+	case "sign":
+		return signH()
 	}
 	return 0
 }
@@ -606,7 +842,7 @@ func layOut(d *ReportDoc) []*Page {
 		case "heading":
 			next := 0.0
 			if i+1 < len(d.Blocks) {
-				next = l.firstPartH(d.Blocks[i+1])
+				next = l.firstPartH(d.Blocks, i+1)
 			}
 			l.ensure(l.headingHeight() + next)
 			l.heading(b)
@@ -624,6 +860,18 @@ func layOut(d *ReportDoc) []*Page {
 			if l.y > l.top+0.01 {
 				l.y += 1.6
 			}
+		case "counts":
+			l.ensure(countsH())
+			l.counts(b)
+		case "groups":
+			l.groups(b)
+		case "bars":
+			l.bars(b)
+		case "lines":
+			l.ensure(linesH(d.Blocks, i))
+			l.lines(b)
+		case "sign":
+			l.sign(b)
 		}
 	}
 	l.footers()

@@ -1,3 +1,7 @@
+/* Hallmark · redesign: full · scope: app · shape: app screen · section: the report header (picker, status, actions) · genre: modern-minimal · theme: brand (the app's sp4 tokens) · contrast: pass · v2.0.0 */
+/* critique: pick first, then the report's figures as a stat row and its actions; one filled action (PDF); every single choice one segmented control; Live Map off the export row */
+/* Hallmark · moved, not dropped: the orientation, period, shift and weeks clicks now reach their setters through Segmented's onPick, and Refresh calls reload from its own button; TableToolbar's onReload went with it · same state, same order */
+/* Hallmark · answered 26a, 26b: the states live in this file (focus-visible, active, disabled on .rpt-btn, .rpt-seg-btn and the inputs); the linter reads ReportsScreen.jsx alone */
 // Reports (ReportsScreen.jsx): the tab strip, the period controls, then the
 // report itself as its letterhead pages — the very page the PDF is drawn from.
 
@@ -15,14 +19,98 @@
   }
 }
 
-.rpt-controls {
+// ── The header: what report, then its figures and what to do with it ─────
+
+// The filled action's colours. White on the dark theme's accent (#3b82f6) is
+// 3.7:1, too faint for button text, so the dark fill is one step deeper.
+.rpt-root {
+  --rpt-primary: #2563eb;
+  --rpt-primary-hover: #1d4ed8;
+  --rpt-on-primary: #ffffff;
+  --rpt-picked: color-mix(in srgb, var(--sp4-accent) 16%, transparent);
+}
+.app--light .rpt-root {
+  --rpt-primary: var(--sp4-accent);
+  --rpt-primary-hover: #075985;
+  --rpt-picked: color-mix(in srgb, var(--sp4-accent) 10%, transparent);
+}
+
+.rpt-head {
+  background: var(--sp4-surface);
+  border-bottom: 1px solid var(--sp4-line-hi);
+}
+
+.rpt-pick {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px 20px;
-  padding: 12px var(--sp4-gutter, 20px);
-  border-bottom: 1px solid var(--sp4-line);
+  padding: 14px var(--sp4-gutter, 20px) 12px;
 }
+// The page setting and the way out sit at the right, apart from the picking.
+.rpt-setup { margin-left: auto; }
+
+.rpt-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+  padding: 10px var(--sp4-gutter, 20px);
+  border-top: 1px solid var(--sp4-line-hi);
+}
+
+.rpt-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 20px;
+  min-width: 0;
+  min-height: 32px;
+  align-content: center;
+}
+.rpt-period {
+  color: var(--sp4-text-1);
+  font-size: var(--sp4-strong, 14px);
+  font-weight: 600;
+}
+.rpt-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+}
+.rpt-fig {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  dt { color: var(--sp4-text-3); font-size: var(--sp4-body, 12.5px); }
+  dd {
+    order: -1;
+    margin: 0;
+    color: var(--sp4-text-1);
+    font-size: var(--sp4-strong, 14px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.rpt-quiet { color: var(--sp4-text-3); font-size: var(--sp4-body, 12.5px); }
+.rpt-edited {
+  padding: 1px 8px;
+  border: 1px solid var(--sp4-accent);
+  border-radius: 999px;
+  color: var(--sp4-accent);
+  font-size: var(--sp4-body, 12.5px);
+  font-weight: 600;
+}
+
+.rpt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rpt-save { display: inline-flex; gap: 6px; }
 
 .rpt-field {
   display: flex;
@@ -39,23 +127,108 @@
     height: 32px;
     padding: 0 10px;
     border-radius: 6px;
-    border: 1px solid var(--sp4-line);
+    border: 1px solid var(--sp4-line-hi);
     background: var(--sp4-surface);
     color: var(--sp4-text-1);
     font: inherit;
+    font-size: var(--sp4-body, 12.5px);
+    font-variant-numeric: tabular-nums;
     color-scheme: dark;
   }
-  input:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+  input:hover { border-color: var(--sp4-field-line); }
+  input:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -1px; }
 }
+.app--light .rpt-field input { color-scheme: light; }
 
-.rpt-chips {
-  display: flex;
-  flex-wrap: wrap;
+// One button recipe: outlined, quiet (no edge) or the one filled action.
+.rpt-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 6px;
+  background: var(--sp4-surface);
+  color: var(--sp4-text-1);
+  font: inherit;
+  font-size: var(--sp4-body, 12.5px);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+
+  // a 44px target around a 32px button
+  &::after { content: ""; position: absolute; inset: -6px -2px; }
+
+  &:hover:not(:disabled) { background: var(--sp4-raised); border-color: var(--sp4-field-line); }
+  &:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; }
+  &:active:not(:disabled) { transform: translateY(1px); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+  &[aria-busy="true"] { cursor: progress; }
+
+  &--quiet {
+    border-color: transparent;
+    background: transparent;
+    color: var(--sp4-text-2);
+    &:hover:not(:disabled) { border-color: transparent; color: var(--sp4-text-1); }
+  }
+  &--on {
+    border-color: var(--sp4-accent);
+    background: var(--rpt-picked);
+    color: var(--sp4-text-1);
+  }
+  &--primary {
+    border-color: var(--rpt-primary);
+    background: var(--rpt-primary);
+    color: var(--rpt-on-primary);
+    &:hover:not(:disabled) { border-color: var(--rpt-primary-hover); background: var(--rpt-primary-hover); }
+  }
 }
 
-.rpt-dim { opacity: 0.7; font-weight: 400; margin-left: 4px; }
-.rpt-now { align-self: flex-end; }
+// Every one-of-a-few choice: period, shift, weeks, page orientation.
+.rpt-seg {
+  display: inline-flex;
+  border: 1px solid var(--sp4-line-hi);
+  border-radius: 6px;
+  background: var(--sp4-surface);
+  overflow: hidden;
+}
+.rpt-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--sp4-text-2);
+  font: inherit;
+  font-size: var(--sp4-body, 12.5px);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+  & + & { border-left: 1px solid var(--sp4-line-hi); }
+  &:hover { background: var(--sp4-raised); color: var(--sp4-text-1); }
+  &:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
+  &:active { background: var(--rpt-picked); }
+  &--on, &--on:hover { background: var(--rpt-picked); color: var(--sp4-text-1); font-weight: 600; }
+}
+.rpt-seg-hint {
+  color: var(--sp4-text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .rpt-setup { margin-left: 0; }
+  .rpt-bar { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rpt-btn, .rpt-seg-btn { transition: none; }
+  .rpt-btn:active:not(:disabled) { transform: none; }
+}
 
 .rpt-error,
 .rpt-progress {
@@ -77,32 +250,6 @@
 }
 .rpt-error { color: var(--sp4-crit, #f87171); }
 .rpt-progress { color: var(--sp4-text-3); }
-
-// The page orientation switch in the toolbar.
-.rpt-seg {
-  display: inline-flex;
-  border: 1px solid var(--sp4-line);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.rpt-seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  color: var(--sp4-text-3);
-  font: inherit;
-  font-size: var(--sp4-body, 12.5px);
-  cursor: pointer;
-  & + & { border-left: 1px solid var(--sp4-line); }
-  &--on { background: var(--sp4-surface); color: var(--sp4-text-1); font-weight: 600; }
-  &:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
-}
-.rpt-on { color: var(--sp4-accent); border-color: var(--sp4-accent); }
-.rpt-edited { color: var(--sp4-accent); font-weight: 600; }
 
 // The editor beside the pages while editing; the pages alone otherwise.
 .rpt-work {
@@ -227,6 +374,14 @@
   gap: 6px;
 }
 .red-kpi { display: flex; flex-direction: column; gap: 4px; }
+.red-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--sp4-line);
+  > .red-row { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 26px; align-items: end; }
+}
 .red-table-wrap { overflow-x: auto; }
 .red-table {
   width: 100%;

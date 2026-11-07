@@ -59,6 +59,12 @@ type persisted struct {
 	Days      map[string]map[int]*DayStats `json:"days"`
 	// Fleet days already filled from position history (see Poller.backfill).
 	Backfilled map[string]bool `json:"backfilled"`
+	// Finished weeks' incidents and km, by Monday, kept beyond the events
+	// (report_weekly.go).
+	Weeks map[string]*WeekTally `json:"weeks,omitempty"`
+	// Driver hours: each vehicle's running tally and the breaches sent
+	// (hours.go).
+	Hours *hoursState `json:"hours,omitempty"`
 }
 
 type lastFix struct {
@@ -78,6 +84,7 @@ type Store struct {
 	p         persisted
 	byID      map[string]bool
 	roster    map[string]rosterEntry
+	hoursNew  []PEvent // breaches not yet sent (TakeHours)
 }
 
 // How long received alerts are kept.
@@ -210,6 +217,7 @@ func (s *Store) tally(v PVehicle) {
 	on := p.Engine == "on"
 	prev, had := s.fixes[v.VehicleID]
 	s.fixes[v.VehicleID] = lastFix{at: at, lat: p.Latitude, lng: p.Longitude, on: on}
+	s.hoursNew = append(s.hoursNew, s.hoursFix(v, at)...)
 	if !had || !at.After(prev.at) {
 		return
 	}
@@ -351,6 +359,7 @@ func (s *Store) Prune(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	floor := now.Add(-keepEventsFor)
+	s.archiveWeeks(now, floor) // before the oldest records go
 	kept := s.p.Events[:0]
 	for _, e := range s.p.Events {
 		if t, err := time.Parse(time.RFC3339, e.ReceivedAt); err == nil && t.Before(floor) {
@@ -364,6 +373,7 @@ func (s *Store) Prune(now time.Time) {
 		kept = append(kept, e)
 	}
 	s.p.Events = kept
+	s.pruneHours(floor)
 	dayFloor := fleetDay(floor)
 	for d := range s.p.Days {
 		if d < dayFloor {

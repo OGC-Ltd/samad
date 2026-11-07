@@ -1,15 +1,20 @@
 package main
 
 // GET /alerts and friends, in fleet-server's shapes, from the partner's
-// events feed. Two kinds reach the Alerts page:
+// events feed. Every partner event is listed, as one of three kinds:
 //
 //	speeding  the partner's over_speeding and geofence_speeding events
-//	camera    the dashcams' driver and road alarms (no seatbelt, phone use,
-//	          lane departure, fatigue, forward collision…), warning or critical
+//	camera    everything else from the dashcams: driver and road alarms (no
+//	          seatbelt, phone use, lane departure, fatigue…) and their
+//	          informational notices (camera occlusion)
+//	event     the platform's own (geofence entry and exit, approved driver)
 //
-// Informational events (geofence entry and exit, approved driver, camera
-// occlusion notices) reach the live feed only. The partner has no fuel data,
-// so the page's fuel kind is never served.
+// and one of our own: `hours`, the driver-hours breaches (hours.go), which go
+// to the bell as well and are escalated and de-escalated here like the rest.
+//
+// Until 2026-11-07 the informational ones reached the bell only; the bell is
+// now for driver hours and they are listed here, under All. The
+// partner has no fuel data, so the page's fuel kind is never served.
 
 import (
 	"encoding/json"
@@ -28,20 +33,33 @@ const defaultAlertDays = 7
 const (
 	kindSpeeding = "speeding"
 	kindCamera   = "camera"
+	kindEvent    = "event"
+	kindHours    = "hours"
 )
 
-// The kinds this server lists, for the page's filter.
-var alertKinds = []string{kindSpeeding, kindCamera}
-
-// alertKind is the Alerts page kind of an event, or "" for one it does not list.
-func alertKind(e PEvent) string {
-	if isSpeeding(e) {
-		return kindSpeeding
+// The kinds this server lists, for the page's filter: Other only once the
+// platform has sent one, so the chip is not offered empty.
+func (s *Server) alertKinds() []string {
+	kinds := []string{kindSpeeding, kindCamera, kindHours}
+	for _, e := range s.store.Events() {
+		if alertKind(e) == kindEvent {
+			return append(kinds, kindEvent)
+		}
 	}
-	if e.Source == "device" && (e.Severity == "warning" || e.Severity == "critical") {
+	return kinds
+}
+
+// alertKind is the Alerts page kind of an event.
+func alertKind(e PEvent) string {
+	switch {
+	case e.Source == "hours":
+		return kindHours
+	case isSpeeding(e):
+		return kindSpeeding
+	case e.Source == "device":
 		return kindCamera
 	}
-	return ""
+	return kindEvent
 }
 
 type alertRow struct {
@@ -87,7 +105,7 @@ func choicesFor(status string) []map[string]any {
 // first, with this person's read marks.
 func (s *Server) alertRows(user string, from, to time.Time) []alertRow {
 	var rows []alertRow
-	for _, e := range s.store.Events() {
+	for _, e := range s.listedEvents() {
 		kind := alertKind(e)
 		if kind == "" {
 			continue
@@ -147,7 +165,21 @@ func (s *Server) alertJSON(r alertRow) map[string]any {
 		"choices":     choicesFor(r.stat),
 		"cleared":     nil,
 	}
-	if r.kind == kindCamera {
+	if r.kind == kindHours {
+		rule, detail, _ := strings.Cut(e.TypeLabel, ": ")
+		if e.Driver != "" {
+			driver = e.Driver // who had the vehicle at the time
+		}
+		out["hours"] = map[string]any{
+			"rule":       e.Type,
+			"title":      rule,
+			"detail":     detail,
+			"driverName": driver,
+		}
+		return out
+	}
+	// A platform event reads as a camera alarm does: what, how serious, where.
+	if r.kind == kindCamera || r.kind == kindEvent {
 		label := e.TypeLabel
 		if label == "" {
 			label = strings.ReplaceAll(e.Type, "_", " ")
@@ -315,7 +347,7 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 		next = strconv.Itoa(offset + limit)
 	}
 	writeData(w, map[string]any{
-		"orgs":        []any{map[string]any{"id": OrgID, "code": OrgCode, "name": OrgName, "kinds": alertKinds, "canDecide": true}},
+		"orgs":        []any{map[string]any{"id": OrgID, "code": OrgCode, "name": OrgName, "kinds": s.alertKinds(), "canDecide": true}},
 		"counts":      countList,
 		"range":       map[string]any{"from": from.UTC().Format(time.RFC3339), "to": to.UTC().Format(time.RFC3339)},
 		"data":        page,
@@ -344,8 +376,8 @@ func (s *Server) alertSummary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeData(w, map[string]any{
-		"open": byKind[kindSpeeding] + byKind[kindCamera], "fuel": 0,
-		"speeding": byKind[kindSpeeding], "camera": byKind[kindCamera],
+		"open": byKind[kindSpeeding] + byKind[kindCamera] + byKind[kindEvent] + byKind[kindHours], "fuel": 0,
+		"speeding": byKind[kindSpeeding], "camera": byKind[kindCamera], "event": byKind[kindEvent], "hours": byKind[kindHours],
 		"from": from.UTC().Format(time.RFC3339),
 	})
 }
@@ -354,7 +386,7 @@ func (s *Server) alertSummary(w http.ResponseWriter, r *http.Request) {
 func (s *Server) alertHistory(w http.ResponseWriter, r *http.Request) {
 	type key struct{ day, kind string }
 	perDay := map[key]int{}
-	for _, e := range s.store.Events() {
+	for _, e := range s.listedEvents() {
 		if kind := alertKind(e); kind != "" {
 			perDay[key{fleetDay(parseTime(e.OccurredAt)), kind}]++
 		}
@@ -424,7 +456,7 @@ func (s *Server) reviewAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	found := false
-	for _, e := range s.store.Events() {
+	for _, e := range s.listedEvents() {
 		if e.EventID == id && alertKind(e) == kind {
 			found = true
 			break
@@ -440,4 +472,10 @@ func (s *Server) reviewAlert(w http.ResponseWriter, r *http.Request) {
 	s.store.MarkRead(userOf(r.Context()), []string{id})
 	s.store.Save()
 	writeData(w, map[string]any{"id": id, "review": map[string]any{"status": d.Outcome, "at": now, "by": d.By, "note": d.Note}})
+}
+
+// listedEvents is every event the Alerts page lists: the partner's, then the
+// driver-hours breaches, which are stored apart from them.
+func (s *Server) listedEvents() []PEvent {
+	return append(s.store.Events(), s.store.HoursEvents()...)
 }

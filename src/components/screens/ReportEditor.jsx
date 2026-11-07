@@ -5,7 +5,10 @@
 
 import { memo, useCallback } from 'react'
 
-const LABEL = { heading: 'Heading', kpis: 'Figures', table: 'Table', note: 'Note', empty: 'Empty line', spacer: 'Space' }
+const LABEL = {
+  heading: 'Heading', kpis: 'Figures', table: 'Table', note: 'Note', empty: 'Empty line', spacer: 'Space',
+  counts: 'Counts', groups: 'Small tables', bars: 'Bars', lines: 'Lines to write on', sign: 'Signatures',
+}
 
 function Field({ label, value, onChange, wide, placeholder }) {
   return (
@@ -86,16 +89,47 @@ function BlockEditor({ block, index, count, onChange, onMove, onRemove }) {
       {(block.type === 'note' || block.type === 'empty') && (
         <Field label={block.type === 'note' ? 'Note' : 'Text'} wide value={block.text} onChange={(v) => set((b) => { b.text = v })} />
       )}
-      {block.type === 'kpis' && (
+      {(block.type === 'kpis' || block.type === 'counts' || block.type === 'bars') && (
         <div className="red-kpis">
           {(block.kpis ?? []).map((k, i) => (
             <div key={i} className="red-kpi">
-              <input value={k.value} aria-label={`${k.label} value`} className="is-bold" onChange={(e) => set((b) => { b.kpis[i].value = e.target.value })} />
               <input value={k.label} aria-label={`Figure ${i + 1} label`} onChange={(e) => set((b) => { b.kpis[i].label = e.target.value })} />
+              <input value={k.value} aria-label={`${k.label} value`} className="is-bold" onChange={(e) => set((b) => { b.kpis[i].value = e.target.value })} />
+              {block.type !== 'kpis' && (
+                <input value={k.sub ?? ''} aria-label={`${k.label} note`} placeholder="Note" onChange={(e) => set((b) => { b.kpis[i].sub = e.target.value })} />
+              )}
             </div>
           ))}
         </div>
       )}
+      {block.type === 'sign' && (
+        <div className="red-kpis">
+          {(block.kpis ?? []).map((k, i) => (
+            <div key={i} className="red-kpi">
+              <input value={k.label} aria-label={`Signature ${i + 1}`} onChange={(e) => set((b) => { b.kpis[i].label = e.target.value })} />
+            </div>
+          ))}
+        </div>
+      )}
+      {block.type === 'lines' && (
+        <label className="red-field">
+          <span>How many lines</span>
+          <input type="number" min={0} max={30} value={block.n ?? 0}
+                 onChange={(e) => set((b) => { b.n = Math.max(0, Math.min(30, Number(e.target.value) || 0)) })} />
+        </label>
+      )}
+      {block.type === 'groups' && (block.groups ?? []).map((g, gi) => (
+        <div key={gi} className="red-group">
+          <div className="red-row">
+            <Field label="Title" wide value={g.text} onChange={(v) => set((b) => { b.groups[gi].text = v })} />
+            <Field label="On the right" value={g.small} onChange={(v) => set((b) => { b.groups[gi].small = v })} />
+            <IconBtn icon="ti-trash" label={`Remove ${g.text || 'this table'}`} onClick={() => set((b) => { b.groups.splice(gi, 1) })} />
+          </div>
+          {g.cols?.length > 0 && g.rows?.length > 0
+            ? <TableEditor block={g} onChange={(ng) => set((b) => { b.groups[gi] = ng })} />
+            : <Field label="When empty" wide value={g.empty} onChange={(v) => set((b) => { b.groups[gi].empty = v })} />}
+        </div>
+      ))}
       {block.type === 'table' && <TableEditor block={block} onChange={onChange} />}
     </section>
   )

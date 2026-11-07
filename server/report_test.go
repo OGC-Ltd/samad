@@ -25,6 +25,9 @@ func sample(units int) *rptData {
 	for i := 0; i < units; i++ {
 		u := rptUnit{ID: 100 + i, VehicleID: fmt.Sprint(100 + i), Plate: fmt.Sprintf("KDA %03dX", i), Type: "TRUCK", Online: i%5 != 0, Moving: i%3 == 0,
 			HasPos: true, Lat: -1.2 - float64(i)/100, Lng: 36.8}
+		if u.Online {
+			u.Last = tNow.Add(-10 * time.Minute)
+		}
 		if i%4 == 0 {
 			u.Driver = fmt.Sprintf("Driver %d", i)
 		}
@@ -96,7 +99,7 @@ func TestBuildMovementsAndShift(t *testing.T) {
 	if rows[0][3].Text != "-1.2900, 36.8000" || rows[1][3].Text != "A109 Road, Voi" {
 		t.Errorf("place: %q %q", rows[0][3].Text, rows[1][3].Text)
 	}
-	sh := buildShift(d, "Day, 06:00 to 18:00")
+	sh := buildShift(d, "Day, 07:30 to 19:30")
 	if sh.Summary["critical"] != 1 || sh.Summary["breaches"] != 5 || sh.Summary["reporting"] != 8 {
 		t.Errorf("shift: %v", sh.Summary)
 	}
@@ -213,7 +216,7 @@ func TestHeadingNeverAlone(t *testing.T) {
 	doc := &ReportDoc{Kind: "shift", Title: "T"}
 	for i := 0; i < 40; i++ {
 		doc.Blocks = append(doc.Blocks, Block{Type: "heading", Text: fmt.Sprintf("H%d", i)},
-			Block{Type: "kpis", KPIs: []KPI{{"A", "1"}, {"B long label that wraps onto a second line", "2"}}})
+			Block{Type: "kpis", KPIs: []KPI{{Label: "A", Value: "1"}, {Label: "B long label that wraps onto a second line", Value: "2"}}})
 	}
 	for _, p := range layOut(doc) {
 		var last *Op
@@ -266,7 +269,9 @@ func TestRenderFormats(t *testing.T) {
 	// REPORT_SAMPLES=<dir> go test -run TestRenderFormats writes the files to look at.
 	if dir := os.Getenv("REPORT_SAMPLES"); dir != "" {
 		for _, orient := range []string{"portrait", "landscape"} {
-			for name, doc := range map[string]*ReportDoc{"movements": bigDoc(orient), "breaches": buildBreaches(sample(30)), "shift": buildShift(sample(30), "Day, 06:00 to 18:00")} {
+			docs := map[string]*ReportDoc{"movements": bigDoc(orient), "breaches": buildBreaches(sample(30)),
+				"shift": buildShift(sample(30), "Day, 07:30 to 19:30"), "weekly": weeklySample(t), "conduct": conductSample()}
+			for name, doc := range docs {
 				doc.Orientation = orient
 				pg := layOut(doc)
 				p, _ := renderPDF(doc, pg, tNow)
@@ -395,5 +400,241 @@ func TestReportRoutes(t *testing.T) {
 	}
 	if rec := h.do("POST", "/api/v1/reports/render?org=other&format=pdf", token, edited); rec.Code != http.StatusNotFound {
 		t.Errorf("other org: %d", rec.Code)
+	}
+}
+
+// weeklyStore is two trucks over two weeks: KDA 001A changes driver midweek,
+// KDB 002B has none.
+func weeklyStore(t *testing.T) (*Store, time.Time) {
+	t.Helper()
+	now := tNow // Saturday 7 Nov: the last finished week is 26 Oct to 1 Nov
+	st := NewStore(t.TempDir())
+	st.vehicles[1] = PVehicle{VehicleID: 1, Registration: "KDA 001A", Driver: &PPerson{Name: "JOHN DOE"}}
+	st.vehicles[2] = PVehicle{VehicleID: 2, Registration: "KDB 002B"}
+	for day := time.Date(2026, 10, 19, 0, 0, 0, 0, fleetZone); day.Before(time.Date(2026, 11, 2, 0, 0, 0, 0, fleetZone)); day = day.AddDate(0, 0, 1) {
+		driver := "John Doe"
+		if !day.Before(time.Date(2026, 10, 28, 0, 0, 0, 0, fleetZone)) {
+			driver = "Mary Ann"
+		}
+		st.p.Days[fleetDay(day)] = map[int]*DayStats{1: {Km: 100, Driver: driver}, 2: {Km: 50}}
+	}
+	ev := func(id, typ string, vid int, at time.Time) PEvent {
+		ts := at.UTC().Format(time.RFC3339)
+		return PEvent{EventID: id, Type: typ, Severity: "warning", OccurredAt: ts, ReceivedAt: ts, VehicleID: vid}
+	}
+	d := func(day, hour int) time.Time { return time.Date(2026, 10, day, hour, 0, 0, 0, fleetZone) }
+	var events []PEvent
+	for i := 0; i < 4; i++ {
+		events = append(events, ev(fmt.Sprint("o", i), "over_speeding", 1, d(20, 8+i)))
+	}
+	events = append(events, ev("p", "phone_use", 1, d(27, 9)), ev("b1", "harsh_braking", 1, d(30, 9)), ev("b2", "harsh_braking", 1, d(30, 10)),
+		ev("lane", "lane_departure", 1, d(30, 11))) // not an incident
+	for i := 0; i < 3; i++ {
+		events = append(events, ev(fmt.Sprint("s", i), "no_seatbelt", 2, d(29, 8+i)))
+	}
+	st.AddEvents(events, "")
+	return st, now
+}
+
+func weeklyDoc(st *Store, n int, now time.Time) *ReportDoc {
+	ws := st.weekSource(now)
+	end := weekStart(now)
+	cols := make([]wkCol, n+1)
+	for i := range cols {
+		start := end.AddDate(0, 0, -7*(n+1-i))
+		tl, ok := ws.week(start)
+		cols[i] = wkCol{start: start, tally: tl, have: ok}
+	}
+	return buildWeekly(cols, ws.vehicles, now)
+}
+
+func weeklySample(t *testing.T) *ReportDoc {
+	st, now := weeklyStore(t)
+	return weeklyDoc(st, 3, now)
+}
+
+func tableAfter(doc *ReportDoc, heading string) [][]Cell {
+	seen := false
+	for _, b := range doc.Blocks {
+		if b.Type == "heading" && strings.HasSuffix(b.Text, heading) {
+			seen = true
+		}
+		if seen && b.Type == "table" {
+			return b.Rows
+		}
+	}
+	return nil
+}
+
+func TestWeeklyIncidents(t *testing.T) {
+	st, now := weeklyStore(t)
+	doc := weeklyDoc(st, 2, now)
+	if err := doc.Check(); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Summary["incidents"] != 6 || doc.Summary["week"] != "Wk 44" || doc.Summary["change"] != "Up 2 (+50%)" {
+		t.Errorf("summary: %v", doc.Summary)
+	}
+	row := func(rows [][]Cell, name string) []Cell {
+		for _, r := range rows {
+			if r[0].Text == name {
+				return r
+			}
+		}
+		t.Fatalf("no row %q in %v", name, rows)
+		return nil
+	}
+	drivers := tableAfter(doc, "Drivers")
+	// Columns: name, with, Wk 43, Wk 44, total, per 100 km, change.
+	if r := row(drivers, "John Doe"); r[1].Text != "KDA 001A" || r[2].Text != "4" || r[3].Text != "1" || r[6].Text != "Down 3 (−75%)" {
+		t.Errorf("John: %+v", r)
+	}
+	if r := row(drivers, "Mary Ann"); r[2].Text != "-" || r[3].Text != "2" || r[5].Text != "0.4" || r[6].Text != "Up 2" {
+		t.Errorf("Mary, from Wednesday: %+v", r)
+	}
+	if r := row(drivers, "No driver on record"); r[3].Text != "3" {
+		t.Errorf("no driver: %+v", r)
+	}
+	if r := row(tableAfter(doc, "Trucks"), "KDA 001A"); r[1].Text != "John Doe, Mary Ann" || r[6].Text != "Down 1 (−25%)" {
+		t.Errorf("truck: %+v", r)
+	}
+
+	// The tallies outlive the events: a month on, the weeks still read the same.
+	st.Prune(now)
+	later := now.AddDate(0, 0, 30)
+	st.Prune(later)
+	if len(st.Events()) != 0 {
+		t.Fatalf("events kept: %d", len(st.Events()))
+	}
+	ws := st.weekSource(later)
+	tl, ok := ws.week(time.Date(2026, 10, 26, 0, 0, 0, 0, fleetZone))
+	if !ok || sumCounts(tl.Units[1].Counts) != 3 || tl.Units[1].Drivers["MARY ANN"].Counts["harsh_braking"] != 2 || tl.Units[1].Km != 700 {
+		t.Fatalf("kept week: %v %+v", ok, tl)
+	}
+	if _, ok := ws.week(time.Date(2026, 10, 12, 0, 0, 0, 0, fleetZone)); ok {
+		t.Error("a week before any record has none")
+	}
+
+	pages := layOut(doc)
+	if _, err := renderPDF(doc, pages, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := renderCSV(doc); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWeeklyRoute(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.login()
+	rec := h.do("GET", "/api/v1/reports/weekly/document?org=samad&weeks=4", token, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"kind":"weekly"`) {
+		t.Fatalf("weekly: %d %s", rec.Code, rec.Body)
+	}
+	if rec := h.do("GET", "/api/v1/reports/weekly/document?org=samad&weeks=13", token, nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("13 weeks: %d", rec.Code)
+	}
+}
+
+func TestShiftLikeTheSheet(t *testing.T) {
+	sh := buildShift(sample(10), "Day, 07:30 to 19:30")
+	types := []string{}
+	for _, b := range sh.Blocks {
+		types = append(types, b.Type)
+	}
+	want := "heading kpis heading table heading counts spacer groups note heading lines sign"
+	if got := strings.Join(types, " "); got != want {
+		t.Errorf("blocks:\n got %s\nwant %s", got, want)
+	}
+	if sh.Orientation != "landscape" {
+		t.Error("landscape, like the sheet")
+	}
+	for _, b := range sh.Blocks {
+		if b.Type == "groups" {
+			if g := b.Groups[0]; g.Text != "Overspeeding" || g.Small != "all 1 unit" || g.Rows[0][2].Text != "2" {
+				t.Errorf("overspeeding: %+v", g)
+			}
+			if g := b.Groups[2]; len(g.Rows) != 0 || g.Empty != "None in the shift." {
+				t.Errorf("harsh acceleration: %+v", g)
+			}
+		}
+	}
+	// An edited groups block is tidied like a table.
+	sh.Blocks = append(sh.Blocks, Block{Type: "groups", Groups: []SubTable{{Text: "x", Cols: []Col{{H: "A", W: 0}}, Rows: [][]Cell{{{Text: "1"}, {Text: "2"}}}}}})
+	if err := sh.Check(); err != nil {
+		t.Fatal(err)
+	}
+	if g := sh.Blocks[len(sh.Blocks)-1].Groups[0]; len(g.Rows[0]) != 1 || g.Cols[0].W != 1 {
+		t.Errorf("tidied: %+v", g)
+	}
+	if n := len(layOut(sh)); n < 1 {
+		t.Error("no pages")
+	}
+}
+
+func conductSample() *ReportDoc {
+	d := sample(10)
+	d.Untracked = []string{"KDZ 900B", "KDZ 100A"}
+	d.DayDrivers = map[string]map[int]string{fleetDay(tNow): {102: "Grace Atieno"}}
+	return buildConduct(d)
+}
+
+func TestBuildConduct(t *testing.T) {
+	doc := conductSample()
+	if err := doc.Check(); err != nil {
+		t.Fatal(err)
+	}
+	// Overspeeding and the critical alarm are not conduct: phone, braking, seatbelt are.
+	if doc.Summary["incidents"] != 3 || doc.Summary["vehicles"] != 3 {
+		t.Errorf("summary: %v", doc.Summary)
+	}
+	var heads []string
+	for _, b := range doc.Blocks {
+		if b.Type == "heading" {
+			heads = append(heads, b.Text)
+		}
+	}
+	if got := strings.Join(heads, " | "); got != "1. Overview | 2. Trucks | 3. Trailers | 4. Not tracked on the platform" {
+		t.Errorf("sections: %s", got)
+	}
+	trucks := tableAfter(doc, "Trucks")
+	// Plates in order; the driver is the one on the truck that day.
+	if len(trucks) != 2 || trucks[0][0].Text != "KDA 001X" || trucks[1][2].Text != "Grace Atieno" || trucks[0][len(trucks[0])-1].Text != "1" {
+		t.Errorf("trucks: %+v", trucks)
+	}
+	if rows := tableAfter(doc, "Not tracked on the platform"); rows[0][0].Text != "Trucks (2)" || rows[0][1].Text != "KDZ 100A, KDZ 900B" {
+		t.Errorf("untracked: %+v", rows)
+	}
+}
+
+func TestShiftCustomPeriod(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.login()
+	now := time.Now()
+	from := fmt.Sprint(now.Add(-30 * time.Hour).UnixMilli())
+	to := fmt.Sprint(now.Add(-2 * time.Hour).UnixMilli())
+	rec := h.do("GET", "/api/v1/reports/shift/document?org=samad&shift=custom&from="+from+"&to="+to, token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("custom: %d %s", rec.Code, rec.Body)
+	}
+	var out struct{ Data ReportDoc }
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Data.Info[1].Value != periodWords(time.UnixMilli(now.Add(-30*time.Hour).UnixMilli()), time.UnixMilli(now.Add(-2*time.Hour).UnixMilli())) || !strings.HasSuffix(out.Data.Filename, " custom") {
+		t.Errorf("custom shift: %+v %q", out.Data.Info, out.Data.Filename)
+	}
+	// The day shift runs 07:30 to 19:30.
+	rec = h.do("GET", "/api/v1/reports/shift/document?org=samad&shift=day&day="+fleetDay(now.Add(-24*time.Hour)), token, nil)
+	var day struct{ Data ReportDoc }
+	if err := json.Unmarshal(rec.Body.Bytes(), &day); err != nil || !strings.HasSuffix(day.Data.Info[1].Value, "Day, 07:30 to 19:30") {
+		t.Errorf("day shift: %d %+v", rec.Code, day.Data.Info)
+	}
+	old := fmt.Sprint(now.Add(-40 * 24 * time.Hour).UnixMilli())
+	if rec := h.do("GET", "/api/v1/reports/shift/document?org=samad&shift=custom&from="+old+"&to="+fmt.Sprint(now.Add(-39*24*time.Hour).UnixMilli()), token, nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("40 days ago: %d", rec.Code)
+	}
+	if rec := h.do("GET", "/api/v1/reports/conduct/document?org=samad&from="+from, token, nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"kind":"conduct"`) {
+		t.Errorf("conduct: %d", rec.Code)
 	}
 }

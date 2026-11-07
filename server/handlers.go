@@ -85,7 +85,7 @@ func (s *Server) snapshot(w http.ResponseWriter, r *http.Request) {
 
 // GET /organisations/{org}/live: server-sent events. Every vehicle's position
 // on connect, then whatever the poller sees change, plus the newest feed
-// items. A comment every 20 s keeps proxies from closing an idle stream.
+// items: the driver-hours breaches (hours.go), the bell's only source. A comment every 20 s keeps proxies from closing an idle stream.
 func (s *Server) live(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -113,9 +113,9 @@ func (s *Server) live(w http.ResponseWriter, r *http.Request) {
 			send("position", positionFrame(v))
 		}
 	}
-	events := s.store.Events()
+	events := s.store.HoursEvents()
 	for i := len(events) - 1; i >= 0 && i >= len(events)-40; i-- {
-		send("feed", feedItem(events[i]))
+		send("feed", hoursFeedItem(events[i]))
 	}
 	fl.Flush()
 

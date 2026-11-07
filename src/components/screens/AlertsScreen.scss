@@ -15,63 +15,39 @@
  *          --sp4-ok; each pill also says its word, so none is read by colour
  *          alone. Fuel and speed tags in ink, told apart by icon and word. */
 
-/* Four cards, the Fuel Audit's own size (AuditScreen.scss .aud-stats): three
-   meters, and fuel / speed lines over every alert ever received.
- * Hallmark · component: alerts-over-time chart · genre: modern-minimal · theme: sp4 +
- *   the --frv tokens (fuel --alr-fuel amber, the badge's hue; speed --alr-speed
- *   blue (--frv-s1); the key names each line, so none is read by colour alone)
- * states: loading ("Reading…", no lines) · empty (flat at 0) · one point (dots,
- *         no line) · hover/touch/arrow keys (cursor, dots, that point in the key)
- *         · focus (ring on the plot). */
+/* The stats: new-ui's Alerts strip, the Drivers strip read for alerts
+ * (AlertsStrip.jsx; operator, 2026-11-07). Its cells, hairlines and tones are
+ * DriversScreen.scss's own (.dr-strip, .dr-cell, .dr-tones); this only seats
+ * it in the page's band and gives it the container its layouts are measured
+ * by. One cell per kind the organisations hold, so the column count is
+ * --alr-kinds (Samad: overspeeding and camera, four cells as in new-ui).
+ * Hallmark · component: alerts stats strip · genre: modern-minimal
+ * theme: in-project tokens, preserved · redesign: restyle (to new-ui)
+ * pre-emit critique: P5 H5 E4 S5 R5 V4 */
+.alr-stats {
+  display: block;
+  container: drstrip / inline-size;
+}
+.alr-strip { font-family: inherit; }
+/* One row, as new-ui's at full width; two by two on a tablet, then the
+   Drivers phone stack (one column under 600px). */
+@container drstrip (min-width: 760px) {
+  .alr-stats .alr-strip {
+    grid-template-columns: minmax(0, 1.4fr) repeat(var(--alr-kinds, 2), minmax(0, 1fr)) minmax(0, 1fr);
+  }
+  .alr-stats .alr-strip .dr-fleet { grid-column: auto; }
+}
+@container drstrip (min-width: 600px) and (max-width: 759px) {
+  .alr-stats .alr-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .alr-stats .alr-strip .dr-fleet { grid-column: auto; }
+}
+/* A fact per kind held, then Unread: as many to a row as fit whole, so a
+   word like "Overspeeding" is never cut. */
+.alr-strip .dr-fleet__facts { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+
+/* The unread marker's amber (the badge's hue), and each kind's tag colour. */
 .alr-root { --alr-fuel: #f59e0b; --alr-speed: var(--frv-s1); --alr-camera: var(--frv-s3); }
 .app--light .alr-root { --alr-fuel: #d97706; --alr-speed: var(--frv-s1); --alr-camera: var(--frv-s3); }
-.alr-trend { gap: 8px; }
-.alr-trend__key {
-  list-style: none; margin: 0; padding: 0;
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
-  font-size: var(--sp4-label); color: var(--sp4-text-3);
-}
-.alr-trend__key li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.alr-trend__key i { width: 10px; height: 3px; border-radius: 2px; align-self: center; background: var(--line); }
-.alr-trend__key b {
-  font-size: 18px; font-weight: 800; letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums; color: var(--sp4-text-1);
-}
-.alr-trend__key .alr-trend__when { margin-left: auto; color: var(--sp4-text-4); font-variant-numeric: tabular-nums; }
-.alr-trend__line--fuel { --line: var(--alr-fuel); }
-.alr-trend__line--speed { --line: var(--alr-speed); }
-.alr-trend__line--camera { --line: var(--alr-camera); }
-.alr-trend__plot {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 96px;
-  border-radius: 6px;
-  cursor: crosshair;
-  touch-action: pan-y;
-}
-.alr-trend__plot:focus-visible { outline: 2px solid var(--sp4-accent, var(--frv-s1)); outline-offset: 3px; }
-.alr-trend__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.alr-trend__grid { stroke: var(--frv-track); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.alr-trend__line {
-  fill: none; stroke: var(--line); stroke-width: 2.25;
-  stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke;
-}
-.alr-trend__cursor { stroke: var(--sp4-text-3); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-.alr-trend__dot {
-  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
-  border-radius: 50%; background: var(--line);
-  box-shadow: 0 0 0 2px var(--sp4-surface);
-  pointer-events: none;
-}
-.alr-trend__top {
-  position: absolute; top: -2px; left: 0;
-  font-size: 10px; font-weight: 600; color: var(--sp4-text-4);
-  font-variant-numeric: tabular-nums; pointer-events: none;
-}
-@media (max-width: 767px) {
-  .alr-trend__plot { min-height: 72px; }
-  .alr-trend__key b { font-size: 15px; }
-}
 
 /* Read marks, per person (as in a mailbox).
  * Hallmark · component: unread alert row · genre: modern-minimal · theme: sp4

@@ -84,6 +84,8 @@ export const KINDS = [
   { id: "fuel", label: "Fuel" },
   { id: "speeding", label: "Overspeeding" },
   { id: "camera", label: "Camera" },
+  { id: "hours", label: "Driver hours" },
+  { id: "event", label: "Other" },
 ];
 
 /**
@@ -96,7 +98,14 @@ export const ALERT_KINDS = {
   fuel: { tag: "Fuel", icon: "ti-droplet", title: "Fuel alert", noun: "fuel", line: "fuel" },
   speeding: { tag: "Speed", icon: "ti-gauge", title: "Overspeeding alert", noun: "overspeeding", line: "speed" },
   camera: { tag: "Camera", icon: "ti-video", title: "Camera alarm", noun: "camera", line: "camera" },
+  // Breaches of the working time rules (server hours.go): also in the bell.
+  hours: { tag: "Hours", icon: "ti-clock-hour-4", title: "Driver hours breach", noun: "driver hours", line: "camera" },
+  // The platform's own events (geofence entry and exit, approved driver),
+  // listed here since the bell became the driver-hours bell (2026-11-07).
+  event: { tag: "Event", icon: "ti-map-pin", title: "Platform event", noun: "platform", line: "camera" },
 };
+/** A count of 0 for every kind, to start a day or a chart point. */
+const ZERO_KINDS = Object.fromEntries(Object.keys(ALERT_KINDS).map((k) => [k, 0]));
 export const kindOf = (kind) => ALERT_KINDS[kind] ?? ALERT_KINDS.speeding;
 
 export const STATUSES = [
@@ -183,13 +192,47 @@ export function alertTrend(history, { orgs = [] } = {}, now = Date.now()) {
   const b = BUCKET[unit];
   const byStart = new Map();
   for (let d = b.of(first); d <= today; d = b.next(d)) {
-    byStart.set(d, { start: d, words: b.words(d), fuel: 0, speeding: 0, camera: 0 });
+    byStart.set(d, { start: d, words: b.words(d), ...ZERO_KINDS });
   }
   for (const r of rows) {
     const point = byStart.get(b.of(r.day));
     if (point && r.kind in ALERT_KINDS) point[r.kind] += r.n;
   }
   return { unit, points: [...byStart.values()] };
+}
+
+/**
+ * The period's alerts a fleet day each, one count per kind, for the stats
+ * strip's trend cells: every day from `fromDay` to `toDay`, empty ones at 0.
+ * Follows the Organisation filter only, as alertTrend does. null until the
+ * history is in.
+ *   → [{ day, fuel, speeding, camera }]
+ */
+export function alertDays(history, { orgs = [], fromDay, toDay } = {}) {
+  if (!Array.isArray(history) || !fromDay || !toDay) return null;
+  const byDay = new Map();
+  for (let d = fromDay; d <= toDay; d = nextDay(d)) byDay.set(d, { day: d, ...ZERO_KINDS });
+  for (const r of history) {
+    if (orgs.length && !orgs.includes(r.orgId)) continue;
+    const point = byDay.get(r.day);
+    if (point && r.kind in ALERT_KINDS) point[r.kind] += r.n;
+  }
+  return [...byDay.values()];
+}
+
+/** How many organisations hold a matching count above 0 (countWhere's filters). */
+export function orgsWhere(counts, { orgs = [], kind = "all", status = "all", read = "all" } = {}) {
+  if (!Array.isArray(counts)) return null;
+  const seen = new Set();
+  for (const c of counts) {
+    if (!c.n) continue;
+    if (orgs.length && !orgs.includes(c.orgId)) continue;
+    if (kind !== "all" && c.kind !== kind) continue;
+    if (status !== "all" && c.status !== status) continue;
+    if (read !== "all" && Boolean(c.read) !== (read === "read")) continue;
+    seen.add(c.orgId);
+  }
+  return seen.size;
 }
 
 // ── An alert's decision, in words ───────────────────────────────────────────
@@ -200,6 +243,8 @@ const FUEL_REASON_WORDS = { theft: "confirmed theft", probe_fault: "faulty fuel 
 const MEANS = {
   speeding: { yes: "confirmed overspeed", no: "not an overspeed" },
   camera: { yes: "confirmed alarm", no: "a false alarm" },
+  event: { yes: "confirmed alarm", no: "a false alarm" },
+  hours: { yes: "confirmed breach", no: "not a breach" },
 };
 const meansOf = (kind) => MEANS[kind] ?? MEANS.speeding;
 
@@ -259,7 +304,22 @@ export function choiceWords(kind, choice) {
         : "Recorded as a confirmed theft with your reason, and the organisation's feed is told.",
     };
   }
-  if (kind === "camera") {
+  if (kind === "hours") {
+    return choice.outcome === "DEESCALATED"
+      ? {
+          label: "Not a breach",
+          confirm: "De-escalate as not a breach",
+          placeholder: "Why is this not a breach? e.g. two drivers on board, the truck was being loaded with the engine on",
+          hint: "Recorded as not a breach with your reason.",
+        }
+      : {
+          label: "Confirmed breach",
+          confirm: "Escalate as a confirmed breach",
+          placeholder: "What happens next? e.g. spoke to the driver, rest scheduled, sent to the transport manager",
+          hint: "Recorded as a confirmed breach with your reason.",
+        };
+  }
+  if (kind === "camera" || kind === "event") {
     return choice.outcome === "DEESCALATED"
       ? {
           label: "False alarm",
@@ -341,7 +401,11 @@ export function figureOf(alert) {
 /** The one figure that says what happened, for the table's Alert column. */
 export function headline(alert) {
   if (alert.kind === "fuel") return { figure: litres(alert.fuel?.litres), words: "lost" };
-  if (alert.kind === "camera") {
+  if (alert.kind === "hours") {
+    const h = alert.hours ?? {};
+    return { figure: h.title ?? "Driver hours", words: h.detail ?? "" };
+  }
+  if (alert.kind === "camera" || alert.kind === "event") {
     const c = alert.camera ?? {};
     return { figure: c.label ?? "Alarm", words: c.speedKmh != null ? `at ${kmh(c.speedKmh)}` : "" };
   }

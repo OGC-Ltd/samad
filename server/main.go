@@ -150,7 +150,7 @@ func routes(s *Server, a *Auth) http.Handler {
 
 	// The Reports page: movements, policy breaches, end of shift (reports.go).
 	in.Handle("/reports/fleet", unitsVisible(needFunc(s.reportFleet, "telemetry:read"))).Methods("GET")
-	in.Handle("/reports/{kind:breaches|movements|shift}/document", unitsVisible(needFunc(s.reportDocument, "telemetry:read"))).Methods("GET")
+	in.Handle("/reports/{kind:breaches|conduct|movements|shift|weekly}/document", unitsVisible(needFunc(s.reportDocument, "telemetry:read"))).Methods("GET")
 	in.Handle("/reports/render", unitsVisible(needFunc(s.reportRender, "telemetry:read"))).Methods("POST")
 
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
@@ -163,7 +163,7 @@ func routes(s *Server, a *Auth) http.Handler {
 	org.Handle("/geofences/geojson", needFunc(s.geofencesGeoJSON, "geofence:read", "map:read")).Methods("GET")
 	org.Handle("/analytics/drivers/overview", needFunc(s.driversOverview, "driver:read")).Methods("GET")
 	org.Handle("/dashboard/ai-insight", needFunc(s.fleetInsight, "dashboard:read")).Methods("GET")
-	org.Handle("/incidents/{kind:speeding|camera}/{id}/review", needFunc(s.reviewAlert, alerts...)).Methods("POST")
+	org.Handle("/incidents/{kind:speeding|camera|event|hours}/{id}/review", needFunc(s.reviewAlert, alerts...)).Methods("POST")
 
 	// Weather and routing (routing.go).
 	rt := s.routing
