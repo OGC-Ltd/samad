@@ -38,7 +38,7 @@ const TABS = [
   { key: 'weekly',    label: 'Weekly Incidents' },
 ]
 
-const WEEKS = [4, 8, 12]
+const WEEKS = [1, 4, 8, 12]
 
 const MAX_DAYS = 30
 const DAY = 86_400_000
@@ -91,6 +91,7 @@ export default function ReportsScreen() {
   const [custom, setCustom] = useState(() => { const r = presetRange('7d'); return { from: toInput(r.from), to: toInput(r.to) } })
   const [shift, setShift] = useState(currentShift)
   const [weeks, setWeeks] = useState(4)
+  const [week, setWeek] = useState('') // a day in the last week shown; '' is the last finished week
   // The period is fixed when it is picked (and on Refresh), not on every
   // render: "today" ends at the moment it was asked for.
   const [stamp, setStamp] = useState(() => Date.now())
@@ -121,11 +122,11 @@ export default function ReportsScreen() {
 
   const docKey = shiftCustom ? ['reports', 'doc', tab, 'custom', period.from, period.to, stamp]
     : tab === 'shift' ? ['reports', 'doc', tab, shift.day, shift.shift, stamp]
-    : tab === 'weekly' ? ['reports', 'doc', tab, weeks, stamp]
+    : tab === 'weekly' ? ['reports', 'doc', tab, weeks, week, stamp]
       : ['reports', 'doc', tab, range.from, range.to, stamp]
   const docQ = useQuery({
     queryKey: docKey,
-    queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: period.from, to: period.to, day: shift.day, shift: shift.shift, weeks, signal }),
+    queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: period.from, to: period.to, day: shift.day, shift: shift.shift, weeks, week, signal }),
     enabled: !problem,
     placeholderData: keepPreviousData,
     retry: 1,
@@ -209,11 +210,22 @@ export default function ReportsScreen() {
         <header className="rpt-head" data-tour="page-toolbar">
           <div className="rpt-pick">
             {tab === 'weekly' ? (
-              <div className="rpt-field">
-                <span>Weeks</span>
-                <Segmented label="Weeks" value={weeks} onPick={(n) => { setWeeks(n); setStamp(Date.now()) }}
-                           options={WEEKS.map((n) => ({ key: n, label: `Last ${n} weeks` }))} />
-              </div>
+              <>
+                <label className="rpt-field">
+                  <span>Week of</span>
+                  <input type="date" value={week || dayKey(lastWeekStart(stamp))} max={dayKey(stamp)}
+                         onChange={(e) => { if (e.target.value) { setWeek(e.target.value); setStamp(Date.now()) } }} />
+                </label>
+                <div className="rpt-field">
+                  <span>Weeks</span>
+                  <Segmented label="Weeks" value={weeks} onPick={(n) => { setWeeks(n); setStamp(Date.now()) }}
+                             options={WEEKS.map((n) => ({ key: n, label: n === 1 ? 'That week' : `${n} weeks` }))} />
+                </div>
+                <button type="button" className="rpt-btn rpt-btn--quiet"
+                        onClick={() => { setWeek(''); setStamp(Date.now()) }}>
+                  Last week
+                </button>
+              </>
             ) : tab === 'shift' ? (
               <>
                 {!shiftCustom && (
@@ -315,7 +327,7 @@ export default function ReportsScreen() {
           </EmptyNote>
         ) : !doc ? (
           <EmptyNote icon="ti-loader-2" tone="busy" title="Making the Report">
-            {tab === 'weekly' ? `The last ${weeks} finished weeks, Monday to Sunday` : tab === 'shift' && !shiftCustom ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(period.from, period.to)}. {waitWords}
+            {tab === 'weekly' ? weeklyWords(weeks, week, stamp) : tab === 'shift' && !shiftCustom ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(period.from, period.to)}. {waitWords}
           </EmptyNote>
         ) : (
           <div className={`rpt-work${editing ? ' rpt-work--editing' : ''}`}>
@@ -339,6 +351,24 @@ export default function ReportsScreen() {
       </div>
     </div>
   )
+}
+
+/** Monday 00:00 (Nairobi) of the week holding ms; the server works the weeks out itself. */
+function weekStartOf(ms) {
+  const day = Date.parse(`${dayKey(ms)}T00:00:00+03:00`)
+  const wd = new Date(day + 3 * 3600e3).getUTCDay()
+  return day - ((wd + 6) % 7) * DAY
+}
+const lastWeekStart = (now) => weekStartOf(now) - 7 * DAY
+
+/** The waiting line's words for the weeks asked for. */
+function weeklyWords(n, week, now) {
+  const last = week ? weekStartOf(Date.parse(`${week}T12:00:00+03:00`)) : lastWeekStart(now)
+  const first = last - 7 * DAY * (n - 1)
+  const fmt = (ms, year) => new Date(ms + 3 * 3600e3).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' })
+  const end = Math.min(last + 7 * DAY - 1, now)
+  const words = `${n === 1 ? 'The week' : `${n} weeks`} from Monday ${fmt(first)} to ${fmt(end, true)}`
+  return last + 7 * DAY > now ? `${words}, this week so far` : words
 }
 
 /** The shift's window, for the waiting line only (the server works it out itself). */

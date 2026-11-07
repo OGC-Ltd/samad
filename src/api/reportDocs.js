@@ -9,13 +9,13 @@ const ORG = 'samad'
 
 /**
  * The report the server built.
- * @param {{ kind: 'breaches'|'conduct'|'movements'|'shift'|'weekly', from?: number, to?: number, day?: string, shift?: string, weeks?: number, signal?: AbortSignal }} o
+ * @param {{ kind: 'breaches'|'conduct'|'movements'|'shift'|'weekly', from?: number, to?: number, day?: string, shift?: string, weeks?: number, week?: string, signal?: AbortSignal }} o
  */
-export async function loadReportDoc({ kind, from, to, day, shift, weeks, signal }) {
+export async function loadReportDoc({ kind, from, to, day, shift, weeks, week, signal }) {
   const q = new URLSearchParams({ org: ORG })
   if (kind === 'shift' && shift === 'custom') { q.set('shift', 'custom'); q.set('from', String(Math.round(from))); q.set('to', String(Math.round(to))) }
   else if (kind === 'shift') { q.set('day', day); q.set('shift', shift) }
-  else if (kind === 'weekly') q.set('weeks', String(weeks))
+  else if (kind === 'weekly') { q.set('weeks', String(weeks)); if (week) q.set('week', week) }
   else { q.set('from', String(Math.round(from))); q.set('to', String(Math.round(to))) }
   const res = await apiFetch(`/api/v1/reports/${kind}/document?${q}`, signal ? { signal } : undefined)
   return res?.data ?? null
