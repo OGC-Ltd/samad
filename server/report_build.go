@@ -106,6 +106,7 @@ type rptEvent struct {
 }
 
 type rptUnit struct {
+	ID                             int    // the partner's vehicle id
 	VehicleID, Plate, Driver, Type string // Driver "" when none is assigned
 	HasPos                         bool
 	Lat, Lng                       float64
@@ -127,7 +128,7 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 	plates := map[int]string{}
 	zones := s.store.Geofences()
 	for _, v := range s.store.Vehicles() {
-		u := rptUnit{VehicleID: vehicleKey(v.VehicleID), Plate: v.Registration, Type: vehicleType(v)}
+		u := rptUnit{ID: v.VehicleID, VehicleID: vehicleKey(v.VehicleID), Plate: v.Registration, Type: vehicleType(v)}
 		if n := driverName(v); n != "Unassigned" {
 			u.Driver = n
 		}

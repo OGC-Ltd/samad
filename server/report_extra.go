@@ -176,8 +176,8 @@ func (c *reportCache) distances(ctx context.Context, h historian, units []rptUni
 }
 
 func (c *reportCache) unitKm(ctx context.Context, h historian, u rptUnit, from, to, now time.Time) (float64, bool) {
-	var vid int
-	if _, err := fmt.Sscan(u.VehicleID, &vid); err != nil {
+	vid := u.ID
+	if vid <= 0 {
 		return 0, false
 	}
 	var run []fix

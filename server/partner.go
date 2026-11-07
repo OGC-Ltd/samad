@@ -73,13 +73,16 @@ func (c *PartnerClient) get(ctx context.Context, path string, q url.Values, out 
 		if err := c.wait(ctx); err != nil {
 			return err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		// The host is the configured PARTNER_BASE_URL and the path is built
+		// from integer ids; a report's period reaches only the query, encoded
+		// by url.Values. Nothing a caller sends can change where this goes.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil) // #nosec G704 -- fixed host, see above
 		if err != nil {
 			return err
 		}
 		req.Header.Set("X-Api-Key", c.key)
 		req.Header.Set("Accept", "application/json")
-		res, err := c.http.Do(req)
+		res, err := c.http.Do(req) // #nosec G704 -- fixed host, see above
 		if err != nil {
 			return err
 		}
