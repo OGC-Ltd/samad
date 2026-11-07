@@ -5,8 +5,9 @@ package main
 //	GET  /reports/{breaches|movements|shift}/document?org=&from=&to=
 //	     (End of Shift: ?org=&day=YYYY-MM-DD&shift=day|night, or
 //	     ?org=&shift=custom&from=&to= for a period picked by hand)
-//	GET  /reports/weekly/document?org=&weeks=N
-//	     the last N finished weeks (1 to 12)
+//	GET  /reports/weekly/document?org=&weeks=N[&week=YYYY-MM-DD]
+//	     N weeks (1 to 12) ending with the week holding that day (this
+//	     week at most, counted so far); without it, the last finished week
 //	     → { data: ReportDoc }, the report the server built, ready to edit
 //	POST /reports/render?org=&format=pdf|jpeg|csv|preview[&sheet=N]
 //	     body: a ReportDoc, as built or as edited on the page
@@ -53,7 +54,19 @@ func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("pick 1 to %d weeks", weeklyMax))
 			return
 		}
-		doc := s.buildWeekly(n, now)
+		last := weekStart(now).AddDate(0, 0, -7)
+		if day := r.URL.Query().Get("week"); day != "" {
+			at, err := time.ParseInLocation("2006-01-02", day, fleetZone)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "week must be a date, YYYY-MM-DD")
+				return
+			}
+			if last = weekStart(at); last.After(now) {
+				writeError(w, http.StatusBadRequest, "that week has not started yet")
+				return
+			}
+		}
+		doc := s.buildWeekly(n, last, now)
 		if r.URL.Query().Get("orientation") == "portrait" {
 			doc.Orientation = "portrait"
 		}

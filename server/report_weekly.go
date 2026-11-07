@@ -268,9 +268,10 @@ func (ws weekSource) week(w time.Time) (*WeekTally, bool) {
 // ── the report ───────────────────────────────────────────────────────────
 
 type wkCol struct {
-	start time.Time
-	tally *WeekTally
-	have  bool
+	start   time.Time
+	tally   *WeekTally
+	have    bool
+	running bool // the week now under way, counted so far
 }
 
 func (c wkCol) label() string { _, n := c.start.ISOWeek(); return "Wk " + strconv.Itoa(n) }
@@ -278,10 +279,14 @@ func (c wkCol) label() string { _, n := c.start.ISOWeek(); return "Wk " + strcon
 // dates is "2–8 Nov" or "27 Oct–2 Nov".
 func (c wkCol) dates() string {
 	a, b := eat(c.start), eat(c.start.AddDate(0, 0, 6))
+	s := a.Format("2 Jan") + "–" + b.Format("2 Jan")
 	if a.Month() == b.Month() {
-		return fmt.Sprintf("%d–%d %s", a.Day(), b.Day(), b.Format("Jan"))
+		s = fmt.Sprintf("%d–%d %s", a.Day(), b.Day(), b.Format("Jan"))
 	}
-	return a.Format("2 Jan") + "–" + b.Format("2 Jan")
+	if c.running {
+		s += ", so far"
+	}
+	return s
 }
 
 // wkLine is one driver's or truck's weeks.
@@ -361,17 +366,23 @@ func change(prev, last int) Cell {
 	return Cell{Text: fmt.Sprintf("Up %d (+%d%%)", last-prev, pct), Bold: true}
 }
 
-func (s *Server) buildWeekly(n int, now time.Time) *ReportDoc {
+// buildWeekly shows n weeks ending with the week starting at last (a
+// Monday, at most this week's, which is then counted so far).
+func (s *Server) buildWeekly(n int, last, now time.Time) *ReportDoc {
 	ws := s.store.weekSource(now)
-	end := weekStart(now) // the weeks shown are finished ones
+	return buildWeekly(weekCols(ws, n, last, now), ws.vehicles, now)
+}
+
+func weekCols(ws weekSource, n int, last, now time.Time) []wkCol {
+	end := last.AddDate(0, 0, 7)
 	// One week more than shown, for the first week's change.
 	cols := make([]wkCol, n+1)
 	for i := range cols {
 		st := end.AddDate(0, 0, -7*(n+1-i))
 		t, ok := ws.week(st)
-		cols[i] = wkCol{start: st, tally: t, have: ok}
+		cols[i] = wkCol{start: st, tally: t, have: ok, running: st.AddDate(0, 0, 7).After(now)}
 	}
-	return buildWeekly(cols, ws.vehicles, now)
+	return cols
 }
 
 func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *ReportDoc {
@@ -512,6 +523,9 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 			{Label: "Drivers better / worse", Value: fmt.Sprintf("%d / %d", len(dBetter), len(dWorse))},
 			{Label: "Trucks better / worse", Value: fmt.Sprintf("%d / %d", len(tBetter), len(tWorse))},
 		}})
+	if lastCol.running {
+		doc.Blocks = append(doc.Blocks, Block{Type: "note", Text: lastCol.label() + " is still under way: it is counted to " + fmtShort(now) + ", against the whole of " + prevCol.label() + "."})
+	}
 	if !lastCol.have || !prevCol.have {
 		doc.Blocks = append(doc.Blocks, Block{Type: "note", Text: "There is no record of " + map[bool]string{true: prevCol.label(), false: lastCol.label()}[lastCol.have] + ", so its change cannot be told yet."})
 	}

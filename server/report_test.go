@@ -437,15 +437,38 @@ func weeklyStore(t *testing.T) (*Store, time.Time) {
 }
 
 func weeklyDoc(st *Store, n int, now time.Time) *ReportDoc {
+	return weeklyDocTo(st, n, weekStart(now).AddDate(0, 0, -7), now)
+}
+
+func weeklyDocTo(st *Store, n int, last, now time.Time) *ReportDoc {
 	ws := st.weekSource(now)
-	end := weekStart(now)
-	cols := make([]wkCol, n+1)
-	for i := range cols {
-		start := end.AddDate(0, 0, -7*(n+1-i))
-		tl, ok := ws.week(start)
-		cols[i] = wkCol{start: start, tally: tl, have: ok}
+	return buildWeekly(weekCols(ws, n, last, now), ws.vehicles, now)
+}
+
+func TestWeeklyPickedWeek(t *testing.T) {
+	st, now := weeklyStore(t)
+	// Ending on Wk 43 (19–25 Oct): John's 4 overspeeds, against an empty Wk 42.
+	doc := weeklyDocTo(st, 1, weekStart(time.Date(2026, 10, 22, 0, 0, 0, 0, fleetZone)), now)
+	if err := doc.Check(); err != nil {
+		t.Fatal(err)
 	}
-	return buildWeekly(cols, ws.vehicles, now)
+	if doc.Summary["week"] != "Wk 43" || doc.Summary["incidents"] != 4 {
+		t.Errorf("Wk 43: %v", doc.Summary)
+	}
+	// This week, so far: marked as under way.
+	doc = weeklyDocTo(st, 2, weekStart(now), now)
+	if doc.Summary["week"] != "Wk 45" {
+		t.Errorf("this week: %v", doc.Summary)
+	}
+	found := false
+	for _, b := range doc.Blocks {
+		if b.Type == "note" && strings.Contains(b.Text, "Wk 45 is still under way") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no note that the week is under way")
+	}
 }
 
 func weeklySample(t *testing.T) *ReportDoc {
