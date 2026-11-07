@@ -61,6 +61,24 @@ Requests to the partner are spaced 600 ms apart, under its 120/min and 30/10 s
 limits. Received alarms, the feed cursor, read marks, decisions and the daily
 tallies are kept in `data/state.json` (30 days).
 
+### Reports (`report_*.go`)
+
+The Reports page's three reports (Policy Breaches, Movements, End of Shift)
+are built and drawn here, not in the browser:
+
+| Route | What it does |
+| --- | --- |
+| `GET /reports/{breaches,movements,shift}/document` | builds the report as an editable document (plain text: headings, figures, tables, notes) |
+| `POST /reports/render?format=pdf\|jpeg\|csv\|preview` | draws a document, as built or as edited, in portrait or landscape |
+
+One layout (`report_layout.go`, A4 in millimetres, the Go fonts and the two
+logos embedded) feeds the PDF (`go-pdf/fpdf`), the JPEG and preview pages
+(`x/image`) alike. A long JPEG comes as several sheets (`X-Sheets`, `?sheet=`).
+Movements and End of Shift read each unit's trip history (cached per unit-day;
+a cold month takes a while at the partner's pace) and a place name from the
+Google Geocoding API with the server's key: without that API enabled on the
+key, current locations fall back to zones and coordinates (logged once).
+
 Routes the dashboard calls for features Samad does not have yet (fuel,
 repairs, weighbridges, routing) answer an empty list.
 

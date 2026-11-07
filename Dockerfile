@@ -30,6 +30,8 @@ WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/*.go ./
+# The report letterhead's logos, embedded in the binary (report_layout.go).
+COPY server/assets ./assets
 ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${APP_VERSION}" -o /out/samad-server . \
  && mkdir -p /out/data

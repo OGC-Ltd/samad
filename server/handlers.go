@@ -22,6 +22,8 @@ type Server struct {
 	ai     *Insighter // nil without OPENAI_API_KEY
 	// Google routing and weather; its client is nil without a key.
 	routing *Routing
+	// The reports' trip history and place names, and their drawing (report_*.go).
+	reports *reportCache
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
