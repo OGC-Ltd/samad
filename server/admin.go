@@ -9,8 +9,11 @@ package main
 // passes it on. The link is the credential; only its hash is stored.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 	"net/mail"
 	"slices"
@@ -88,11 +91,39 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 }
 
 func (a *Auth) setupLink(r *http.Request, token string) string {
+	return a.baseURL(r) + "/#setup=" + token
+}
+
+// baseURL is APP_URL, else the scheme and host the request came in on.
+func (a *Auth) baseURL(r *http.Request) string {
+	if a.cfg.AppURL != "" {
+		return a.cfg.AppURL
+	}
 	scheme := "http"
 	if isHTTPS(r) {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host + "/#setup=" + token
+	return scheme + "://" + r.Host
+}
+
+// deliverInvite emails a new set-password link and says how it went, in the
+// shape the dashboard's invite notices read. When mail is off or the send
+// fails, the link goes back to the administrator to pass on.
+func (a *Auth) deliverInvite(r *http.Request, u User, token string) map[string]any {
+	link := a.setupLink(r, token)
+	out := map[string]any{"sent": false, "expiresAt": u.Token.ExpiresAt}
+	if a.mailer == nil {
+		out["reason"], out["link"] = "no-mail", link
+		return out
+	}
+	if err := a.mailer.Send(r.Context(), inviteMail(u, link, currentUser(r.Context()).FullName)); err != nil {
+		log.Printf("mail: invitation to %s: %v", u.Email, err)
+		out["reason"], out["link"] = mailReason(err), link
+		return out
+	}
+	log.Printf("mail: invitation sent to %s", u.Email)
+	out["sent"] = true
+	return out
 }
 
 // mayGrant: only the wildcard hands out admin and the platform roles.
@@ -242,7 +273,7 @@ func (a *Auth) provision(w http.ResponseWriter, r *http.Request) {
 	}
 	writeData(w, map[string]any{
 		"user": a.userRow(u), "created": true,
-		"invite": map[string]any{"sent": false, "reason": "no-mail", "link": a.setupLink(r, token), "expiresAt": u.Token.ExpiresAt},
+		"invite": a.deliverInvite(r, u, token),
 	})
 }
 
@@ -305,7 +336,7 @@ func (a *Auth) resendInvite(w http.ResponseWriter, r *http.Request) {
 		token = u.newToken("INVITE", inviteTTL, time.Now().UTC())
 		return nil
 	})
-	writeData(w, map[string]any{"invite": map[string]any{"sent": false, "reason": "no-mail", "link": a.setupLink(r, token), "expiresAt": u.Token.ExpiresAt}})
+	writeData(w, map[string]any{"invite": a.deliverInvite(r, u, token)})
 }
 
 func (a *Auth) setStatus(w http.ResponseWriter, r *http.Request) {
@@ -505,10 +536,66 @@ func (a *Auth) completeSetup(w http.ResponseWriter, r *http.Request) {
 	writeData(w, map[string]any{"accessToken": a.issue(w, r, u), "user": map[string]any{"id": u.ID, "email": u.Email, "fullName": u.FullName}})
 }
 
-// forgotPassword answers the same whatever the address: there is no mail to
-// send a link with, so an administrator issues one (resend invitation).
-func (a *Auth) forgotPassword(w http.ResponseWriter, _ *http.Request) {
+// resetEvery: at most one reset email per account in this long.
+const resetEvery = 2 * time.Minute
+
+// forgotPassword emails a reset link to an active account. It answers the
+// same, at once, whatever the address, and sends afterwards, so neither the
+// answer nor its timing says whether an account exists. Without mail an
+// administrator issues a link instead (resend invitation).
+func (a *Auth) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email string `json:"email"`
+	}
+	_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body)
 	writeData(w, map[string]any{"requested": true})
+	email := strings.TrimSpace(body.Email)
+	if a.mailer == nil || email == "" {
+		return
+	}
+	base := a.baseURL(r)
+	go a.sendReset(email, base)
+}
+
+func (a *Auth) sendReset(email, base string) {
+	u, ok := a.users.GetByEmail(email)
+	if !ok || u.Status != statusActive {
+		return
+	}
+	now := time.Now().UTC()
+	a.resetMu.Lock()
+	if last, ok := a.resetSent[u.ID]; ok && now.Sub(last) < resetEvery {
+		a.resetMu.Unlock()
+		return
+	}
+	a.resetSent[u.ID] = now
+	a.resetMu.Unlock()
+
+	// Someone who never set a password gets a fresh invitation instead.
+	purpose, ttl := "RESET", resetTTL
+	if u.PasswordChangeCount == 0 {
+		purpose, ttl = "INVITE", inviteTTL
+	}
+	var token string
+	u, err := a.users.Update(u.ID, func(u *User) error {
+		token = u.newToken(purpose, ttl, now)
+		return nil
+	})
+	if err != nil {
+		return
+	}
+	link := base + "/#setup=" + token
+	m := resetMail(u, link)
+	if purpose == "INVITE" {
+		m = inviteMail(u, link, "")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), mailSendTimeout)
+	defer cancel()
+	if err := a.mailer.Send(ctx, m); err != nil {
+		log.Printf("mail: password reset for %s: %v", u.Email, err)
+		return
+	}
+	log.Printf("mail: password reset sent to %s", u.Email)
 }
 
 func (a *Auth) revokeAllSessions(w http.ResponseWriter, r *http.Request) {

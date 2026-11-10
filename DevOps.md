@@ -103,8 +103,10 @@ ssh -i keys/samad.pem admin@ec2-13-247-156-214.af-south-1.compute.amazonaws.com
   keeps that account a Platform Administrator with that password, and the user
   screens refuse to change it. Everyone else is invited from the dashboard:
   avatar menu → Users → Invite, with one role each (the same roles as
-  fleet-server, `server/roles.go`). No email is sent: the screen shows the
-  set-password link (valid 72 h, single use) for you to pass on.
+  fleet-server, `server/roles.go`). The set-password link (valid 72 h, single
+  use) is emailed through Mailtrap when `MAIL_TRAP` is set in `server/.env`
+  (`server/mail.go`); without it, or when a send fails, the screen shows the
+  link for you to pass on. "Forgotten your password?" emails a 1 h reset link.
 - Accounts live in `users.json` in the `samad-data` volume (0600, bcrypt
   hashes; set-password links stored only as hashes).
 

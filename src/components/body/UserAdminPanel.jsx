@@ -87,9 +87,14 @@ function shareLinkNotice(lead, invite) {
   const until = invite.expiresAt
     ? ` It works once, until ${new Date(invite.expiresAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`
     : " It works once.";
+  // The link comes back when mail is off, or when the email could not be sent.
+  const why = {
+    "provider-quota": "The email could not be sent: the mail provider's daily limit is spent.",
+    "send-failed": "The email could not be sent: the mail server refused it.",
+  }[invite.reason] ?? "No email goes out from Samad.";
   return [lead, {
     state: "pending",
-    text: `No email goes out from Samad. Give them this link to set their password.${until}`,
+    text: `${why} Give them this link to set their password.${until}`,
   }, invite.link];
 }
 

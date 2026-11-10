@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -58,6 +59,13 @@ type Config struct {
 	// The browser origin allowed to call the API cross-origin (the vite dev
 	// server proxies, so this is only for a separately hosted UI).
 	AllowOrigin string
+
+	// Invitations and password resets (mail.go). Off without MAIL_TRAP.
+	Mail MailConfig
+	// The dashboard's public address (https://logistics.samadoperations.com),
+	// for the links in those emails. Without it a link uses the host the
+	// request came in on.
+	AppURL string
 }
 
 // loadDotEnv sets variables from a KEY=VALUE file without overriding what
@@ -122,6 +130,24 @@ func loadConfig() (Config, error) {
 	}
 	if c.EventsEvery, err = time.ParseDuration(env("EVENTS_EVERY", "30s")); err != nil {
 		return c, fmt.Errorf("EVENTS_EVERY: %w", err)
+	}
+	c.AppURL = strings.TrimRight(os.Getenv("APP_URL"), "/")
+	c.Mail = MailConfig{
+		Host: env("MAIL_SMTP_HOST", "live.smtp.mailtrap.io"),
+		// Mailtrap: the user is "api" and the token is the password.
+		User:     env("MAIL_SMTP_USER", "api"),
+		Password: env("MAIL_TRAP", os.Getenv("MAILTRAP_API_TOKEN")),
+		// samadoperations.com is verified on the Mailtrap account.
+		FromEmail: strings.TrimSpace(env("MAIL_FROM_EMAIL", "noreply@samadoperations.com")),
+		FromName:  env("MAIL_FROM_NAME", "Samad Resources"),
+	}
+	if c.Mail.Port, err = strconv.Atoi(env("MAIL_SMTP_PORT", "587")); err != nil {
+		return c, fmt.Errorf("MAIL_SMTP_PORT: %w", err)
+	}
+	if c.Mail.FromEmail != "" {
+		if a, perr := mail.ParseAddress(c.Mail.FromEmail); perr != nil || a.Address != c.Mail.FromEmail {
+			return c, fmt.Errorf("MAIL_FROM_EMAIL: not an email address")
+		}
 	}
 	if v := os.Getenv("SPEED_LIMIT_KMH"); v != "" {
 		if speedLimitKmh, err = strconv.ParseFloat(v, 64); err != nil {
