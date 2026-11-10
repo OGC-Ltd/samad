@@ -187,7 +187,7 @@ func reportVehicles(vehicles []PVehicle, zones []PGeofence, events []PEvent) []m
 			"lastCrossing": nil,
 		}
 		if p := v.Position; p != nil {
-			row["lat"], row["lng"], row["speedKmh"], row["capturedAt"] = p.Latitude, p.Longitude, p.Speed, p.LastUpdate
+			row["lat"], row["lng"], row["speedKmh"], row["capturedAt"] = p.Latitude, p.Longitude, liveSpeed(p), p.LastUpdate
 			row["online"] = online(p)
 			row["moving"] = p.MotionStatus == "moving"
 			if p.Latitude != 0 || p.Longitude != 0 {
