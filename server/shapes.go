@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-// The speed limit used for the overspeed figures (SPEED_LIMIT_KMH). The
-// partner raises over_speeding itself and does not say what limit it applied;
-// its events start at 69 km/h, so its limit sits below that.
-var speedLimitKmh = 65.0
+// The speed limit used for the overspeed figures (SPEED_LIMIT_KMH): the
+// client's 70 km/h. The partner raises over_speeding itself and does not say
+// what limit it applied; its events start at 69 km/h.
+var speedLimitKmh = 70.0
 
 func vehicleKey(id int) string { return strconv.Itoa(id) }
 
