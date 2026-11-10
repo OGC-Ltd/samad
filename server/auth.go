@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -47,6 +48,12 @@ type Auth struct {
 	// Compared against for an unknown address, so the two cannot be told
 	// apart by timing.
 	dummyHash []byte
+	// Invitations and resets by email (mail.go); nil when mail is off.
+	mailer Mailer
+	// When each account was last sent a reset, so "forgot password" cannot
+	// be used to flood an inbox or spend the provider's daily quota.
+	resetMu   sync.Mutex
+	resetSent map[string]time.Time
 }
 
 func NewAuth(cfg Config) *Auth {
@@ -57,7 +64,15 @@ func NewAuth(cfg Config) *Auth {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret), users: users, groups: NewGroups(cfg.DataDir, blobs), dummyHash: dummy}
+	mailer := NewMailer(cfg.Mail)
+	switch {
+	case mailer != nil:
+		log.Printf("mail: on, via %s:%d from %s", cfg.Mail.Host, cfg.Mail.Port, cfg.Mail.FromEmail)
+	default:
+		log.Printf("mail: off (no MAIL_TRAP): set-password links go to the administrator")
+	}
+	return &Auth{cfg: cfg, secret: []byte(cfg.JWTSecret), users: users, groups: NewGroups(cfg.DataDir, blobs),
+		dummyHash: dummy, mailer: mailer, resetSent: map[string]time.Time{}}
 }
 
 func (a *Auth) sign(c tokenClaims) string {

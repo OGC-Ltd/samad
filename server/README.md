@@ -131,5 +131,6 @@ repairs, weighbridges, routing) answer an empty list.
   `SPEED_LIMIT_KMH` to override the client's limit (default 70).
 - Accounts and roles (`users.go`, `roles.go`) are a JSON file in `DATA_DIR`,
   not yet the database; roles are code, with no role editor.
-- No email: invitations hand the set-password link to the administrator.
+- Email covers invitations and password resets only (`mail.go`, Mailtrap SMTP);
+  without `MAIL_TRAP` the set-password link goes to the administrator.
 - No dispatches: the road ahead runs only to a point picked on the map.
