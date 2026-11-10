@@ -14,6 +14,9 @@
 //   Driver Conduct   each driver's incidents per vehicle, by vehicle type,
 //                    after the Menengai Driver Conduct sheet (operator,
 //                    2026-11-07); End of Shift also takes a custom period
+//   Reefer (Maersk)  the daily reefer consignment sheet sent to Maersk
+//                    (operator, 2026-11-10), from the register staff keep
+//                    under its Consignments view (ConsignmentsPanel)
 //
 // The server builds the report as a document (api/reportDocs); Edit opens it
 // in a form; the preview is the server's own drawing of the pages, so what is
@@ -26,6 +29,7 @@ import { loadReportDoc, previewReport, downloadReport } from '../../api/reportDo
 import { PRESETS, presetRange, SHIFTS, currentShift, shiftRange, periodWords, dayKey } from '../../lib/samadReports'
 import EmptyNote from '../shared/EmptyNote'
 import ReportEditor from './ReportEditor'
+import ConsignmentsPanel from './ConsignmentsPanel'
 import '../body/SensorPanel.scss'
 import './SystemScreen.scss'
 import './ReportsScreen.scss'
@@ -37,6 +41,7 @@ const TABS = [
   { key: 'movements', label: 'Movements' },
   { key: 'shift',     label: 'End of Shift' },
   { key: 'weekly',    label: 'Weekly Incidents' },
+  { key: 'reefer',    label: 'Reefer (Maersk)' },
 ]
 
 const WEEKS = [1, 4, 8, 12]
@@ -64,6 +69,7 @@ function figuresOf(doc) {
   if (doc?.kind === 'breaches') return [[s.breaches === 1 ? 'Breach' : 'Breaches', s.breaches], [s.vehicles === 1 ? 'Vehicle' : 'Vehicles', s.vehicles]]
   if (doc?.kind === 'conduct') return [[s.incidents === 1 ? 'Incident' : 'Incidents', s.incidents], [s.vehicles === 1 ? 'Vehicle' : 'Vehicles', s.vehicles]]
   if (doc?.kind === 'movements') return [['Km', s.km], ['Moving now', s.moving]]
+  if (doc?.kind === 'reefer') return [['On the road', s.open], ['At Alpha/APMT', s.atPort]]
   if (doc?.kind === 'weekly') return [[`Incidents in ${s.week}`, s.incidents], ['Change', s.change], ['Drivers', s.drivers], ['Trucks', s.trucks]]
   return [['Critical', s.critical], ['Breaches', s.breaches], ['Units reporting', `${s.reporting} of ${s.units}`]]
 }
@@ -102,6 +108,8 @@ export default function ReportsScreen() {
   const [busy, setBusy] = useState(null)        // 'pdf' | 'jpeg' | 'csv' | null
   const [progress, setProgress] = useState('')
   const [saveError, setSaveError] = useState(null)
+  const [reeferView, setReeferView] = useState('register') // 'register' | 'report'
+  const register = tab === 'reefer' && reeferView === 'register'
 
   const range = useMemo(() => {
     if (preset === 'custom') return { from: fromInput(custom.from), to: Math.min(fromInput(custom.to), stamp) }
@@ -114,7 +122,7 @@ export default function ReportsScreen() {
     ? { from: fromInput(custom.from), to: Math.min(fromInput(custom.to), stamp) }
     : range), [shiftCustom, custom, stamp, range])
 
-  const problem = tab === 'weekly' || (tab === 'shift' && !shiftCustom) ? null
+  const problem = tab === 'weekly' || tab === 'reefer' || (tab === 'shift' && !shiftCustom) ? null
     : !Number.isFinite(period.from) || !Number.isFinite(period.to) ? 'Pick a start and an end.'
       : period.from >= period.to ? 'The period must start before it ends.'
         : period.to - period.from > MAX_DAYS * DAY ? `A report covers ${MAX_DAYS} days at most.`
@@ -124,11 +132,12 @@ export default function ReportsScreen() {
   const docKey = shiftCustom ? ['reports', 'doc', tab, 'custom', period.from, period.to, stamp]
     : tab === 'shift' ? ['reports', 'doc', tab, shift.day, shift.shift, stamp]
     : tab === 'weekly' ? ['reports', 'doc', tab, weeks, week, stamp]
+    : tab === 'reefer' ? ['reports', 'doc', tab, stamp]
       : ['reports', 'doc', tab, range.from, range.to, stamp]
   const docQ = useQuery({
     queryKey: docKey,
     queryFn: ({ signal }) => loadReportDoc({ kind: tab, from: period.from, to: period.to, day: shift.day, shift: shift.shift, weeks, week, signal }),
-    enabled: !problem,
+    enabled: !problem && !register,
     placeholderData: keepPreviousData,
     retry: 1,
     staleTime: Infinity,          // a report is remade only when asked (Refresh, a new period)
@@ -174,7 +183,8 @@ export default function ReportsScreen() {
   }
 
   const reload = () => { setStamp(Date.now()) }
-  const waitWords = tab === 'breaches' || tab === 'conduct' || tab === 'weekly' ? 'Reading the fleet\'s events.'
+  const waitWords = tab === 'reefer' ? 'Reading the consignments and where each truck is.'
+    : tab === 'breaches' || tab === 'conduct' || tab === 'weekly' ? 'Reading the fleet\'s events.'
     : 'Reading each unit\'s trip history and current location. The first report of a period can take a minute; the next is quick.'
 
   const customFields = (
@@ -210,7 +220,13 @@ export default function ReportsScreen() {
       <div className="sp4-body">
         <header className="rpt-head" data-tour="page-toolbar">
           <div className="rpt-pick">
-            {tab === 'weekly' ? (
+            {tab === 'reefer' ? (
+              <div className="rpt-field">
+                <span>View</span>
+                <Segmented label="View" value={reeferView} onPick={(k) => { setReeferView(k); if (k === 'report') setStamp(Date.now()) }}
+                           options={[{ key: 'register', label: 'Consignments', icon: 'ti-list-details' }, { key: 'report', label: 'Report', icon: 'ti-file-text' }]} />
+              </div>
+            ) : tab === 'weekly' ? (
               <>
                 <label className="rpt-field">
                   <span>Week of</span>
@@ -258,17 +274,17 @@ export default function ReportsScreen() {
                 {preset === 'custom' && customFields}
               </>
             )}
-            <div className="rpt-field rpt-setup">
+            {!register && <div className="rpt-field rpt-setup">
               <span>Page</span>
               <Segmented label="Page orientation" value={orientation} onPick={setOrientation}
                          options={[{ key: 'portrait', label: 'Portrait', icon: 'ti-file' }, { key: 'landscape', label: 'Landscape', icon: 'ti-file-horizontal' }]} />
-            </div>
+            </div>}
             <button type="button" className="rpt-btn rpt-btn--quiet rpt-away" onClick={() => setDesktopActiveTab('fleet')}>
               <i className="ti ti-map-2" aria-hidden="true" /> Live Map
             </button>
           </div>
 
-          <div className="rpt-bar">
+          {!register && <div className="rpt-bar">
             <div className="rpt-status" aria-live="polite">
               {problem ? <span className="rpt-quiet">{problem}</span>
                 : !built ? <span className="rpt-quiet">{docQ.isFetching ? 'Making the report…' : ''}</span>
@@ -313,13 +329,15 @@ export default function ReportsScreen() {
                 <i className="ti ti-refresh" aria-hidden="true" /> {docQ.isFetching ? 'Loading…' : 'Refresh'}
               </button>
             </div>
-          </div>
+          </div>}
         </header>
 
         {saveError && <div className="rpt-error" role="alert">{saveError}</div>}
         {busy && progress && <div className="rpt-progress" role="status">{progress}…</div>}
 
-        {problem ? (
+        {register ? (
+          <ConsignmentsPanel onShowReport={() => { setReeferView('report'); setStamp(Date.now()) }} />
+        ) : problem ? (
           <EmptyNote icon="ti-calendar-x" tone="warn" title="Pick Another Period">{problem}</EmptyNote>
         ) : docQ.isError && !built ? (
           <EmptyNote icon="ti-alert-triangle" tone="error" title="The Report Could Not Be Made"
@@ -328,7 +346,7 @@ export default function ReportsScreen() {
           </EmptyNote>
         ) : !doc ? (
           <EmptyNote icon="ti-loader-2" tone="busy" title="Making the Report">
-            {tab === 'weekly' ? weeklyWords(weeks, week, stamp) : tab === 'shift' && !shiftCustom ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(period.from, period.to)}. {waitWords}
+            {tab === 'reefer' ? 'The reefer consignments as they stand now' : tab === 'weekly' ? weeklyWords(weeks, week, stamp) : tab === 'shift' && !shiftCustom ? periodWords(shiftWindow(shift).from, shiftWindow(shift).to) : periodWords(period.from, period.to)}. {waitWords}
           </EmptyNote>
         ) : (
           <div className={`rpt-work${editing ? ' rpt-work--editing' : ''}`}>

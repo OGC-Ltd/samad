@@ -1,0 +1,201 @@
+// Reefer consignments (ConsignmentsPanel.jsx): the register on the left, the
+// form for one consignment beside it. Built from the Reports page's own
+// tokens and button recipe (ReportsScreen.scss).
+
+.cns-root {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+
+  &--editing { grid-template-columns: minmax(0, 1fr) minmax(360px, 520px); }
+
+  @media (max-width: 900px) {
+    &--editing { grid-template-columns: minmax(0, 1fr); }
+    &--editing .cns-list { display: none; }
+  }
+}
+
+.cns-list {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px var(--sp4-gutter, 20px) 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cns-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cns-list-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.cns-count {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--sp4-text-1);
+  font-weight: 600;
+  font-size: var(--sp4-body, 12.5px);
+}
+.cns-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  color: var(--sp4-text-3);
+  cursor: pointer;
+  input:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; }
+}
+
+.cns-table-wrap { overflow-x: auto; }
+.cns-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sp4-body, 12.5px);
+  font-variant-numeric: tabular-nums;
+
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--sp4-line);
+    white-space: nowrap;
+    color: var(--sp4-text-2, var(--sp4-text-1));
+  }
+  thead th {
+    font-weight: 600;
+    color: var(--sp4-text-3);
+    border-bottom-color: var(--sp4-line-hi);
+  }
+  tbody th { font-weight: 700; color: var(--sp4-text-1); }
+  .is-num { text-align: right; }
+  tr.is-on td, tr.is-on th { background: var(--rpt-picked); }
+}
+
+.cns-open {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--sp4-accent);
+  cursor: pointer;
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 2px; border-radius: 2px; }
+}
+
+// ── the form ─────────────────────────────────────────────────────────────
+
+.cns-form {
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--sp4-line-hi);
+  background: var(--sp4-surface);
+  padding: 14px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  @media (max-width: 900px) { border-left: 0; }
+}
+
+.cns-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--sp4-text-1);
+    overflow-wrap: anywhere;
+  }
+}
+
+.cns-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  legend {
+    padding: 0 0 6px;
+    font-size: var(--sp4-body, 12.5px);
+    font-weight: 700;
+    color: var(--sp4-text-1);
+  }
+}
+
+.cns-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  @media (max-width: 420px) { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cns-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  > span { font-size: 11.5px; color: var(--sp4-text-3); font-weight: 600; }
+
+  input, select, output {
+    min-width: 0;
+    width: 100%;
+    height: 32px;
+    padding: 0 9px;
+    border-radius: 6px;
+    border: 1px solid var(--sp4-line-hi);
+    background: var(--sp4-bg, var(--sp4-surface));
+    color: var(--sp4-text-1);
+    font: inherit;
+    font-size: var(--sp4-body, 12.5px);
+    font-variant-numeric: tabular-nums;
+    color-scheme: dark;
+  }
+  input:hover, select:hover { border-color: var(--sp4-field-line); }
+  input:focus-visible, select:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -1px; }
+
+  &--read output {
+    display: flex;
+    align-items: center;
+    border-style: dashed;
+    color: var(--sp4-text-2, var(--sp4-text-1));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.app--light .cns-field :is(input, select, output) { color-scheme: light; }
+
+.cns-gps, .cns-hint {
+  font-size: 11px;
+  color: var(--sp4-text-3);
+}
+.cns-gps { display: inline-flex; align-items: center; gap: 4px; color: var(--sp4-accent); }
+.cns-gps--over { color: var(--sp4-text-3); }
+
+.cns-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--sp4-text-3);
+}
+
+.cns-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.cns-delete { margin-left: auto; color: var(--sp4-crit, #f87171); }

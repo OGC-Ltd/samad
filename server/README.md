@@ -87,13 +87,16 @@ as the Driver hours kind, to be escalated or de-escalated like any alert.
 
 ### Reports (`report_*.go`)
 
-The Reports page's five reports (Policy Breaches, Driver Conduct, Movements,
-End of Shift, Weekly Incidents) are built and drawn here, not in the browser:
+The Reports page's reports (Driver Conduct, Movements, End of Shift, Weekly
+Incidents, Reefer; Policy Breaches is built but hidden on the page) are built
+and drawn here, not in the browser:
 
 | Route | What it does |
 | --- | --- |
 | `GET /reports/{breaches,conduct,movements,shift}/document` | builds the report as an editable document (plain text: headings, figures, tables, notes) |
 | `GET /reports/weekly/document?weeks=N` | the last N finished weeks (1 to 12), Monday to Sunday |
+| `GET /reports/reefer/document` | the reefer consignments for Maersk as they stand now (A3 landscape) |
+| `GET,POST /reports/consignments`, `PUT,DELETE /reports/consignments/{id}` | the reefer consignment register; writing needs `report:operations` or `cargo:update` |
 | `POST /reports/render?format=pdf\|jpeg\|csv\|preview` | draws a document, as built or as edited, in portrait or landscape |
 
 One layout (`report_layout.go`, A4 in millimetres, the Go fonts and the two
@@ -119,6 +122,16 @@ week. Events are kept 30 days, so the daily prune also keeps each finished
 week as a small tally (`weeks` in `state.json`, two years) that outlives
 them: km and incidents per truck, and per driver. An incident goes to the
 driver the truck had that day (the day tally's driver), not today's.
+
+Reefer (`consignments.go`) is the daily sheet Samad sends Maersk: one row per
+container, 25 columns on A3. Staff keep the register under Reports › Reefer ›
+Consignments (`consignments.json` in `DATA_DIR`). The roster adds the
+trailer, driver, ID and phone. GPS fills the date left, the arrival at the
+client and the arrival and departure at Alpha/APMT from the geofences each
+consignment names, writes what it finds onto the consignment (events are kept
+30 days) and never moves it; a typed value wins. A truck outside every zone is
+placed by Google's name for where it is. An offloaded consignment stays on
+that day's report, then leaves it.
 
 Routes the dashboard calls for features Samad does not have yet (fuel,
 repairs, weighbridges, routing) answer an empty list.

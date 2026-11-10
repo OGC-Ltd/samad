@@ -16,17 +16,18 @@ import (
 
 // ReportDoc is one report, ready to draw.
 type ReportDoc struct {
-	Kind        string     `json:"kind"` // breaches | movements | shift | weekly | conduct
+	Kind        string     `json:"kind"` // breaches | movements | shift | weekly | conduct | reefer
 	Title       string     `json:"title"`
 	ReportNo    string     `json:"reportNo"`
 	Date        string     `json:"date"` // shown beside the number
 	Company     string     `json:"company"`
-	Orientation string     `json:"orientation"` // portrait | landscape
-	Info        []InfoPair `json:"info"`        // facts under the title, two to a row
-	Blocks      []Block    `json:"blocks"`      // the report, in order
-	FootNote    string     `json:"footNote"`    // left of every page's footer
-	Filename    string     `json:"filename"`    // without the extension
-	GeneratedAt string     `json:"generatedAt"` // RFC 3339
+	Orientation string     `json:"orientation"`     // portrait | landscape
+	Paper       string     `json:"paper,omitempty"` // A4 (the default) | A3, for a wide sheet
+	Info        []InfoPair `json:"info"`            // facts under the title, two to a row
+	Blocks      []Block    `json:"blocks"`          // the report, in order
+	FootNote    string     `json:"footNote"`        // left of every page's footer
+	Filename    string     `json:"filename"`        // without the extension
+	GeneratedAt string     `json:"generatedAt"`     // RFC 3339
 	// The figures the page's summary line shows; not drawn.
 	Summary map[string]any `json:"summary,omitempty"`
 }
@@ -58,6 +59,7 @@ type Block struct {
 	Rows   [][]Cell   `json:"rows,omitempty"`
 	Groups []SubTable `json:"groups,omitempty"`
 	N      int        `json:"n,omitempty"`
+	Dense  bool       `json:"dense,omitempty"` // a table in smaller type, for a wide sheet
 }
 
 type KPI struct {
@@ -96,7 +98,7 @@ const (
 	docMaxBlocks = 300
 	docMaxRows   = 5000 // per table
 	docMaxCells  = 60000
-	docMaxCols   = 20
+	docMaxCols   = 28 // the reefer sheet has 25
 	docMaxKPIs   = 16
 	docMaxInfo   = 20
 	docMaxText   = 600 // characters in any one field
@@ -163,12 +165,15 @@ func clean(s string) string {
 // Check tidies an edited document and refuses one that is not a report.
 func (d *ReportDoc) Check() error {
 	switch d.Kind {
-	case "breaches", "movements", "shift", "weekly", "conduct":
+	case "breaches", "movements", "shift", "weekly", "conduct", "reefer":
 	default:
 		return errors.New("unknown report")
 	}
 	if d.Orientation != "landscape" {
 		d.Orientation = "portrait"
+	}
+	if d.Paper != "A3" {
+		d.Paper = "A4"
 	}
 	if len(d.Blocks) > docMaxBlocks {
 		return fmt.Errorf("a report holds %d sections at most", docMaxBlocks)

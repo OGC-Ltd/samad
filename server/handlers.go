@@ -24,6 +24,8 @@ type Server struct {
 	routing *Routing
 	// The reports' trip history and place names, and their drawing (report_*.go).
 	reports *reportCache
+	// The reefer consignment register (consignments.go).
+	consign *Consignments
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
