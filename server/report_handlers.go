@@ -5,6 +5,7 @@ package main
 //	GET  /reports/{breaches|movements|shift}/document?org=&from=&to=
 //	     (End of Shift: ?org=&day=YYYY-MM-DD&shift=day|night, or
 //	     ?org=&shift=custom&from=&to= for a period picked by hand)
+//	GET  /reports/reefer/document?org=  the reefer consignments as they stand
 //	GET  /reports/weekly/document?org=&weeks=N[&week=YYYY-MM-DD]
 //	     N weeks (1 to 12) ending with the week holding that day (this
 //	     week at most, counted so far); without it, the last finished week
@@ -48,6 +49,10 @@ func (s *Server) reportDocument(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	var from, to time.Time
 	shiftWords := ""
+	if kind == "reefer" {
+		writeData(w, s.buildReefer(r.Context(), now))
+		return
+	}
 	if kind == "weekly" {
 		n, err := strconv.Atoi(r.URL.Query().Get("weeks"))
 		if err != nil || n < 1 || n > weeklyMax {

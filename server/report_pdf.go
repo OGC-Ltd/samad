@@ -12,12 +12,19 @@ import (
 
 var pdfFonts = [3]struct{ family, style string }{{"go", ""}, {"go", "B"}, {"go", "I"}}
 
+func paperSize(d *ReportDoc) string {
+	if d.Paper == "A3" {
+		return "A3"
+	}
+	return "A4"
+}
+
 func renderPDF(d *ReportDoc, pages []*Page, now time.Time) ([]byte, error) {
 	orient := "P"
 	if d.Orientation == "landscape" {
 		orient = "L"
 	}
-	pdf := fpdf.NewCustom(&fpdf.InitType{OrientationStr: orient, UnitStr: "mm", SizeStr: "A4"})
+	pdf := fpdf.NewCustom(&fpdf.InitType{OrientationStr: orient, UnitStr: "mm", SizeStr: paperSize(d)})
 	pdf.SetMargins(0, 0, 0)
 	pdf.SetAutoPageBreak(false, 0)
 	pdf.SetCompression(true)

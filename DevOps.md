@@ -649,7 +649,8 @@ ls /opt/samad/releases/                       # what can be rolled back to
   elsewhere (S3, or `scp` to a workstation) on a schedule; a lost instance
   loses its dumps too ([§18](#18-open-items)).
 - **The app's files** (`state.json`: alerts, read marks, decisions;
-  `users.json`: accounts; `drivers.json`: the truck roster) are in the
+  `users.json`: accounts; `drivers.json`: the truck roster;
+  `consignments.json`: the reefer consignments for Maersk) are in the
   `samad-data` volume:
   ```bash
   docker run --rm -v samad-data:/d -v "$PWD":/b busybox tar -czf /b/samad-data.tgz -C /d .

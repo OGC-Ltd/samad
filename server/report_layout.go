@@ -218,6 +218,7 @@ const (
 	sNext  = 10.0
 	sRef   = 8.0
 	sHead  = 7.6 // table header
+	sDense = 7.0 // a dense table's cells, for a wide sheet
 	side   = 13.0
 	padY   = 0.6 // table cell padding
 	padX   = 1.4
@@ -659,12 +660,16 @@ type tableLayout struct {
 	rowH    []float64
 	b       Block
 	padLeft []float64
+	body    float64 // the cells' size: sBody, or sDense for a dense table
 }
 
 func (l *layout) tableLayout(b Block) *tableLayout { return l.tableLayoutAt(b, side, l.inner) }
 
 func (l *layout) tableLayoutAt(b Block, x0, width float64) *tableLayout {
-	t := &tableLayout{b: b, x0: x0, wid: width}
+	t := &tableLayout{b: b, x0: x0, wid: width, body: sBody}
+	if b.Dense {
+		t.body = sDense
+	}
 	sum := 0.0
 	for _, c := range b.Cols {
 		sum += c.W
@@ -685,7 +690,7 @@ func (l *layout) tableLayoutAt(b Block, x0, width float64) *tableLayout {
 		room := t.w[i] - t.padLeft[i] - padX
 		// A header word is never split ("Overspeedi-ng"): the header shrinks
 		// to fit its longest word, down to 5.6 pt, and wraps between words.
-		size := sHead
+		size := min(sHead, t.body)
 		for _, word := range strings.Fields(c.H) {
 			for size > 5.6 && textW(fBold, size, word) > room {
 				size -= 0.2
@@ -709,16 +714,16 @@ func (l *layout) tableLayoutAt(b Block, x0, width float64) *tableLayout {
 			}
 			st := cellStyle(c)
 			if c.Wrap {
-				cells[i] = wrapText(st, sBody, c.Text, room)
+				cells[i] = wrapText(st, t.body, c.Text, room)
 			} else {
-				cells[i] = []string{fitText(st, sBody, c.Text, room)}
+				cells[i] = []string{fitText(st, t.body, c.Text, room)}
 			}
 			if len(cells[i]) > lines {
 				lines = len(cells[i])
 			}
 		}
 		t.rows = append(t.rows, cells)
-		t.rowH = append(t.rowH, 2*padY+float64(lines)*lineH(sBody))
+		t.rowH = append(t.rowH, 2*padY+float64(lines)*lineH(t.body))
 	}
 	return t
 }
@@ -760,9 +765,9 @@ func (l *layout) tableRow(t *tableLayout, r int) {
 				x += indent
 			}
 			if b.Cols[i].Right {
-				x = t.x[i] + t.w[i] - padX - textW(st, sBody, line)
+				x = t.x[i] + t.w[i] - padX - textW(st, t.body, line)
 			}
-			l.text(x, l.y+padY+float64(j)*lineH(sBody)+baseline(sBody), line, st, sBody, col)
+			l.text(x, l.y+padY+float64(j)*lineH(t.body)+baseline(t.body), line, st, t.body, col)
 		}
 	}
 	l.y += t.rowH[r]
@@ -832,8 +837,11 @@ func (l *layout) firstPartH(blocks []Block, i int) float64 {
 // layOut draws the document onto pages.
 func layOut(d *ReportDoc) []*Page {
 	l := &layout{doc: d, W: 210, H: 297}
+	if d.Paper == "A3" {
+		l.W, l.H = 297, 420
+	}
 	if d.Orientation == "landscape" {
-		l.W, l.H = 297, 210
+		l.W, l.H = l.H, l.W
 	}
 	l.inner = l.W - 2*side
 	l.newPage()
