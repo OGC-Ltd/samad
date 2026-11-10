@@ -128,7 +128,7 @@ repairs, weighbridges, routing) answer an empty list.
 - The partner's `/trips` and `/stoppages` are not enabled for this key (403),
   so trips and distance are worked out from positions.
 - The partner does not say what speed limit its `over_speeding` uses; set
-  `SPEED_LIMIT_KMH` to match (default 65).
+  `SPEED_LIMIT_KMH` to override the client's limit (default 70).
 - Accounts and roles (`users.go`, `roles.go`) are a JSON file in `DATA_DIR`,
   not yet the database; roles are code, with no role editor.
 - Email covers invitations and password resets only (`mail.go`, Mailtrap SMTP);

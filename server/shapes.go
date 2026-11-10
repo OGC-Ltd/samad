@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-// The speed limit used for the overspeed figures (SPEED_LIMIT_KMH). The
-// partner raises over_speeding itself and does not say what limit it applied;
-// its events start at 69 km/h, so its limit sits below that.
-var speedLimitKmh = 65.0
+// The speed limit used for the overspeed figures (SPEED_LIMIT_KMH): the
+// client's 70 km/h. The partner raises over_speeding itself and does not say
+// what limit it applied; its events start at 69 km/h.
+var speedLimitKmh = 70.0
 
 func vehicleKey(id int) string { return strconv.Itoa(id) }
 
@@ -40,6 +40,19 @@ func vehicleType(v PVehicle) string {
 
 // online: the partner calls a device offline when it has stopped reporting.
 func online(p *PPosition) bool { return p != nil && p.MotionStatus != "offline" }
+
+// liveSpeed and liveEngine: what the unit is doing now. An offline tracker's
+// last message is frozen mid-drive (KDW 180N kept "46 km/h, engine on" for
+// 15 h, parked), so an offline unit reads 0 km/h with the engine off; its
+// last position and time stay as they were.
+func liveSpeed(p *PPosition) float64 {
+	if !online(p) {
+		return 0
+	}
+	return p.Speed
+}
+
+func liveEngine(p *PPosition) bool { return online(p) && p.Engine == "on" }
 
 // movement: { moving, since, exact } — the UI's moving/resting run. The
 // partner gives the state but not when it began, so `since` is unknown.
@@ -82,8 +95,8 @@ func snapshotRow(v PVehicle) map[string]any {
 		row["lat"] = p.Latitude
 		row["lng"] = p.Longitude
 		row["headingDeg"] = p.Course
-		row["speedKmh"] = p.Speed
-		row["engineOn"] = p.Engine == "on"
+		row["speedKmh"] = liveSpeed(p)
+		row["engineOn"] = liveEngine(p)
 		row["capturedAt"] = p.LastUpdate
 		row["connectionOnline"] = online(p)
 		row["movement"] = movement(p)
@@ -99,13 +112,13 @@ func positionFrame(v PVehicle) map[string]any {
 		"lat":              p.Latitude,
 		"lng":              p.Longitude,
 		"headingDeg":       p.Course,
-		"speedKmh":         p.Speed,
+		"speedKmh":         liveSpeed(p),
 		"speedLimitKmh":    speedLimitKmh,
-		"engineOn":         p.Engine == "on",
+		"engineOn":         liveEngine(p),
 		"capturedAt":       p.LastUpdate,
 		"connectionOnline": online(p),
 		"movement":         movement(p),
-		"flags":            map[string]any{"lowFuel": false, "fuelInconsistency": false, "speeding": p.Speed > speedLimitKmh},
+		"flags":            map[string]any{"lowFuel": false, "fuelInconsistency": false, "speeding": liveSpeed(p) > speedLimitKmh},
 		"zones":            nil,
 	}
 }

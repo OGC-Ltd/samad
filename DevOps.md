@@ -777,6 +777,6 @@ Logs rotate at 10 MB × 3 per container.
 | Real domain | sslip.io names are a stopgap | §14 |
 | `/opt/samad` still holds an old copy of the source | left from the first manual deploy, unused | delete everything there except `.env`, `server/.env`, `secrets/`, `releases/`, `backups/` after the first CI deploy |
 | Partner `/trips` is 403 | trips and km are worked out from positions | ask IntelliFleet360 to enable it for the key |
-| Speed limit for overspeeding is a guess (65 km/h) | alerts may not match the partner's own | set `SPEED_LIMIT_KMH` once known |
+| Speed limit for overspeeding is the client's 70 km/h; the partner's own limit is unknown | partner overspeeds start at 69 km/h, so a few sit at or under 70 | `SPEED_LIMIT_KMH` overrides it |
 | Monitoring and alerting | nobody is told when the site is down | an uptime check on `/api/v1/health` (e.g. UptimeRobot) and disk/memory alarms in CloudWatch |
 | Single box | an instance failure is an outage | acceptable for now; snapshots of the EBS volume as a cheap safety net |
