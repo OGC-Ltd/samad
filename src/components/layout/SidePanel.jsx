@@ -27,7 +27,7 @@ export const NAV_ITEMS = [
   // Dashcam alarms with their clips; usePermissions grants 'vss:alarms' once
   // the server reports a unit with a camera.
   { key: 'dashcam',      label: 'Camera',       icon: 'video',     permission: 'vss:alarms'       },
-  // Policy Breaches, Movements and End of Shift on the letterhead (operator, 2026-11-03).
+  // Driver Conduct, Movements, End of Shift and Weekly Incidents on the letterhead (operator, 2026-11-03).
   { key: 'reports',      label: 'Reports',      icon: 'file-analytics', permission: 'telemetry:read' },
 ];
 

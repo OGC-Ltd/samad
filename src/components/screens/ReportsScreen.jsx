@@ -3,8 +3,8 @@
 // to move to the server … both jpeg pdf csv, ability to edit, preview and
 // portrait and landscape"):
 //
-//   Policy Breaches  overspeeding, harsh braking/acceleration, no seatbelt,
-//                    on phone and camera covered, per unit
+//   Policy Breaches  hidden 2026-11-10 (Driver Conduct covers it): overspeeding,
+//                    harsh braking/acceleration, no seatbelt, on phone, per unit
 //   Movements        every unit: distance in the period, where it is, its state
 //   End of Shift     laid out after the Menengai end-of-shift sheet (operator,
 //                    2026-11-07): the shift at a glance, critical alarms, the
@@ -31,7 +31,8 @@ import './SystemScreen.scss'
 import './ReportsScreen.scss'
 
 const TABS = [
-  { key: 'breaches',  label: 'Policy Breaches' },
+  // Policy Breaches is hidden: Driver Conduct covers the same incidents
+  // (operator, 2026-11-10). The server still builds it for End of Shift.
   { key: 'conduct',   label: 'Driver Conduct' },
   { key: 'movements', label: 'Movements' },
   { key: 'shift',     label: 'End of Shift' },
@@ -86,7 +87,7 @@ function Segmented({ label, options, value, onPick }) {
 export default function ReportsScreen() {
   const { setDesktopActiveTab } = useAppActions()
 
-  const [tab, setTab] = useState('breaches')
+  const [tab, setTab] = useState('conduct')
   const [preset, setPreset] = useState('today')
   const [custom, setCustom] = useState(() => { const r = presetRange('7d'); return { from: toInput(r.from), to: toInput(r.to) } })
   const [shift, setShift] = useState(currentShift)
