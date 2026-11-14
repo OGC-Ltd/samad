@@ -16,6 +16,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -79,10 +80,20 @@ func sumCounts(m map[string]int) int {
 	return n
 }
 
+// placeholderDriver matches the stand-in accounts IntelliFleet assigns when no
+// one is named ("Samad DriverA", "Driver 2"): not people, so their incidents
+// are put on no driver. "Jane Driver" is a person.
+var placeholderDriver = regexp.MustCompile(`(?i)\bdriver ?[a-z0-9]$`)
+
 // tallyWeek counts the week starting at start from the stored events and
-// day tallies.
-func tallyWeek(start time.Time, events []PEvent, days map[string]map[int]DayStats, vehicles map[int]PVehicle) *WeekTally {
+// day tallies. A week only partly on record (from is after start) counts its
+// incidents from the same day as its km, so its rate per 100 km is fair:
+// 2026-11-14, Wk 43 had 7 days of incidents over 4 days of km.
+func tallyWeek(start, from time.Time, events []PEvent, days map[string]map[int]DayStats, vehicles map[int]PVehicle) *WeekTally {
 	end := start.AddDate(0, 0, 7)
+	if from.Before(start) {
+		from = start
+	}
 	t := &WeekTally{Units: map[int]*WeekUnit{}}
 	unit := func(id int, plate string) *WeekUnit {
 		u := t.Units[id]
@@ -98,14 +109,19 @@ func tallyWeek(start time.Time, events []PEvent, days map[string]map[int]DayStat
 		}
 		return u
 	}
+	// The day's driver, else the roster's; a placeholder is no driver, and is
+	// not replaced by today's roster, which may not be who drove that day.
 	driverOf := func(day string, id int) string {
+		name := ""
 		if st, ok := days[day][id]; ok && st.Driver != "" {
-			return st.Driver
+			name = st.Driver
+		} else if v, ok := vehicles[id]; ok && v.Driver != nil {
+			name = v.Driver.Name
 		}
-		if v, ok := vehicles[id]; ok && v.Driver != nil {
-			return v.Driver.Name
+		if placeholderDriver.MatchString(strings.TrimSpace(name)) {
+			return ""
 		}
-		return ""
+		return name
 	}
 	driver := func(u *WeekUnit, name string) *WeekDriver {
 		k := driverKey(name)
@@ -129,7 +145,7 @@ func tallyWeek(start time.Time, events []PEvent, days map[string]map[int]DayStat
 	}
 	for _, e := range events {
 		at := parseTime(e.OccurredAt)
-		if at.IsZero() || at.Before(start) || !at.Before(end) {
+		if at.IsZero() || at.Before(from) || !at.Before(end) {
 			continue
 		}
 		k := reportKind(e)
@@ -194,7 +210,7 @@ func (s *Store) archiveWeeks(now, floor time.Time) {
 		if w.Before(floor) {
 			continue // its first days are already gone
 		}
-		t := tallyWeek(w, s.p.Events, days, s.vehicles)
+		t := tallyWeek(w, firstAt, s.p.Events, days, s.vehicles)
 		if w.Before(firstAt) {
 			t.Since = first
 		}
@@ -252,7 +268,7 @@ func (s *Store) weekSource(now time.Time) weekSource {
 func (ws weekSource) week(w time.Time) (*WeekTally, bool) {
 	end := w.AddDate(0, 0, 7)
 	if !w.Before(ws.cover) { // every record of it is still kept
-		return tallyWeek(w, ws.events, ws.days, ws.vehicles), true
+		return tallyWeek(w, ws.first, ws.events, ws.days, ws.vehicles), true
 	}
 	if t, ok := ws.kept[fleetDay(w)]; ok {
 		return t, true
@@ -260,7 +276,7 @@ func (ws weekSource) week(w time.Time) (*WeekTally, bool) {
 	if ws.first.IsZero() || !end.After(ws.cover) {
 		return nil, false
 	}
-	t := tallyWeek(w, ws.events, ws.days, ws.vehicles) // only its last days are kept
+	t := tallyWeek(w, ws.cover, ws.events, ws.days, ws.vehicles) // only its last days are kept
 	t.Since = fleetDay(ws.cover)
 	return t, true
 }
@@ -349,7 +365,95 @@ func per100(n int, km float64) string {
 	return strconv.FormatFloat(math.Round(float64(n)/km*1000)/10, 'f', 1, 64)
 }
 
-// change is "Down 3 (−40%)", "Up 2", "Same" or "None".
+// rateCell is incidents per 100 km, or "No km" when nothing was driven.
+func rateCell(n int, km float64) Cell {
+	if r := per100(n, km); r != "-" {
+		return Cell{Text: r}
+	}
+	return Cell{Text: "No km", Muted: true}
+}
+
+// countText is a count with thousands marks: "2,508".
+func countText(n int) string { return strings.TrimSuffix(fmtThousands(float64(n)), ".0") }
+
+// share is n's part of all, "27.8%"; "under 0.1%" rather than "0.0%".
+func share(n, all int) string {
+	if n <= 0 || all <= 0 {
+		return "None"
+	}
+	p := float64(n) / float64(all) * 100
+	if p < 0.05 {
+		return "under 0.1%"
+	}
+	return strconv.FormatFloat(p, 'f', 1, 64) + "%"
+}
+
+// absorb adds another line's weeks to this one.
+func (w *wkLine) absorb(o *wkLine) {
+	for i := range w.counts {
+		w.counts[i] += o.counts[i]
+		w.km[i] += o.km[i]
+	}
+	for k, v := range o.others {
+		w.others[k] += v
+	}
+	for k, v := range o.kinds {
+		w.kinds[k] += v
+	}
+}
+
+// foldAliases puts a driver listed under a shorter form of a name on the
+// fuller one when the two drove a truck in common: IntelliFleet's "Luka
+// Wanjala" (to 1 Nov) and the roster's "Luka Wanjala Khaemba" (from 2 Nov)
+// are one man, not one driver who stopped and another who started.
+func foldAliases(drivers map[string]*wkLine) {
+	keys := make([]string, 0, len(drivers))
+	for k := range drivers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	words := func(k string) map[string]bool {
+		m := map[string]bool{}
+		for _, w := range strings.Fields(k) {
+			m[w] = true
+		}
+		return m
+	}
+	shareTruck := func(a, b *wkLine) bool {
+		for t := range a.others {
+			if t != "" && b.others[t] > 0 {
+				return true
+			}
+		}
+		return false
+	}
+	for _, short := range keys {
+		sw := words(short)
+		if drivers[short] == nil || len(sw) < 2 {
+			continue
+		}
+		best := ""
+		for _, long := range keys {
+			lw := words(long)
+			if long == short || drivers[long] == nil || len(lw) <= len(sw) || !shareTruck(drivers[short], drivers[long]) {
+				continue
+			}
+			in := true
+			for w := range sw {
+				in = in && lw[w]
+			}
+			if in && (best == "" || len(long) > len(best)) {
+				best = long
+			}
+		}
+		if best != "" {
+			drivers[best].absorb(drivers[short])
+			delete(drivers, short)
+		}
+	}
+}
+
+// change is "Down 3 (−40%)", "Up 2 (from 0)", "Same" or "None".
 func change(prev, last int) Cell {
 	switch {
 	case prev == 0 && last == 0:
@@ -357,7 +461,7 @@ func change(prev, last int) Cell {
 	case last == prev:
 		return Cell{Text: "Same"}
 	case prev == 0:
-		return Cell{Text: fmt.Sprintf("Up %d", last), Bold: true}
+		return Cell{Text: fmt.Sprintf("Up %d (from 0)", last), Bold: true}
 	}
 	pct := int(math.Round(float64(last-prev) / float64(prev) * 100))
 	if last < prev {
@@ -386,6 +490,12 @@ func weekCols(ws weekSource, n int, last, now time.Time) []wkCol {
 }
 
 func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *ReportDoc {
+	// Weeks before the first record are left out, so the report does not
+	// open on rows of dashes; the week before the first shown stays, for its
+	// change.
+	for len(cols) > 2 && !cols[1].have {
+		cols = cols[1:]
+	}
 	n := len(cols) - 1
 	shown := cols[1:]
 	last, prev := len(cols)-1, len(cols)-2
@@ -444,11 +554,12 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 			}
 		}
 	}
+	foldAliases(drivers)
 
 	lastCol, prevCol := cols[last], cols[prev]
 	doc := &ReportDoc{
 		Kind: "weekly", Title: "Weekly Incidents Report", ReportNo: reportNumber("WI", now),
-		Date: eat(lastCol.start).Format("02/01/2006"), Company: OrgName, Orientation: "landscape",
+		Date: eat(now).Format("02/01/2006"), Company: OrgName, Orientation: "landscape",
 		GeneratedAt: now.UTC().Format(time.RFC3339),
 	}
 	span := shown[0].label() + " to " + lastCol.label()
@@ -465,19 +576,26 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 	doc.FootNote = OrgName + " · Weekly incidents · " + span + " · made " + eat(now).Format("2 Jan 2006, 15:04")
 	doc.Filename = "Weekly incidents " + OrgName + " " + strings.ReplaceAll(span, "Wk ", "wk")
 
-	// Better and worse, last week against the one before.
+	// Better and worse, last week against the one before: drivers only, as
+	// each truck's line repeats its driver's. Incidents with no driver are
+	// not a driver getting better or worse.
 	type move struct {
 		line       *wkLine
 		prev, last int
 	}
-	moves := func(m map[string]*wkLine) (better, worse []move) {
-		for _, l := range m {
+	moves := func(m map[string]*wkLine) (better, worse []move, same int) {
+		for key, l := range m {
+			if key == "" {
+				continue
+			}
 			p, c := l.counts[prev], l.counts[last]
 			switch {
 			case c < p:
 				better = append(better, move{l, p, c})
 			case c > p:
 				worse = append(worse, move{l, p, c})
+			case c > 0:
+				same++
 			}
 		}
 		sort.Slice(better, func(i, j int) bool {
@@ -492,22 +610,26 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 			}
 			return worse[i].line.name < worse[j].line.name
 		})
-		return better, worse
+		return better, worse, same
 	}
-	byName := func(m map[int]*wkLine) map[string]*wkLine {
-		out := make(map[string]*wkLine, len(m))
-		for id, l := range m {
-			out[strconv.Itoa(id)] = l
-		}
-		return out
-	}
-	dBetter, dWorse := moves(drivers)
-	tBetter, tWorse := moves(byName(trucks))
+	dBetter, dWorse, dSame := moves(drivers)
 
 	fleetChange := change(fleetN[prev], fleetN[last])
 	rate := per100(fleetN[last], fleetKm[last])
 	if r := per100(fleetN[prev], fleetKm[prev]); r != "-" && rate != "-" {
-		rate += " (was " + r + ")"
+		a, b := float64(fleetN[last])/fleetKm[last], float64(fleetN[prev])/fleetKm[prev]
+		pct := 0
+		if b > 0 {
+			pct = int(math.Round((a - b) / b * 100))
+		}
+		switch {
+		case pct > 0:
+			rate += fmt.Sprintf(" (was %s, +%d%%)", r, pct)
+		case pct < 0:
+			rate += fmt.Sprintf(" (was %s, −%d%%)", r, -pct)
+		default:
+			rate += " (was " + r + ")"
+		}
 	}
 	k := 1
 	head := func(text, small string) Block {
@@ -517,11 +639,10 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 	}
 	doc.Blocks = append(doc.Blocks, head("Overview", lastCol.label()+" ("+lastCol.dates()+") against "+prevCol.label()),
 		Block{Type: "kpis", KPIs: []KPI{
-			{Label: "Incidents, " + lastCol.label(), Value: strconv.Itoa(fleetN[last])},
+			{Label: "Incidents, " + lastCol.label(), Value: countText(fleetN[last])},
 			{Label: "Change on " + prevCol.label(), Value: fleetChange.Text},
-			{Label: "Per 100 km, " + lastCol.label(), Value: rate},
-			{Label: "Drivers better / worse", Value: fmt.Sprintf("%d / %d", len(dBetter), len(dWorse))},
-			{Label: "Trucks better / worse", Value: fmt.Sprintf("%d / %d", len(tBetter), len(tWorse))},
+			{Label: "Incidents per 100 km, " + lastCol.label(), Value: rate},
+			{Label: "Drivers better / worse / same", Value: fmt.Sprintf("%d / %d / %d", len(dBetter), len(dWorse), dSame)},
 		}})
 	if lastCol.running {
 		doc.Blocks = append(doc.Blocks, Block{Type: "note", Text: lastCol.label() + " is still under way: it is counted to " + fmtShort(now) + ", against the whole of " + prevCol.label() + "."})
@@ -533,96 +654,119 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 	// The fleet, week by week.
 	doc.Blocks = append(doc.Blocks, head("The fleet, week by week", "incidents, and per 100 km driven"))
 	var bars []KPI
+	// Every column says what it counts, so the report needs no key.
 	fcols := []Col{{H: "Week", W: 12}, {H: "Dates", W: 18}}
 	for _, b := range breachKinds {
 		fcols = append(fcols, Col{H: b.Label, W: 13, Right: true})
 	}
-	fcols = append(fcols, Col{H: "Total", W: 10, Right: true}, Col{H: "Km", W: 13, Right: true},
-		Col{H: "Per 100 km", W: 12, Right: true}, Col{H: "Change", W: 22})
+	fcols = append(fcols, Col{H: "All incidents", W: 11, Right: true}, Col{H: "Km driven", W: 13, Right: true},
+		Col{H: "Incidents per 100 km", W: 13, Right: true}, Col{H: "Change on the week before", W: 22})
 	var frows [][]Cell
 	for j, c := range shown {
 		i := j + 1
 		if !c.have {
-			bars = append(bars, KPI{Label: c.label() + " · " + c.dates(), Value: "-", Sub: "no record"})
+			bars = append(bars, KPI{Label: c.label() + " · " + c.dates(), Value: "-", Sub: "not on record"})
 			row := []Cell{{Text: c.label(), Bold: true}, {Text: c.dates()}}
 			for range breachKinds {
 				row = append(row, Cell{Text: "-", Muted: true})
 			}
 			frows = append(frows, append(row, Cell{Text: "-", Muted: true}, Cell{Text: "-", Muted: true},
-				Cell{Text: "-", Muted: true}, Cell{Text: "No record", Muted: true}))
+				Cell{Text: "-", Muted: true}, Cell{Text: "Not on record", Muted: true}))
 			continue
 		}
 		sub := per100(fleetN[i], fleetKm[i]) + " per 100 km · " + fmtThousands(fleetKm[i]) + " km"
 		if since, err := time.ParseInLocation("2006-01-02", c.tally.Since, fleetZone); err == nil {
-			sub += " · km from " + since.Format("2 Jan")
+			sub += " · counted from " + since.Format("2 Jan")
 		}
 		bars = append(bars, KPI{Label: c.label() + " · " + c.dates(), Value: strconv.Itoa(fleetN[i]), Sub: sub})
 		row := []Cell{{Text: c.label(), Bold: true}, {Text: c.dates()}}
 		for _, b := range breachKinds {
 			v := fleetKinds[i][b.Value]
-			row = append(row, Cell{Text: strconv.Itoa(v), Muted: v == 0})
+			row = append(row, Cell{Text: countText(v), Muted: v == 0})
 		}
-		ch := Cell{Text: "-", Muted: true}
+		ch := Cell{Text: "First week on record", Muted: true}
 		if cols[i-1].have {
 			ch = change(fleetN[i-1], fleetN[i])
 		}
-		frows = append(frows, append(row, Cell{Text: strconv.Itoa(fleetN[i]), Bold: true}, Cell{Text: fmtThousands(fleetKm[i])},
+		frows = append(frows, append(row, Cell{Text: countText(fleetN[i]), Bold: true}, Cell{Text: fmtThousands(fleetKm[i])},
 			Cell{Text: per100(fleetN[i], fleetKm[i])}, ch))
 	}
 	doc.Blocks = append(doc.Blocks, Block{Type: "bars", KPIs: bars}, Block{Type: "spacer"}, Block{Type: "table", Cols: fcols, Rows: frows})
+	for _, c := range shown {
+		if c.have && c.tally.Since != "" {
+			if since, err := time.ParseInLocation("2006-01-02", c.tally.Since, fleetZone); err == nil {
+				doc.Blocks = append(doc.Blocks, Block{Type: "note", Text: c.label() + " is on record only from " + since.Format("2 Jan") +
+					": its incidents and km are both counted from then, so its rate per 100 km compares fairly."})
+			}
+		}
+	}
 
-	// Most better, most worse.
-	const top = 5
+	// Most better, most worse, with each driver's rate beside the count: a
+	// driver who drove little has few incidents without driving any better.
+	const top = 8
+	weeksSpan := prevCol.label() + " to " + strings.TrimPrefix(lastCol.label(), "Wk ")
 	moveGroup := func(title, none string, list []move) SubTable {
 		g := SubTable{Text: title, Empty: none}
 		if len(list) == 0 {
 			return g
 		}
+		g.Small = "all " + strconv.Itoa(len(list))
 		if len(list) > top {
 			g.Small = fmt.Sprintf("top %d of %d", top, len(list))
 		}
-		g.Cols = []Col{{H: "Name", W: 40}, {H: prevCol.label(), W: 10, Right: true}, {H: lastCol.label(), W: 10, Right: true}, {H: "Change", W: 22}}
+		g.Cols = []Col{{H: "Driver", W: 25}, {H: "Incidents, " + prevCol.label(), W: 10, Right: true}, {H: "Incidents, " + lastCol.label(), W: 10, Right: true},
+			{H: "Change, " + weeksSpan, W: 21}, {H: "Per 100 km, " + lastCol.label(), W: 13, Right: true}}
 		for _, m := range list[:min(top, len(list))] {
-			g.Rows = append(g.Rows, []Cell{{Text: m.line.name, Bold: true}, {Text: strconv.Itoa(m.prev)}, {Text: strconv.Itoa(m.last)}, change(m.prev, m.last)})
+			g.Rows = append(g.Rows, []Cell{{Text: m.line.name, Bold: true}, {Text: countText(m.prev)}, {Text: countText(m.last)},
+				change(m.prev, m.last), rateCell(m.line.counts[last], m.line.km[last])})
 		}
 		return g
 	}
-	doc.Blocks = append(doc.Blocks, head("Better and worse", lastCol.label()+" against "+prevCol.label()), Block{Type: "groups", Groups: []SubTable{
+	doc.Blocks = append(doc.Blocks, head("Better and worse", lastCol.label()+" against "+prevCol.label()+", with each driver's rate"), Block{Type: "groups", Groups: []SubTable{
 		moveGroup("Drivers with fewer incidents", "No driver had fewer incidents.", dBetter),
 		moveGroup("Drivers with more incidents", "No driver had more incidents.", dWorse),
-		moveGroup("Trucks with fewer incidents", "No truck had fewer incidents.", tBetter),
-		moveGroup("Trucks with more incidents", "No truck had more incidents.", tWorse),
 	}})
 
-	// Every driver and truck, week by week.
-	lineTable := func(lines []*wkLine, who, with string) Block {
-		cs := []Col{{H: who, W: 30}, {H: with, W: 30}}
+	// Every driver, week by week, with the trucks they drove: one table, as a
+	// truck table would repeat it line for line.
+	lineTable := func(lines []*wkLine) Block {
+		cs := []Col{{H: "Driver, as assigned that day", W: 26}, {H: "Truck driven", W: 18}}
 		for _, c := range shown {
-			cs = append(cs, Col{H: c.label(), W: 8, Right: true})
+			cs = append(cs, Col{H: "Incidents, " + c.label(), W: 11, Right: true})
 		}
-		cs = append(cs, Col{H: "Total", W: 9, Right: true}, Col{H: "Per 100 km, " + lastCol.label(), W: 13, Right: true}, Col{H: "Change", W: 20})
+		total := "Total"
+		if n > 1 {
+			total = "Total, " + shown[0].label() + " to " + strings.TrimPrefix(lastCol.label(), "Wk ")
+		}
+		cs = append(cs, Col{H: total, W: 9, Right: true}, Col{H: "Share of the fleet's " + lastCol.label() + " incidents", W: 11, Right: true},
+			Col{H: "Incidents per 100 km, " + lastCol.label(), W: 12, Right: true}, Col{H: "Change, " + weeksSpan, W: 19})
 		var rows [][]Cell
 		for _, l := range lines {
-			row := []Cell{{Text: l.name, Bold: true}, orDash(l.with())}
+			none := l.name == "No driver on record"
+			row := []Cell{{Text: l.name, Bold: !none, Muted: none}, orDash(l.with())}
 			for j, c := range shown {
 				i := j + 1
 				switch {
 				case !c.have:
-					row = append(row, Cell{Text: "-", Muted: true})
+					row = append(row, Cell{Text: "Not on record", Muted: true, Wrap: true})
 				case l.counts[i] == 0 && l.km[i] < 1:
-					row = append(row, Cell{Text: "-", Muted: true}) // off the road
+					row = append(row, Cell{Text: "Not driving", Muted: true, Wrap: true})
 				default:
-					row = append(row, Cell{Text: strconv.Itoa(l.counts[i]), Muted: l.counts[i] == 0})
+					row = append(row, Cell{Text: countText(l.counts[i]), Muted: l.counts[i] == 0})
 				}
 			}
-			rows = append(rows, append(row, Cell{Text: strconv.Itoa(l.total(1)), Bold: true},
-				Cell{Text: per100(l.counts[last], l.km[last])}, change(l.counts[prev], l.counts[last])))
+			rows = append(rows, append(row, Cell{Text: countText(l.total(1)), Bold: true},
+				Cell{Text: share(l.counts[last], fleetN[last]), Muted: l.counts[last] == 0},
+				rateCell(l.counts[last], l.km[last]), change(l.counts[prev], l.counts[last])))
 		}
 		return Block{Type: "table", Cols: cs, Rows: rows}
 	}
 	order := func(lines []*wkLine) []*wkLine {
 		sort.Slice(lines, func(i, j int) bool {
 			a, b := lines[i], lines[j]
+			if an, bn := a.name == "No driver on record", b.name == "No driver on record"; an != bn {
+				return bn // no driver last
+			}
 			if a.counts[last] != b.counts[last] {
 				return a.counts[last] > b.counts[last]
 			}
@@ -652,16 +796,21 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 			tl = append(tl, l)
 		}
 	}
+	people := len(dl)
+	if drivers[""] != nil && active(drivers[""]) {
+		people--
+	}
 	doc.Blocks = append(doc.Blocks,
-		head("Drivers", nOf(len(dl), "driver", "drivers")+" · most incidents in "+lastCol.label()+" first"), lineTable(order(dl), "Driver", "Trucks"),
-		head("Trucks", nOf(len(tl), "truck", "trucks")+" · most incidents in "+lastCol.label()+" first"), lineTable(order(tl), "Truck", "Drivers"),
+		head("Drivers and their trucks", nOf(people, "driver", "drivers")+" on "+nOf(len(tl), "truck", "trucks")+" · most incidents in "+lastCol.label()+" first"),
+		lineTable(order(dl)),
 		Block{Type: "note", Text: "Incidents are the policy breaches: overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone and camera covered. No seatbelt, on phone and camera covered come from the dashcams, so only trucks with a camera can raise them."},
-		Block{Type: "note", Text: "Each incident is put on the driver the truck had that day (IntelliFleet's assignment, else the roster)."},
+		Block{Type: "note", Text: "Each incident is put on the driver the truck had that day (IntelliFleet's assignment, else the roster). A name and a shorter form of it on the same truck are one driver; " +
+			"placeholder accounts such as \"Samad DriverA\" are no driver."},
 	)
 	if len(dl) == 0 && len(tl) == 0 {
 		doc.Blocks = append(doc.Blocks, Block{Type: "empty", Text: "No record of these weeks yet."})
 	}
 	doc.Summary = map[string]any{"incidents": fleetN[last], "week": lastCol.label(), "change": fleetChange.Text,
-		"drivers": len(dl), "trucks": len(tl), "period": span}
+		"drivers": people, "trucks": len(tl), "period": span}
 	return doc
 }
