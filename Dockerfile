@@ -25,7 +25,7 @@ ENV APP_COMMIT=${APP_COMMIT} APP_VERSION=${APP_VERSION} NODE_OPTIONS=--max-old-s
 RUN npm run build
 
 # ── the API ────────────────────────────────────────────────────────────────
-FROM golang:1.27.3-alpine AS api
+FROM golang:1.27.4-alpine AS api
 WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
