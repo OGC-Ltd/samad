@@ -312,10 +312,11 @@ type wkLine struct {
 	counts []int              // per week, incidents
 	km     []float64          // per week
 	kinds  map[string]int     // over the shown weeks
+	latest map[string]int     // in the last week, by kind
 }
 
 func newLine(name string, n int) *wkLine {
-	return &wkLine{name: name, others: map[string]float64{}, counts: make([]int, n), km: make([]float64, n), kinds: map[string]int{}}
+	return &wkLine{name: name, others: map[string]float64{}, counts: make([]int, n), km: make([]float64, n), kinds: map[string]int{}, latest: map[string]int{}}
 }
 
 func (w *wkLine) total(from int) int {
@@ -358,11 +359,66 @@ func (w *wkLine) with() string {
 	return s
 }
 
+// per100 is incidents per 100 km, rounded to a whole number: an incident is
+// never a fraction (operator, 2026-11-14).
 func per100(n int, km float64) string {
 	if km < 1 {
 		return "-"
 	}
-	return strconv.FormatFloat(math.Round(float64(n)/km*1000)/10, 'f', 1, 64)
+	return countText(int(math.Round(float64(n) / km * 100)))
+}
+
+// kindTable is each driver's incidents in the last week by kind, the fleet's
+// below, and the kind each driver committed most: what to coach them on.
+func kindTable(lines []*wkLine, fleet map[string]int, week string) Block {
+	cs := []Col{{H: "Driver", W: 26}}
+	for _, b := range breachKinds {
+		cs = append(cs, Col{H: b.Label, W: 11, Right: true})
+	}
+	cs = append(cs, Col{H: "All incidents, " + week, W: 11, Right: true}, Col{H: "Most committed", W: 22})
+	row := func(name string, by map[string]int, bold, muted bool) []Cell {
+		r := []Cell{{Text: name, Bold: bold, Muted: muted}}
+		all, top, topN := 0, "", 0
+		for _, b := range breachKinds {
+			v := by[b.Value]
+			all += v
+			if v > topN {
+				top, topN = b.Label, v
+			}
+			r = append(r, Cell{Text: countText(v), Muted: v == 0})
+		}
+		most := Cell{Text: "None", Muted: true}
+		if topN > 0 {
+			most = Cell{Text: top + " (" + share(topN, all) + ")"}
+		}
+		return append(r, Cell{Text: countText(all), Bold: true}, most)
+	}
+	var rows [][]Cell
+	for _, l := range lines {
+		if l.counts[len(l.counts)-1] == 0 && l.km[len(l.km)-1] < 1 {
+			continue // not driving that week
+		}
+		none := l.name == "No driver on record"
+		rows = append(rows, row(l.name, l.latest, !none, none))
+	}
+	rows = append(rows, row("Whole fleet", fleet, true, false))
+	return Block{Type: "table", Cols: cs, Rows: rows}
+}
+
+// formulaTable is the formula behind each figure the report shows.
+func formulaTable(last, prev string) Block {
+	rows := [][]Cell{
+		{{Text: "Incidents", Bold: true}, {Text: "Count of policy-breach alarms (overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone, camera covered) in the week, each alarm once", Wrap: true}},
+		{{Text: "Km driven", Bold: true}, {Text: "Sum of the straight-line distance between consecutive GPS positions in the week; a jump faster than 150 km/h is a GPS glitch and left out", Wrap: true}},
+		{{Text: "Incidents per 100 km", Bold: true}, {Text: "Incidents ÷ km driven × 100, rounded to a whole number", Wrap: true}},
+		{{Text: "Share of the fleet's " + last + " incidents", Bold: true}, {Text: "Driver's " + last + " incidents ÷ fleet's " + last + " incidents × 100", Wrap: true}},
+		{{Text: "Total", Bold: true}, {Text: "Sum of the weeks shown", Wrap: true}},
+		{{Text: "Change", Bold: true}, {Text: last + " incidents − " + prev + " incidents; the % is that ÷ " + prev + " incidents × 100, rounded. No % when " + prev + " was 0", Wrap: true}},
+		{{Text: "Change in the rate", Bold: true}, {Text: "(" + last + " per 100 km − " + prev + " per 100 km) ÷ " + prev + " per 100 km × 100, from the unrounded rates", Wrap: true}},
+		{{Text: "Most committed", Bold: true}, {Text: "The kind of incident with the most of the driver's " + last + " incidents; its % is that kind ÷ the driver's " + last + " incidents × 100", Wrap: true}},
+		{{Text: "Better / worse / same", Bold: true}, {Text: "Drivers with fewer / more / the same incidents in " + last + " than in " + prev, Wrap: true}},
+	}
+	return Block{Type: "table", Cols: []Col{{H: "Figure", W: 26}, {H: "Formula", W: 83}}, Rows: rows}
 }
 
 // rateCell is incidents per 100 km, or "No km" when nothing was driven.
@@ -399,6 +455,9 @@ func (w *wkLine) absorb(o *wkLine) {
 	}
 	for k, v := range o.kinds {
 		w.kinds[k] += v
+	}
+	for k, v := range o.latest {
+		w.latest[k] += v
 	}
 }
 
@@ -549,6 +608,9 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 				for k, v := range d.Counts {
 					if i > 0 {
 						dl.kinds[k] += v
+					}
+					if i == last {
+						dl.latest[k] += v
 					}
 				}
 			}
@@ -807,6 +869,11 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 		Block{Type: "note", Text: "Each incident is put on the driver the truck had that day (IntelliFleet's assignment, else the roster). A name and a shorter form of it on the same truck are one driver; " +
 			"placeholder accounts such as \"Samad DriverA\" are no driver."},
 	)
+	if fleetN[last] > 0 {
+		doc.Blocks = append(doc.Blocks,
+			head("What each driver did, "+lastCol.label(), "incidents by kind · most incidents first"), kindTable(order(dl), fleetKinds[last], lastCol.label()))
+	}
+	doc.Blocks = append(doc.Blocks, head("How the figures are worked out", "the formula behind each figure"), formulaTable(lastCol.label(), prevCol.label()))
 	if len(dl) == 0 && len(tl) == 0 {
 		doc.Blocks = append(doc.Blocks, Block{Type: "empty", Text: "No record of these weeks yet."})
 	}

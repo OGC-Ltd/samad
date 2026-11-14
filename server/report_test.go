@@ -512,7 +512,7 @@ func TestWeeklyIncidents(t *testing.T) {
 	if r := row(drivers, "John Doe"); r[1].Text != "KDA 001A" || r[2].Text != "4" || r[3].Text != "1" || r[5].Text != "16.7%" || r[7].Text != "Down 3 (−75%)" {
 		t.Errorf("John: %+v", r)
 	}
-	if r := row(drivers, "Mary Ann"); r[2].Text != "Not driving" || r[3].Text != "2" || r[6].Text != "0.4" || r[7].Text != "Up 2 (from 0)" {
+	if r := row(drivers, "Mary Ann"); r[2].Text != "Not driving" || r[3].Text != "2" || r[6].Text != "0" || r[7].Text != "Up 2 (from 0)" {
 		t.Errorf("Mary, from Wednesday: %+v", r)
 	}
 	if r := row(drivers, "No driver on record"); r[3].Text != "3" || drivers[len(drivers)-1][0].Text != "No driver on record" {
@@ -525,6 +525,17 @@ func TestWeeklyIncidents(t *testing.T) {
 		if b.Type == "kpis" && b.KPIs[3].Value != "1 / 1 / 0" {
 			t.Errorf("drivers better / worse / same: %v", b.KPIs[3])
 		}
+	}
+	// What each did in Wk 44. Columns: driver, the six kinds, all, most committed.
+	kinds := tableAfter(doc, "What each driver did, Wk 44")
+	if r := row(kinds, "Mary Ann"); r[2].Text != "2" || r[7].Text != "2" || r[8].Text != "Harsh braking (100.0%)" {
+		t.Errorf("Mary by kind: %+v", r)
+	}
+	if r := row(kinds, "John Doe"); r[5].Text != "1" || r[8].Text != "On phone (100.0%)" {
+		t.Errorf("John by kind: %+v", r)
+	}
+	if r := kinds[len(kinds)-1]; r[0].Text != "Whole fleet" || r[4].Text != "3" || r[7].Text != "6" || r[8].Text != "No seatbelt (50.0%)" {
+		t.Errorf("fleet by kind: %+v", r)
 	}
 	if doc.Date != eat(now).Format("02/01/2006") {
 		t.Errorf("dated %s, not the day it was made", doc.Date)
@@ -609,7 +620,7 @@ func TestWeeklyOneLinePerDriver(t *testing.T) {
 	// Wk 43 is on record from Wednesday 21 Oct: Monday's incident is left
 	// out with Monday's km, so 1 incident over 1,500 km.
 	fleet := tableAfter(doc, "The fleet, week by week")
-	if r := fleet[0]; r[0].Text != "Wk 43" || r[8].Text != "1" || r[10].Text != "0.1" || r[11].Text != "First week on record" {
+	if r := fleet[0]; r[0].Text != "Wk 43" || r[8].Text != "1" || r[10].Text != "0" || r[11].Text != "First week on record" {
 		t.Errorf("Wk 43: %+v", r)
 	}
 	found := false
