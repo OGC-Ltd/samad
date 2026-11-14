@@ -507,19 +507,27 @@ func TestWeeklyIncidents(t *testing.T) {
 		t.Fatalf("no row %q in %v", name, rows)
 		return nil
 	}
-	drivers := tableAfter(doc, "Drivers")
-	// Columns: name, with, Wk 43, Wk 44, total, per 100 km, change.
-	if r := row(drivers, "John Doe"); r[1].Text != "KDA 001A" || r[2].Text != "4" || r[3].Text != "1" || r[6].Text != "Down 3 (−75%)" {
+	drivers := tableAfter(doc, "Drivers and their trucks")
+	// Columns: name, truck, Wk 43, Wk 44, total, share of Wk 44, per 100 km, change.
+	if r := row(drivers, "John Doe"); r[1].Text != "KDA 001A" || r[2].Text != "4" || r[3].Text != "1" || r[5].Text != "16.7%" || r[7].Text != "Down 3 (−75%)" {
 		t.Errorf("John: %+v", r)
 	}
-	if r := row(drivers, "Mary Ann"); r[2].Text != "-" || r[3].Text != "2" || r[5].Text != "0.4" || r[6].Text != "Up 2" {
+	if r := row(drivers, "Mary Ann"); r[2].Text != "Not driving" || r[3].Text != "2" || r[6].Text != "0.4" || r[7].Text != "Up 2 (from 0)" {
 		t.Errorf("Mary, from Wednesday: %+v", r)
 	}
-	if r := row(drivers, "No driver on record"); r[3].Text != "3" {
-		t.Errorf("no driver: %+v", r)
+	if r := row(drivers, "No driver on record"); r[3].Text != "3" || drivers[len(drivers)-1][0].Text != "No driver on record" {
+		t.Errorf("no driver, last: %+v", r)
 	}
-	if r := row(tableAfter(doc, "Trucks"), "KDA 001A"); r[1].Text != "John Doe, Mary Ann" || r[6].Text != "Down 1 (−25%)" {
-		t.Errorf("truck: %+v", r)
+	for _, b := range doc.Blocks {
+		if b.Type == "heading" && strings.HasSuffix(b.Text, ". Trucks") {
+			t.Error("a truck table repeats the drivers'")
+		}
+		if b.Type == "kpis" && b.KPIs[3].Value != "1 / 1 / 0" {
+			t.Errorf("drivers better / worse / same: %v", b.KPIs[3])
+		}
+	}
+	if doc.Date != eat(now).Format("02/01/2006") {
+		t.Errorf("dated %s, not the day it was made", doc.Date)
 	}
 
 	// The tallies outlive the events: a month on, the weeks still read the same.
@@ -544,6 +552,93 @@ func TestWeeklyIncidents(t *testing.T) {
 	}
 	if _, err := renderCSV(doc); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The Samad report of 14 Nov 2026 (WI-SAMAD-20261114-0442): one man under
+// IntelliFleet's short name and the roster's full one, a placeholder account
+// listed as a driver, and Wk 43 dividing 7 days of incidents by 4 days of km.
+func TestWeeklyOneLinePerDriver(t *testing.T) {
+	now := time.Date(2026, 11, 14, 4, 42, 0, 0, fleetZone)
+	st := NewStore(t.TempDir())
+	st.vehicles[1] = PVehicle{VehicleID: 1, Registration: "KCN530E", Driver: &PPerson{Name: "LUKA WANJALA KHAEMBA"}}
+	st.vehicles[2] = PVehicle{VehicleID: 2, Registration: "KDW180N", Driver: &PPerson{Name: "CALLEB WANYONYI"}}
+	st.vehicles[3] = PVehicle{VehicleID: 3, Registration: "KDU566F", Driver: &PPerson{Name: "JOHN WAMALWA"}}
+	at := func(m time.Month, d, h int) time.Time { return time.Date(2026, m, d, h, 0, 0, 0, fleetZone) }
+	for day := at(10, 21, 0); day.Before(at(11, 9, 0)); day = day.AddDate(0, 0, 1) {
+		luka, two := "Luka Wanjala", "Samad DriverB"
+		if !day.Before(at(11, 2, 0)) {
+			luka, two = "LUKA WANJALA KHAEMBA", "CALLEB WANYONYI"
+		}
+		// John Wamalwa drives another truck: "John" alone is no shorter form of anyone here.
+		st.p.Days[fleetDay(day)] = map[int]*DayStats{1: {Km: 100, Driver: luka}, 2: {Km: 100, Driver: two}, 3: {Km: 100, Driver: "John Wamalwa"}}
+	}
+	ev := func(id string, vid int, when time.Time) PEvent {
+		ts := when.UTC().Format(time.RFC3339)
+		return PEvent{EventID: id, Type: "no_seatbelt", Severity: "warning", OccurredAt: ts, ReceivedAt: ts, VehicleID: vid}
+	}
+	st.AddEvents([]PEvent{
+		ev("before-km", 1, at(10, 19, 9)), // Monday of Wk 43, before the first km: not counted
+		ev("w43", 1, at(10, 22, 9)),
+		ev("w44a", 1, at(10, 27, 9)), ev("w44b", 1, at(10, 28, 9)), ev("w44c", 2, at(10, 29, 9)),
+		ev("w45a", 1, at(11, 3, 9)), ev("w45b", 2, at(11, 4, 9)), ev("w45c", 3, at(11, 5, 9)),
+	}, "")
+
+	doc := weeklyDocTo(st, 4, weekStart(at(11, 3, 0)), now)
+	if err := doc.Check(); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Summary["period"] != "Wk 43 to Wk 45" || doc.Summary["drivers"] != 3 {
+		t.Errorf("Wk 42 has no record and is left out; three drivers: %v", doc.Summary)
+	}
+	rows := tableAfter(doc, "Drivers and their trucks")
+	names := []string{}
+	for _, r := range rows {
+		names = append(names, r[0].Text)
+	}
+	if got := strings.Join(names, ", "); got != "Luka Wanjala Khaemba, Calleb Wanyonyi, John Wamalwa, No driver on record" {
+		t.Fatalf("drivers: %s", got)
+	}
+	// Columns: name, truck, Wk 43, Wk 44, Wk 45, total, share, per 100 km, change.
+	if r := rows[0]; r[1].Text != "KCN530E" || r[2].Text != "1" || r[3].Text != "2" || r[4].Text != "1" || r[8].Text != "Down 1 (−50%)" {
+		t.Errorf("Luka, one line: %+v", r)
+	}
+	if r := rows[3]; r[1].Text != "KDW180N" || r[3].Text != "1" || r[4].Text != "Not driving" {
+		t.Errorf("the placeholder's incident has no driver: %+v", r)
+	}
+	// Wk 43 is on record from Wednesday 21 Oct: Monday's incident is left
+	// out with Monday's km, so 1 incident over 1,500 km.
+	fleet := tableAfter(doc, "The fleet, week by week")
+	if r := fleet[0]; r[0].Text != "Wk 43" || r[8].Text != "1" || r[10].Text != "0.1" || r[11].Text != "First week on record" {
+		t.Errorf("Wk 43: %+v", r)
+	}
+	found := false
+	for _, b := range doc.Blocks {
+		found = found || b.Type == "note" && strings.Contains(b.Text, "Wk 43 is on record only from 21 Oct")
+	}
+	if !found {
+		t.Error("no note that Wk 43 is counted from 21 Oct")
+	}
+}
+
+func TestFoldAliasesNeedsATruckInCommon(t *testing.T) {
+	a, b := newLine("Fred Simiyu", 2), newLine("Fred Simiyu Wanjala", 2)
+	a.others["KDT953D"], b.others["KDA001A"] = 100, 100
+	m := map[string]*wkLine{"FRED SIMIYU": a, "FRED SIMIYU WANJALA": b}
+	foldAliases(m)
+	if len(m) != 2 {
+		t.Error("two trucks, two drivers: not folded")
+	}
+	b.others["KDT953D"] = 50
+	a.counts[1] = 3
+	foldAliases(m)
+	if len(m) != 1 || m["FRED SIMIYU WANJALA"].counts[1] != 3 {
+		t.Errorf("one truck in common: folded onto the fuller name: %v", m)
+	}
+	for name, want := range map[string]bool{"Samad DriverA": true, "Driver 2": true, "Jane Driver": false, "Moses Wanyonyi": false} {
+		if placeholderDriver.MatchString(name) != want {
+			t.Errorf("%q placeholder: %v", name, !want)
+		}
 	}
 }
 
