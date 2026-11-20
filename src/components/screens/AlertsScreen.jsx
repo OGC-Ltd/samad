@@ -38,7 +38,7 @@ import { hushFuelAlarm, useFuelAlarm } from "../../hooks/useFuelAlarm";
 import { plateIn } from "../../lib/plate";
 import { settleLimited } from "../../lib/settleLimited";
 import {
-  ALERT_KINDS, KINDS, OVER_BY, PERIODS, READS, STATUSES, alertPager, figureOf, kindOf, bulkPlan, bulkWords, choiceWords, companyForOrgCode, alertDays, countWhere,
+  ALERT_KINDS, CAMERA_ALARMS, KINDS, OVER_BY, PERIODS, READS, STATUSES, alertPager, figureOf, kindOf, bulkPlan, bulkWords, choiceWords, companyForOrgCode, alertDays, countWhere,
   daysBounds, daysWords, decisionWords, duration, fleetDay, headline, kmh, litres, periodDays,
   reportedLate, ruleWords, statusOf, unitQueues, when,
 } from "../../lib/alertsView";
@@ -601,6 +601,10 @@ export default function AlertsScreen() {
   const [period, setPeriod] = useState("7d");
   const [custom, setCustom] = useState(null);
   const [overBy, setOverBy] = useState(0);
+  // One camera alarm, or "" for any. Picking one moves the Alert filter to
+  // Camera; picking another kind lets it go.
+  const [alarmPick, setAlarmPick] = useState("");
+  const alarm = kind === "camera" ? alarmPick : "";
   const [readF, setReadF] = useState("all");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim(), 300);
@@ -621,8 +625,8 @@ export default function AlertsScreen() {
     setCustom(day ? { fromDay: day, toDay: day } : null);
   };
   const filters = useMemo(() => ({
-    kind, status, orgs, from, to, q, minOverKmh: kind === "fuel" ? 0 : overBy, read: readF,
-  }), [kind, status, orgs, from, to, q, overBy, readF]);
+    kind, status, orgs, from, to, q, minOverKmh: kind === "fuel" ? 0 : overBy, read: readF, alarm,
+  }), [kind, status, orgs, from, to, q, overBy, readF, alarm]);
   const key = JSON.stringify(filters);
 
   // Pages of PAGE_STEP (15), turned with the app's one pager (TablePager,
@@ -753,10 +757,11 @@ export default function AlertsScreen() {
   });
 
   // Every chip's number under the OTHER filters (lib/alertsView countWhere).
-  const nStatus = (s) => countWhere(counts, { orgs, kind, status: s, read: readF });
+  const nStatus = (s) => countWhere(counts, { orgs, kind, status: s, read: readF, alarm });
   const nKind = (k) => countWhere(counts, { orgs, kind: k, status, read: readF });
-  const nOrg = (id) => countWhere(counts, { orgs: [id], kind, status, read: readF });
-  const nRead = (r) => countWhere(counts, { orgs, kind, status, read: r });
+  const nOrg = (id) => countWhere(counts, { orgs: [id], kind, status, read: readF, alarm });
+  const nRead = (r) => countWhere(counts, { orgs, kind, status, read: r, alarm });
+  const nAlarm = (a) => countWhere(counts, { orgs, kind: "camera", status, read: readF, alarm: a });
   const unread = nRead("unread");
   const daySeries = useMemo(() => alertDays(history.data ?? null, { orgs, ...days }), [history.data, orgs, days]);
   const pager = {
@@ -769,7 +774,7 @@ export default function AlertsScreen() {
   });
 
   const activeCount = (kind !== "all") + (status !== "open") + (orgs.length > 0) + (period !== "7d") + (overBy > 0)
-    + (readF !== "all");
+    + (readF !== "all") + (alarm !== "");
 
   // Selecting: the ones on this page this account may decide.
   const anyDecide = orgList.some((o) => o.canDecide);
@@ -959,7 +964,7 @@ export default function AlertsScreen() {
             <div className="sp4-filter-group">
               <span className="sp4-filter-label">Alert</span>
               {KINDS.filter((k) => k.id === "all" || kindsHeld.has(k.id)).map((k) => (
-                <Chip key={k.id} on={kind === k.id} onClick={() => setKind(k.id)} n={nKind(k.id)}>{k.label}</Chip>
+                <Chip key={k.id} on={kind === k.id} onClick={() => { setKind(k.id); if (k.id !== "camera") setAlarmPick(""); }} n={nKind(k.id)}>{k.label}</Chip>
               ))}
             </div>
           )}
@@ -987,6 +992,19 @@ export default function AlertsScreen() {
             <span className="sp4-filter-label">Day</span>
             <DayField label="One day" value={period === "custom" && custom ? custom.fromDay : ""} max={today} onPick={pickDay} />
           </div>
+          {(kind === "all" || kind === "camera") && kindsHeld.has("camera") && (
+            <div className="sp4-filter-group">
+              <span className="sp4-filter-label">Camera alarm</span>
+              {/* Picking one shows those alarms alone: the Alert filter moves to Camera. */}
+              {CAMERA_ALARMS.map((a) => (
+                <Chip key={a.id || "any"} on={alarm === a.id}
+                      onClick={() => { setAlarmPick(a.id); if (a.id) setKind("camera"); }}
+                      n={a.id ? nAlarm(a.id) : undefined}>
+                  {a.label}
+                </Chip>
+              ))}
+            </div>
+          )}
           {(kind === "all" || kind === "speeding") && speedingHere && (
             <div className="sp4-filter-group">
               <span className="sp4-filter-label">Over the limit by</span>

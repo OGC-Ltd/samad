@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -417,6 +418,73 @@ func TestAlertKind(t *testing.T) {
 	} {
 		if got := alertKind(tc.e); got != tc.want {
 			t.Errorf("%s/%s: got %q, want %q", tc.e.Type, tc.e.Severity, got, tc.want)
+		}
+	}
+}
+
+// The Alerts page's camera alarm filter: one alarm at a time, counted per alarm.
+func TestAlertsCameraAlarmFilter(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.login()
+	now := time.Now()
+	h.store.AddEvents([]PEvent{
+		cameraEvent("sb1", "no_seatbelt", now.Add(-3*time.Hour), ""),
+		cameraEvent("sb2", "no_seatbelt", now.Add(-2*time.Hour), ""),
+		cameraEvent("ph", "phone_use", now.Add(-time.Hour), ""),
+		cameraEvent("dd", "driver_distracted", now.Add(-50*time.Minute), ""),
+		cameraEvent("ln", "lane_departure", now.Add(-40*time.Minute), ""),
+		{EventID: "sp", Source: "platform", Type: "over_speeding", OccurredAt: now.Add(-30 * time.Minute).UTC().Format(time.RFC3339)},
+	}, "")
+
+	type page struct {
+		Counts []struct {
+			Kind  string `json:"kind"`
+			Alarm string `json:"alarm"`
+			N     int    `json:"n"`
+		} `json:"counts"`
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	get := func(qs string) page {
+		t.Helper()
+		rec := h.do("GET", "/api/v1/alerts?"+qs, token, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", qs, rec.Code, rec.Body)
+		}
+		return decodeData[page](t, rec.Body.Bytes())
+	}
+	ids := func(p page) []string {
+		var out []string
+		for _, r := range p.Data {
+			out = append(out, r.ID)
+		}
+		sort.Strings(out)
+		return out
+	}
+
+	for _, tc := range []struct{ qs, want string }{
+		{"kind=camera&alarm=no_seatbelt", "sb1,sb2"},
+		{"kind=camera&alarm=phone_use", "ph"},
+		{"kind=all&alarm=driver_distracted", "dd"},
+		{"kind=camera", "dd,ln,ph,sb1,sb2"},
+		{"kind=camera&alarm=nonsense", "dd,ln,ph,sb1,sb2"}, // unknown: ignored
+		{"kind=speeding&alarm=no_seatbelt", ""},
+	} {
+		if got := strings.Join(ids(get(tc.qs)), ","); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.qs, got, tc.want)
+		}
+	}
+
+	// The counts tell the chips what each alarm would show, whatever is picked.
+	n := map[string]int{}
+	for _, c := range get("kind=camera&alarm=phone_use").Counts {
+		n[c.Kind+"/"+c.Alarm] += c.N
+	}
+	want := map[string]int{"camera/no_seatbelt": 2, "camera/phone_use": 1, "camera/driver_distracted": 1, "camera/": 1, "speeding/": 1}
+	for k, w := range want {
+		if n[k] != w {
+			t.Errorf("count %s: got %d, want %d (all %v)", k, n[k], w, n)
 		}
 	}
 }

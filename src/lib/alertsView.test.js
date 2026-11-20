@@ -36,6 +36,24 @@ describe("periods", () => {
   });
 });
 
+describe("countWhere by camera alarm", () => {
+  const counts = [
+    { orgId: "samad", kind: "camera", alarm: "no_seatbelt", status: "open", read: false, n: 4 },
+    { orgId: "samad", kind: "camera", alarm: "phone_use", status: "open", read: true, n: 2 },
+    { orgId: "samad", kind: "camera", status: "open", read: false, n: 9 },
+    { orgId: "samad", kind: "speeding", status: "open", read: false, n: 1 },
+  ];
+  it("counts one alarm alone", () => {
+    expect(countWhere(counts, { kind: "camera", alarm: "no_seatbelt" })).toBe(4);
+    expect(countWhere(counts, { kind: "camera", alarm: "phone_use", read: "unread" })).toBe(0);
+    expect(countWhere(counts, { kind: "camera", alarm: "driver_distracted" })).toBe(0);
+  });
+  it("counts every alarm when none is picked", () => {
+    expect(countWhere(counts, { kind: "camera" })).toBe(15);
+    expect(countWhere(counts, {})).toBe(16);
+  });
+});
+
 describe("countWhere", () => {
   const counts = [
     { orgId: "a", kind: "fuel", status: "open", n: 2 },

@@ -63,12 +63,13 @@ func alertKind(e PEvent) string {
 }
 
 type alertRow struct {
-	e    PEvent
-	kind string
-	at   time.Time // when it reached us: the order the page lists in
-	stat string
-	read bool
-	hist []Decision
+	e     PEvent
+	kind  string
+	alarm string    // the camera alarm filter it answers to, or ""
+	at    time.Time // when it reached us: the order the page lists in
+	stat  string
+	read  bool
+	hist  []Decision
 }
 
 func statusOf(hist []Decision) string {
@@ -101,6 +102,30 @@ func choicesFor(status string) []map[string]any {
 	return list
 }
 
+// The camera alarms the page can pick out on their own (operator,
+// 2026-11-20: "a filter of alerts of No Seatbelt, Phone Use, Driver
+// Distracted"), in the page's order.
+var cameraAlarms = []string{"no_seatbelt", "phone_use", "driver_distracted"}
+
+// cameraAlarm is which of cameraAlarms a camera alert is, or "". Read from
+// the partner's type key loosely, as reportKind does, so a renamed key that
+// still says what it is lands in the right place.
+func cameraAlarm(e PEvent) string {
+	if alertKind(e) != kindCamera {
+		return ""
+	}
+	t := strings.ToLower(e.Type)
+	switch {
+	case strings.Contains(t, "seatbelt"):
+		return "no_seatbelt"
+	case strings.Contains(t, "phone"):
+		return "phone_use"
+	case strings.Contains(t, "distract"):
+		return "driver_distracted"
+	}
+	return ""
+}
+
 // alertRows: every listed alert that happened in [from, to), newest arrival
 // first, with this person's read marks.
 func (s *Server) alertRows(user string, from, to time.Time) []alertRow {
@@ -116,7 +141,7 @@ func (s *Server) alertRows(user string, from, to time.Time) []alertRow {
 		}
 		hist := s.store.Decisions(e.EventID)
 		rows = append(rows, alertRow{
-			e: e, kind: kind, at: parseTime(e.ReceivedAt), stat: statusOf(hist), hist: hist,
+			e: e, kind: kind, alarm: cameraAlarm(e), at: parseTime(e.ReceivedAt), stat: statusOf(hist), hist: hist,
 			read: s.store.IsRead(user, e.EventID, e.ReceivedAt),
 		})
 	}
@@ -270,6 +295,10 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 	readF := q.Get("read")
 	search := strings.ToUpper(strings.ReplaceAll(q.Get("q"), " ", ""))
 	minOver, _ := strconv.ParseFloat(q.Get("minOverKmh"), 64)
+	alarm := q.Get("alarm")
+	if !contains(cameraAlarms, alarm) {
+		alarm = ""
+	}
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	if limit <= 0 || limit > 100 {
 		limit = 50
@@ -288,16 +317,17 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 		all = kept
 	}
 
-	// Counts per kind, status and read mark, before those filters: the
-	// page's chips say what each choice would show.
+	// Counts per kind, camera alarm, status and read mark, before those
+	// filters: the page's chips say what each choice would show.
 	type countKey struct {
 		kind   string
+		alarm  string
 		status string
 		read   bool
 	}
 	counts := map[countKey]int{}
 	for _, row := range all {
-		counts[countKey{row.kind, row.stat, row.read}]++
+		counts[countKey{row.kind, row.alarm, row.stat, row.read}]++
 	}
 
 	page := []map[string]any{}
@@ -306,6 +336,9 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 		var kept []alertRow
 		for _, row := range all {
 			if kind != "all" && row.kind != kind {
+				continue
+			}
+			if alarm != "" && row.alarm != alarm {
 				continue
 			}
 			if status != "all" && row.stat != status {
@@ -338,7 +371,11 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 	if offset == 0 {
 		list := []map[string]any{}
 		for k, n := range counts {
-			list = append(list, map[string]any{"orgId": OrgID, "kind": k.kind, "status": k.status, "read": k.read, "n": n})
+			c := map[string]any{"orgId": OrgID, "kind": k.kind, "status": k.status, "read": k.read, "n": n}
+			if k.alarm != "" {
+				c["alarm"] = k.alarm
+			}
+			list = append(list, c)
 		}
 		countList = list
 	}
