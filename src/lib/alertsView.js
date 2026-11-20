@@ -79,6 +79,18 @@ export function daysWords({ fromDay, toDay }) {
 /** Speeding only: how far over the limit an episode must have gone to be listed. */
 export const OVER_BY = [0, 10, 20, 30];
 
+/**
+ * The camera alarms the page picks out on their own (operator, 2026-11-20:
+ * "a filter of alerts of No Seatbelt, Phone Use, Driver Distracted"). The ids
+ * are the server's (alerts.go cameraAlarms); "" is any alarm.
+ */
+export const CAMERA_ALARMS = [
+  { id: "", label: "Any" },
+  { id: "no_seatbelt", label: "No Seatbelt" },
+  { id: "phone_use", label: "Phone Use" },
+  { id: "driver_distracted", label: "Driver Distracted" },
+];
+
 export const KINDS = [
   { id: "all", label: "All" },
   { id: "fuel", label: "Fuel" },
@@ -126,12 +138,13 @@ export const READS = [
  * The sum of the counts that match: `orgs` (empty = every one), `kind`,
  * `status` and `read` ("all" = any). Null while there are no counts to sum.
  */
-export function countWhere(counts, { orgs = [], kind = "all", status = "all", read = "all" } = {}) {
+export function countWhere(counts, { orgs = [], kind = "all", status = "all", read = "all", alarm = "" } = {}) {
   if (!Array.isArray(counts)) return null;
   let n = 0;
   for (const c of counts) {
     if (orgs.length && !orgs.includes(c.orgId)) continue;
     if (kind !== "all" && c.kind !== kind) continue;
+    if (alarm && c.alarm !== alarm) continue;
     if (status !== "all" && c.status !== status) continue;
     if (read !== "all" && Boolean(c.read) !== (read === "read")) continue;
     n += c.n;
