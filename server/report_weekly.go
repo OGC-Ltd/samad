@@ -94,6 +94,7 @@ func tallyWeek(start, from time.Time, events []PEvent, days map[string]map[int]D
 	if from.Before(start) {
 		from = start
 	}
+	events = foldRepeats(events) // incidents, not alarms (incidents.go)
 	t := &WeekTally{Units: map[int]*WeekUnit{}}
 	unit := func(id int, plate string) *WeekUnit {
 		u := t.Units[id]
@@ -866,6 +867,7 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 		head("Drivers and their trucks", nOf(people, "driver", "drivers")+" on "+nOf(len(tl), "truck", "trucks")+" · most incidents in "+lastCol.label()+" first"),
 		lineTable(order(dl)),
 		Block{Type: "note", Text: "Incidents are the policy breaches: overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone and camera covered. No seatbelt, on phone and camera covered come from the dashcams, so only trucks with a camera can raise them."},
+		Block{Type: "note", Text: foldNote},
 		Block{Type: "note", Text: "Each incident is put on the driver the truck had that day (IntelliFleet's assignment, else the roster). A name and a shorter form of it on the same truck are one driver; " +
 			"placeholder accounts such as \"Samad DriverA\" are no driver."},
 	)

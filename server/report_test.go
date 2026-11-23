@@ -671,7 +671,7 @@ func TestShiftLikeTheSheet(t *testing.T) {
 	for _, b := range sh.Blocks {
 		types = append(types, b.Type)
 	}
-	want := "heading kpis heading table heading counts spacer groups note heading lines sign"
+	want := "heading kpis heading table heading counts spacer groups note note heading lines sign"
 	if got := strings.Join(types, " "); got != want {
 		t.Errorf("blocks:\n got %s\nwant %s", got, want)
 	}

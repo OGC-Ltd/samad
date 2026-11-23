@@ -169,7 +169,8 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 			d.DayDrivers[day][id] = st.Driver
 		}
 	}
-	for _, e := range s.store.Events() {
+	// Incidents, not alarms: repeats folded over every kept event (incidents.go).
+	for _, e := range foldRepeats(s.store.Events()) {
 		at := parseTime(e.OccurredAt)
 		kind := reportKind(e)
 		if at.IsZero() || at.Before(from) || !at.Before(to) || kind == "other" || kind == "geofence" {
@@ -382,7 +383,8 @@ func buildBreaches(d *rptData) *ReportDoc {
 	}
 	doc.Blocks = append(doc.Blocks,
 		Block{Type: "note", Text: "Overspeeding, harsh braking and harsh acceleration come from the trackers and dashcams; no seatbelt, on phone and camera covered from the dashcams, so only units with a camera can raise them."},
-		Block{Type: "note", Text: "Driver is the driver assigned to the vehicle when the report was made, who may not have been driving at the time of every breach."})
+		Block{Type: "note", Text: "Driver is the driver assigned to the vehicle when the report was made, who may not have been driving at the time of every breach."},
+		Block{Type: "note", Text: foldNote})
 	doc.Summary = map[string]any{"breaches": total, "vehicles": len(rows), "period": periodWords(d.From, d.To)}
 	return doc
 }
@@ -516,6 +518,7 @@ func buildConduct(d *rptData) *ReportDoc {
 				Rows: [][]Cell{{{Text: fmt.Sprintf("Trucks (%d)", len(plates)), Bold: true}, {Text: strings.Join(plates, ", "), Wrap: true}}}})
 	}
 	doc.Blocks = append(doc.Blocks, Block{Type: "spacer"},
+		Block{Type: "note", Text: foldNote},
 		Block{Type: "note", Text: "This is a system-generated report. For any queries about its contents, please contact OGC Monitoring at operations@offgridconsultingltd.com."})
 	doc.Summary = map[string]any{"incidents": total, "vehicles": len(per), "period": periodWords(d.From, d.To)}
 	return doc
@@ -767,6 +770,7 @@ func buildShift(d *rptData, shiftWords string) *ReportDoc {
 		Block{Type: "spacer"},
 		Block{Type: "groups", Groups: groups},
 		Block{Type: "note", Text: "On phone, no seatbelt and camera covered come from the dashcams, so only units with a camera are counted."},
+		Block{Type: "note", Text: foldNote},
 		head("Handover to the next shift", ""),
 		Block{Type: "lines", N: 4},
 		Block{Type: "sign", KPIs: []KPI{{Label: "Prepared by (outgoing operator)"}, {Label: "Received by (incoming operator)"}}},
