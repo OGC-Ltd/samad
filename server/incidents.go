@@ -21,10 +21,12 @@ const incidentWindow = 10 * time.Minute
 
 // The alarms counted as incidents (reportKind keys). Harsh braking, harsh
 // acceleration and overspeeding are single events and count one by one.
+// Camera covered is no longer in any report (2026-11-23) but folds the same,
+// should it come back.
 var foldedKinds = map[string]bool{"no_seatbelt": true, "phone": true, "camera_covered": true}
 
 // foldNote is said in every report that counts the folded alarms.
-const foldNote = "No seatbelt, On phone and Camera covered count incidents: repeats of the same alarm from one vehicle within 10 minutes of the first count once."
+const foldNote = "No seatbelt and On phone count incidents: repeats of the same alarm from one vehicle within 10 minutes of the first count once."
 
 // foldRepeats returns the events with the repeats of each incident left
 // out, in the order given. It needs every event, not just a period's: an

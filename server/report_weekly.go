@@ -4,7 +4,8 @@ package main
 // number of incidents per driver/truck … this number of incidents is to go
 // down weekly as we keep monitoring these incidents and as we change the
 // culture of the drivers"). An incident is a policy breach: overspeeding,
-// harsh braking, harsh acceleration, no seatbelt, on phone, camera covered.
+// harsh braking, harsh acceleration, no seatbelt, on phone (camera covered
+// left out since 2026-11-23, also from weeks tallied before then).
 //
 // Events and day tallies are kept 30 days (keepEventsFor), so each finished
 // week is also kept as a small tally (Store.archiveWeeks, run with the daily
@@ -72,10 +73,15 @@ func displayName(name string) string {
 	return strings.Join(words, " ")
 }
 
+// sumCounts adds up the policy breaches a tally holds. Only the kinds the
+// reports still show: a week tallied before camera covered was left out
+// (2026-11-23) still holds it, and it must not swell that week's total.
 func sumCounts(m map[string]int) int {
 	n := 0
-	for _, v := range m {
-		n += v
+	for k, v := range m {
+		if isBreachKind(k) {
+			n += v
+		}
 	}
 	return n
 }
@@ -409,7 +415,7 @@ func kindTable(lines []*wkLine, fleet map[string]int, week string) Block {
 // formulaTable is the formula behind each figure the report shows.
 func formulaTable(last, prev string) Block {
 	rows := [][]Cell{
-		{{Text: "Incidents", Bold: true}, {Text: "Count of policy-breach alarms (overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone, camera covered) in the week, each alarm once", Wrap: true}},
+		{{Text: "Incidents", Bold: true}, {Text: "Count of policy breaches (overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone) in the week; no seatbelt and on phone repeated by one truck within 10 minutes of the first count once", Wrap: true}},
 		{{Text: "Km driven", Bold: true}, {Text: "Sum of the straight-line distance between consecutive GPS positions in the week; a jump faster than 150 km/h is a GPS glitch and left out", Wrap: true}},
 		{{Text: "Incidents per 100 km", Bold: true}, {Text: "Incidents ÷ km driven × 100, rounded to a whole number", Wrap: true}},
 		{{Text: "Share of the fleet's " + last + " incidents", Bold: true}, {Text: "Driver's " + last + " incidents ÷ fleet's " + last + " incidents × 100", Wrap: true}},
@@ -866,7 +872,7 @@ func buildWeekly(cols []wkCol, vehicles map[int]PVehicle, now time.Time) *Report
 	doc.Blocks = append(doc.Blocks,
 		head("Drivers and their trucks", nOf(people, "driver", "drivers")+" on "+nOf(len(tl), "truck", "trucks")+" · most incidents in "+lastCol.label()+" first"),
 		lineTable(order(dl)),
-		Block{Type: "note", Text: "Incidents are the policy breaches: overspeeding, harsh braking, harsh acceleration, no seatbelt, on phone and camera covered. No seatbelt, on phone and camera covered come from the dashcams, so only trucks with a camera can raise them."},
+		Block{Type: "note", Text: "Incidents are the policy breaches: overspeeding, harsh braking, harsh acceleration, no seatbelt and on phone. No seatbelt and on phone come from the dashcams, so only trucks with a camera can raise them."},
 		Block{Type: "note", Text: foldNote},
 		Block{Type: "note", Text: "Each incident is put on the driver the truck had that day (IntelliFleet's assignment, else the roster). A name and a shorter form of it on the same truck are one driver; " +
 			"placeholder accounts such as \"Samad DriverA\" are no driver."},

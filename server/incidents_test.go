@@ -164,3 +164,43 @@ func TestWeeklyTallyCountsIncidents(t *testing.T) {
 		t.Errorf("next week = %d, want 1 (the repeat belongs to last week's incident)", n)
 	}
 }
+
+// Camera covered is out of every report (operator, 2026-11-23): no column,
+// not in the totals, not even from a week tallied before it was left out.
+func TestCameraCoveredInNoReport(t *testing.T) {
+	h := newHarness(t)
+	token, _ := h.login()
+	at := time.Now().Add(-2 * time.Hour)
+	evs := []PEvent{
+		incEvent("cc", 7, "camera_occlusion", at),
+		incEvent("ph", 7, "phone_use", at.Add(time.Minute)),
+	}
+	for i := range evs {
+		evs[i].Registration, evs[i].Severity = "KDA 7", "critical"
+	}
+	h.store.AddEvents(evs, "")
+	from := fmt.Sprint(time.Now().Add(-24 * time.Hour).UnixMilli())
+	for kind, field := range map[string]string{"conduct": "incidents", "breaches": "breaches"} {
+		rec := h.do("GET", "/api/v1/reports/"+kind+"/document?org=samad&from="+from, token, nil)
+		if strings.Contains(strings.ToLower(rec.Body.String()), "camera covered") {
+			t.Errorf("%s still mentions camera covered", kind)
+		}
+		var out struct{ Data ReportDoc }
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		if out.Data.Summary[field] != float64(1) {
+			t.Errorf("%s %s = %v, want 1 (the phone call only)", kind, field, out.Data.Summary[field])
+		}
+	}
+	shift := h.do("GET", "/api/v1/reports/shift/document?org=samad&day="+fleetDay(time.Now())+"&shift=day", token, nil)
+	if strings.Contains(strings.ToLower(shift.Body.String()), "camera covered") {
+		t.Error("End of Shift still mentions camera covered")
+	}
+	weekly := h.do("GET", "/api/v1/reports/weekly/document?org=samad&weeks=4", token, nil)
+	if strings.Contains(strings.ToLower(weekly.Body.String()), "camera covered") {
+		t.Error("Weekly Incidents still mentions camera covered")
+	}
+	// A week tallied before: its camera covered count stays out of the total.
+	if n := sumCounts(map[string]int{"camera_covered": 40, "phone": 2, "no_seatbelt": 1}); n != 3 {
+		t.Errorf("old tally total = %d, want 3", n)
+	}
+}
