@@ -16,7 +16,7 @@ import (
 
 // ReportDoc is one report, ready to draw.
 type ReportDoc struct {
-	Kind        string     `json:"kind"` // breaches | movements | shift | weekly | conduct | reefer
+	Kind        string     `json:"kind"` // breaches | movements | shift | weekly | conduct | reefer | compliance
 	Title       string     `json:"title"`
 	ReportNo    string     `json:"reportNo"`
 	Date        string     `json:"date"` // shown beside the number
@@ -165,7 +165,7 @@ func clean(s string) string {
 // Check tidies an edited document and refuses one that is not a report.
 func (d *ReportDoc) Check() error {
 	switch d.Kind {
-	case "breaches", "movements", "shift", "weekly", "conduct", "reefer":
+	case "breaches", "movements", "shift", "weekly", "conduct", "reefer", "compliance":
 	default:
 		return errors.New("unknown report")
 	}

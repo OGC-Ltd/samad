@@ -1,7 +1,8 @@
 // SidePanel — left sidebar: weather card, stats grid, nav, map layers.
 // Sample 2 design: cloud illustration weather, bordered stat boxes, bordered nav and layers sections.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { MENU_ROOM_EVENT } from '../../lib/menuRoom';
 import { useAppSelector, useAppActions, useCompanies } from '../../context/AppContext';
 import { useFleetLiveShared } from '../../context/FleetLiveContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -29,6 +30,11 @@ export const NAV_ITEMS = [
   { key: 'dashcam',      label: 'Camera',       icon: 'video',     permission: 'vss:alarms'       },
   // Driver Conduct, Movements, End of Shift and Weekly Incidents on the letterhead (operator, 2026-11-03).
   { key: 'reports',      label: 'Reports',      icon: 'file-analytics', permission: 'telemetry:read' },
+  // The Road Safety Standard's requirements the system measures (operator,
+  // 2026-11-23). Whoever opens Alerts opens it: alerts:read alone is held by
+  // supervisors and operators only, the other roles reach Alerts by the
+  // fuel-theft or analytics grant.
+  { key: 'compliance',   label: 'Compliance',   icon: 'shield-check', permission: ['alerts:read', 'fuel_theft:read', 'analytics:read'] },
 ];
 
 function weatherDesc(code) {
@@ -179,6 +185,30 @@ export default function SidePanel() {
 
   useEffect(() => { setUserCollapsed(null); }, [isTablet, isLaptop]);
 
+  /* A page showing a side panel beside its table asks for room
+   * (lib/menuRoom): the menu folds if open, and opens again when the panel
+   * closes, but only if it was the page that folded it. Pressing the toggle
+   * in between makes the choice the operator's again. */
+  const now = useRef({ collapsed, userCollapsed });
+  useEffect(() => { now.current = { collapsed, userCollapsed }; });
+  const foldedFor = useRef(null); // { prev }: the userCollapsed to go back to, while folded for a page
+  useEffect(() => {
+    const onRoom = (e) => {
+      if (e.detail?.need) {
+        if (!now.current.collapsed && foldedFor.current === null) {
+          foldedFor.current = { prev: now.current.userCollapsed };
+          setUserCollapsed(true);
+        }
+      } else if (foldedFor.current) {
+        const { prev } = foldedFor.current;
+        foldedFor.current = null;
+        setUserCollapsed(prev);
+      }
+    };
+    window.addEventListener(MENU_ROOM_EVENT, onRoom);
+    return () => window.removeEventListener(MENU_ROOM_EVENT, onRoom);
+  }, []);
+
   const desktopActiveTab = useAppSelector((a) => a.desktopActiveTab);
 
   const { setDesktopActiveTab } = useAppActions();
@@ -259,7 +289,7 @@ export default function SidePanel() {
         <button
           type="button"
           className="side-panel__toggle"
-          onClick={() => setUserCollapsed(collapsed ? false : true)}
+          onClick={() => { foldedFor.current = null; setUserCollapsed(collapsed ? false : true); }}
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
           title={collapsed ? 'Expand menu' : 'Collapse menu'}

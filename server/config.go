@@ -154,6 +154,13 @@ func loadConfig() (Config, error) {
 			return c, fmt.Errorf("SPEED_LIMIT_KMH: %w", err)
 		}
 	}
+	// The speed limiters' setting, for Compliance 5.2.2h (compliance.go):
+	// 70 km/h unless set; 0 leaves the row out.
+	if v := os.Getenv("SPEED_LIMITER_KMH"); v != "" {
+		if speedLimiterKmh, err = strconv.ParseFloat(v, 64); err != nil || speedLimiterKmh < 0 {
+			return c, fmt.Errorf("SPEED_LIMITER_KMH: a speed in km/h, or 0 for none")
+		}
+	}
 	var missing []string
 	for k, v := range map[string]string{
 		"PARTNER_API_KEY": c.PartnerAPIKey, "JWT_SECRET": c.JWTSecret,

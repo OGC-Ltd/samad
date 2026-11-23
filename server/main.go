@@ -159,6 +159,10 @@ func routes(s *Server, a *Auth) http.Handler {
 	in.Handle("/reports/consignments/{id}", needFunc(s.updateConsignment, "report:operations", "cargo:update")).Methods("PUT")
 	in.Handle("/reports/consignments/{id}", needFunc(s.deleteConsignment, "report:operations", "cargo:delete")).Methods("DELETE")
 	in.Handle("/reports/render", unitsVisible(needFunc(s.reportRender, "telemetry:read"))).Methods("POST")
+	// Road Safety Compliance: the standard's requirements the system measures
+	// (compliance.go). Open to whoever opens Alerts (the same grants).
+	in.Handle("/compliance", unitsVisible(needFunc(s.compliance, alerts...))).Methods("GET")
+	in.Handle("/compliance/document", unitsVisible(needFunc(s.complianceDocument, alerts...))).Methods("GET")
 
 	org := in.PathPrefix("/organisations/{org}").Subrouter()
 	org.Use(ourOrg)
