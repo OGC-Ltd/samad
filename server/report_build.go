@@ -5,7 +5,7 @@ package main
 // server"). Ported from the dashboard's lib/samadReports, rule for rule:
 //
 //	Policy Breaches  per unit: overspeeding, harsh braking, harsh acceleration,
-//	                 no seatbelt, on phone, camera covered
+//	                 no seatbelt, on phone
 //	Movements        every unit: distance in the period, where it is now, its state
 //	End of Shift     the shift at a glance, critical alarms, the breaches with
 //	                 the top units for each, and the handover
@@ -32,7 +32,8 @@ var breachKinds = []KPI{ // Label is the heading, Value the reportKind key
 	{Label: "Harsh acceleration", Value: "harsh_acceleration"},
 	{Label: "No seatbelt", Value: "no_seatbelt"},
 	{Label: "On phone", Value: "phone"},
-	{Label: "Camera covered", Value: "camera_covered"},
+	// Camera covered: out of every report since 2026-11-23 (operator: "remove
+	// the column of camera covered in all the reports"). Still on the Alerts page.
 }
 
 func isBreachKind(k string) bool {
@@ -169,7 +170,8 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 			d.DayDrivers[day][id] = st.Driver
 		}
 	}
-	for _, e := range s.store.Events() {
+	// Incidents, not alarms: repeats folded over every kept event (incidents.go).
+	for _, e := range foldRepeats(s.store.Events()) {
 		at := parseTime(e.OccurredAt)
 		kind := reportKind(e)
 		if at.IsZero() || at.Before(from) || !at.Before(to) || kind == "other" || kind == "geofence" {
@@ -381,8 +383,9 @@ func buildBreaches(d *rptData) *ReportDoc {
 			Block{Type: "table", Cols: cols, Rows: cells})
 	}
 	doc.Blocks = append(doc.Blocks,
-		Block{Type: "note", Text: "Overspeeding, harsh braking and harsh acceleration come from the trackers and dashcams; no seatbelt, on phone and camera covered from the dashcams, so only units with a camera can raise them."},
-		Block{Type: "note", Text: "Driver is the driver assigned to the vehicle when the report was made, who may not have been driving at the time of every breach."})
+		Block{Type: "note", Text: "Overspeeding, harsh braking and harsh acceleration come from the trackers and dashcams; no seatbelt and on phone from the dashcams, so only units with a camera can raise them."},
+		Block{Type: "note", Text: "Driver is the driver assigned to the vehicle when the report was made, who may not have been driving at the time of every breach."},
+		Block{Type: "note", Text: foldNote})
 	doc.Summary = map[string]any{"breaches": total, "vehicles": len(rows), "period": periodWords(d.From, d.To)}
 	return doc
 }
@@ -400,7 +403,7 @@ var conductKinds = []KPI{ // in the sheet's order
 	{Label: "Harsh braking", Value: "harsh_braking"},
 	{Label: "No seatbelt", Value: "no_seatbelt"},
 	{Label: "On phone", Value: "phone"},
-	{Label: "Camera covered", Value: "camera_covered"},
+	// Camera covered: out since 2026-11-23, as in breachKinds.
 }
 
 // typeWords is "Truck" for TRUCK.
@@ -516,7 +519,7 @@ func buildConduct(d *rptData) *ReportDoc {
 				Rows: [][]Cell{{{Text: fmt.Sprintf("Trucks (%d)", len(plates)), Bold: true}, {Text: strings.Join(plates, ", "), Wrap: true}}}})
 	}
 	doc.Blocks = append(doc.Blocks, Block{Type: "spacer"},
-		Block{Type: "note", Text: "This is a system-generated report. For any queries about its contents, please contact OGC Monitoring at operations@offgridconsultingltd.com."})
+		Block{Type: "note", Text: foldNote})
 	doc.Summary = map[string]any{"incidents": total, "vehicles": len(per), "period": periodWords(d.From, d.To)}
 	return doc
 }
@@ -766,7 +769,8 @@ func buildShift(d *rptData, shiftWords string) *ReportDoc {
 		Block{Type: "counts", KPIs: strip},
 		Block{Type: "spacer"},
 		Block{Type: "groups", Groups: groups},
-		Block{Type: "note", Text: "On phone, no seatbelt and camera covered come from the dashcams, so only units with a camera are counted."},
+		Block{Type: "note", Text: "On phone and no seatbelt come from the dashcams, so only units with a camera are counted."},
+		Block{Type: "note", Text: foldNote},
 		head("Handover to the next shift", ""),
 		Block{Type: "lines", N: 4},
 		Block{Type: "sign", KPIs: []KPI{{Label: "Prepared by (outgoing operator)"}, {Label: "Received by (incoming operator)"}}},

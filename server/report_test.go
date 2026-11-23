@@ -526,15 +526,15 @@ func TestWeeklyIncidents(t *testing.T) {
 			t.Errorf("drivers better / worse / same: %v", b.KPIs[3])
 		}
 	}
-	// What each did in Wk 44. Columns: driver, the six kinds, all, most committed.
+	// What each did in Wk 44. Columns: driver, the five kinds (camera covered left out), all, most committed.
 	kinds := tableAfter(doc, "What each driver did, Wk 44")
-	if r := row(kinds, "Mary Ann"); r[2].Text != "2" || r[7].Text != "2" || r[8].Text != "Harsh braking (100.0%)" {
+	if r := row(kinds, "Mary Ann"); r[2].Text != "2" || r[6].Text != "2" || r[7].Text != "Harsh braking (100.0%)" {
 		t.Errorf("Mary by kind: %+v", r)
 	}
-	if r := row(kinds, "John Doe"); r[5].Text != "1" || r[8].Text != "On phone (100.0%)" {
+	if r := row(kinds, "John Doe"); r[5].Text != "1" || r[7].Text != "On phone (100.0%)" {
 		t.Errorf("John by kind: %+v", r)
 	}
-	if r := kinds[len(kinds)-1]; r[0].Text != "Whole fleet" || r[4].Text != "3" || r[7].Text != "6" || r[8].Text != "No seatbelt (50.0%)" {
+	if r := kinds[len(kinds)-1]; r[0].Text != "Whole fleet" || r[4].Text != "3" || r[6].Text != "6" || r[7].Text != "No seatbelt (50.0%)" {
 		t.Errorf("fleet by kind: %+v", r)
 	}
 	if doc.Date != eat(now).Format("02/01/2006") {
@@ -620,7 +620,7 @@ func TestWeeklyOneLinePerDriver(t *testing.T) {
 	// Wk 43 is on record from Wednesday 21 Oct: Monday's incident is left
 	// out with Monday's km, so 1 incident over 1,500 km.
 	fleet := tableAfter(doc, "The fleet, week by week")
-	if r := fleet[0]; r[0].Text != "Wk 43" || r[8].Text != "1" || r[10].Text != "0" || r[11].Text != "First week on record" {
+	if r := fleet[0]; r[0].Text != "Wk 43" || r[7].Text != "1" || r[9].Text != "0" || r[10].Text != "First week on record" { // five kinds: camera covered left out
 		t.Errorf("Wk 43: %+v", r)
 	}
 	found := false
@@ -671,7 +671,7 @@ func TestShiftLikeTheSheet(t *testing.T) {
 	for _, b := range sh.Blocks {
 		types = append(types, b.Type)
 	}
-	want := "heading kpis heading table heading counts spacer groups note heading lines sign"
+	want := "heading kpis heading table heading counts spacer groups note note heading lines sign"
 	if got := strings.Join(types, " "); got != want {
 		t.Errorf("blocks:\n got %s\nwant %s", got, want)
 	}

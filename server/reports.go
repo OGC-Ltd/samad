@@ -251,7 +251,7 @@ func (s *Server) reportFleet(w http.ResponseWriter, r *http.Request) {
 	all := s.store.Events()
 	events := []map[string]any{}
 	kept := now
-	for _, e := range all {
+	for _, e := range foldRepeats(all) { // incidents, not alarms (incidents.go)
 		at := parseTime(e.OccurredAt)
 		if !at.IsZero() && at.Before(kept) {
 			kept = at
