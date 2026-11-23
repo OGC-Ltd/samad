@@ -191,7 +191,7 @@ func TestPopupLiveOnlyForAlertReaders(t *testing.T) {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/v1/organisations/samad/live", nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/api/v1/organisations/samad/live", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
