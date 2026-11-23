@@ -1,0 +1,174 @@
+/* Taken from raitrack 2026-11-23 (its stop pop-ups), for Samad's alarm pop-ups (server/popups.go).
+ * Hallmark · component: toast stack (server toasts: stops + pushes) · genre: modern-minimal · theme: the app's own (sp4 light)
+ * states (copy/open/dismiss): default · hover · focus (ring) · active (pressed in)
+ *   · disabled · loading (none: instant) · error (could not copy) · success (copied)
+ * contrast: text on paper ≥ 4.5:1, focus ring ≥ 3:1
+ * redesign: full · 2026-11-11 · sized and laid out as the desktop notification card: 360px, 48px tile, 14/13px type
+ * Hallmark · pre-emit critique: P4 H5 E5 S5 R5 V4
+ * waive 7b, 74 · white paper and the slate inks are the app's own palette (header menus, map cards, sign-in); one component does not recolour away from it
+ */
+:root {
+  /* The toast's colours, named once */
+  --tst-paper: #fff;
+  --tst-paper-hover: #f5f7fa;
+  --tst-paper-press: #e6e9ee;
+  --tst-ink: #0f172a;
+  --tst-ink-2: #334155;
+  --tst-ink-3: #64748b;
+  --tst-rule: #94a3b8;
+  --tst-rule-soft: #cbd5e1;
+  --tst-act: #0369a1;
+  --tst-warn: #8a3d07;
+  --tst-crit: #b91c1c;
+  --tst-ok: #15803d;
+  --tst-shade: rgb(15 23 42 / 0.4);
+  --tst-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tst-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 10050;
+  display: grid;
+  /* One card at a time, the newest (lib/toasts) */
+  /* The desktop notification card's width (operator, 11 Nov 2026) */
+  width: min(360px, calc(100vw - 40px));
+}
+
+.tst {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 12px 16px 16px;
+  border: 1px solid var(--tst-rule-soft);
+  border-radius: 8px;
+  background: var(--tst-paper);
+  color: var(--tst-ink-2);
+  font-size: 13px;
+  box-shadow: 0 8px 24px -12px var(--tst-shade);
+  animation: tst-in 180ms var(--tst-ease);
+}
+@keyframes tst-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The tile on the left, the size of the desktop card's picture */
+.tst__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tst-act) 10%, var(--tst-paper));
+  color: var(--tst-act);
+}
+.tst--warning .tst__mark { background: color-mix(in srgb, var(--tst-warn) 10%, var(--tst-paper)); color: var(--tst-warn); }
+.tst--critical .tst__mark { background: color-mix(in srgb, var(--tst-crit) 10%, var(--tst-paper)); color: var(--tst-crit); }
+.tst--success .tst__mark { background: color-mix(in srgb, var(--tst-ok) 10%, var(--tst-paper)); color: var(--tst-ok); }
+.tst__mark .ti { font-size: 24px; }
+
+.tst__text { display: grid; gap: 2px; flex: 1; min-width: 0; line-height: 1.4; }
+.tst__text b { font-size: 14px; font-weight: 600; color: var(--tst-ink); overflow-wrap: anywhere; }
+.tst__text span { overflow-wrap: anywhere; white-space: pre-line; }
+.tst__acts { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+/* The 8 seconds left, as a hairline along the foot that runs down */
+.tst__life {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--tst-act);
+  transform-origin: left center;
+  animation: tst-life linear forwards;
+}
+.tst--warning .tst__life { background: var(--tst-warn); }
+.tst--critical .tst__life { background: var(--tst-crit); }
+.tst--success .tst__life { background: var(--tst-ok); }
+@keyframes tst-life {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.tst-stack:hover .tst__life,
+.tst-stack:focus-within .tst__life { animation-play-state: paused; }
+
+/* Copy: a quiet square beside Open, the same height, so Open stays the lead */
+.tst__copy {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--tst-rule-soft);
+  border-radius: 6px;
+  background: none;
+  color: var(--tst-ink-3);
+  cursor: pointer;
+  transition: color 120ms var(--tst-ease), border-color 120ms var(--tst-ease), background-color 120ms var(--tst-ease);
+}
+.tst__copy .ti { font-size: 15px; }
+.tst__copy:hover { color: var(--tst-ink); border-color: var(--tst-rule); background: var(--tst-paper-hover); }
+.tst__copy:active { background: var(--tst-paper-press); transform: translateY(1px); }
+.tst__copy:disabled { opacity: 0.45; cursor: default; }
+.tst__copy--copied,
+.tst__copy--copied:hover { color: var(--tst-ok); border-color: var(--tst-ok); background: none; }
+.tst__copy--failed,
+.tst__copy--failed:hover { color: var(--tst-crit); border-color: var(--tst-crit); background: none; }
+
+.tst__open {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--tst-act);
+  border-radius: 6px;
+  background: none;
+  color: var(--tst-act);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tst__open:hover { background: color-mix(in srgb, var(--tst-act) 8%, transparent); }
+.tst__open:active { background: color-mix(in srgb, var(--tst-act) 14%, transparent); }
+.tst__open:focus-visible,
+.tst__copy:focus-visible,
+.tst__x:focus-visible { outline: 2px solid var(--tst-act); outline-offset: 1px; }
+
+.tst__x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -8px -4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--tst-ink-3);
+  cursor: pointer;
+}
+.tst__x .ti { font-size: 14px; }
+.tst__x:hover { color: var(--tst-ink); background: var(--tst-paper-hover); }
+.tst__x:active { background: var(--tst-paper-press); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tst { animation: none; }
+  .tst__copy { transition: none; }
+  .tst__copy:active { transform: none; }
+}
+@media (max-width: 767px) {
+  /* Clear of the 52px bottom tab bar (layout/MobileTabBar) */
+  .tst-stack { left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: auto; }
+  /* Finger-sized on a phone */
+  .tst__copy { width: 36px; height: 36px; }
+  .tst__open { height: 36px; }
+}

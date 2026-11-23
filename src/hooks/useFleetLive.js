@@ -24,6 +24,7 @@ import { dismissIncident } from '../lib/fuelDismissals'
 import { followUpsChanged } from '../lib/fuelFollowUps'
 import { accessChanged } from '../lib/accessChanged'
 import { createFrameStore } from '../lib/positionDelta'
+import { receiveServerToast } from '../lib/serverToasts'
 
 const fleetCacheKey = (companyId) => `ft-fleet:${companyId}`
 const orgCacheKey   = (companyId) => `ft-org:${companyId}`
@@ -343,6 +344,12 @@ export function useFleetLive(companyId, { keepFeed = false } = {}) {
     })
     /* A follow-up on a deleted fuel alert opened, changed hands or was decided
        (lib/fuelFollowUps). The frame only names it; readers re-read. */
+    /* An alarm pop-up (server/popups.go: Phone Use, No Seatbelt, Driver
+       Distracted, Overspeeding), already grouped by the server and sent only
+       to those who may read alerts. Stacked by components/shared/ToastStack. */
+    es.addEventListener('toast', (e) => {
+      try { receiveServerToast(JSON.parse(e.data)) } catch { /* ignore malformed frame */ }
+    })
     es.addEventListener('fuel_followup', () => { followUpsChanged() })
     /* A repair job changed for anybody in this organisation: the Repairs tab
        and the Fuel Audit read it again. */
