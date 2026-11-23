@@ -518,8 +518,7 @@ func buildConduct(d *rptData) *ReportDoc {
 				Rows: [][]Cell{{{Text: fmt.Sprintf("Trucks (%d)", len(plates)), Bold: true}, {Text: strings.Join(plates, ", "), Wrap: true}}}})
 	}
 	doc.Blocks = append(doc.Blocks, Block{Type: "spacer"},
-		Block{Type: "note", Text: foldNote},
-		Block{Type: "note", Text: "This is a system-generated report. For any queries about its contents, please contact OGC Monitoring at operations@offgridconsultingltd.com."})
+		Block{Type: "note", Text: foldNote})
 	doc.Summary = map[string]any{"incidents": total, "vehicles": len(per), "period": periodWords(d.From, d.To)}
 	return doc
 }
