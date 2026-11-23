@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LIFE_MS, MAX_BEHIND, addToast, dismissToast, pauseToasts, resetToasts, toastsSnapshot } from './toasts';
+import { MAX_BEHIND, addToast, dismissAllToasts, dismissToast, resetToasts, subscribeToasts, toastsSnapshot } from './toasts';
 
-const t = (id) => ({ id, kind: 'push', level: 'info', title: id, body: '' });
+const t = (id) => ({ id, kind: 'alarm', level: 'critical', title: id, body: '' });
 const front = () => toastsSnapshot().front?.id ?? null;
 
-describe('toast queue', () => {
+describe('pop-up queue', () => {
   beforeEach(() => { vi.useFakeTimers(); resetToasts(); });
   afterEach(() => { resetToasts(); vi.useRealTimers(); });
 
@@ -12,61 +12,52 @@ describe('toast queue', () => {
     for (const id of ['a', 'b', 'c']) addToast(t(id));
     expect(front()).toBe('c');
     expect(toastsSnapshot().behind).toBe(2);
+  });
+
+  it('keeps a card until it is closed: no timer', () => {
+    addToast(t('a'));
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    expect(front()).toBe('a');
+  });
+
+  it('brings the next newest forward when the front one is closed', () => {
+    for (const id of ['a', 'b', 'c']) addToast(t(id));
     dismissToast('c');
     expect(front()).toBe('b');
-    dismissToast('b');
-    expect(front()).toBe('a');
-    dismissToast('a');
-    expect(front()).toBe(null);
-  });
-
-  it('runs only the front clock, and gives a toast that comes forward its full 8 seconds', () => {
-    addToast(t('a'));
-    vi.advanceTimersByTime(6_000);
-    addToast(t('b'));                       // a waits behind, its clock stopped
-    vi.advanceTimersByTime(LIFE_MS - 1);
+    expect(toastsSnapshot().behind).toBe(1);
+    dismissToast('a'); // one behind can be closed too
     expect(front()).toBe('b');
-    vi.advanceTimersByTime(1);
-    expect(front()).toBe('a');              // b ran out; a comes forward
-    vi.advanceTimersByTime(LIFE_MS - 1);
-    expect(front()).toBe('a');
-    vi.advanceTimersByTime(1);
-    expect(front()).toBe(null);
-  });
-
-  it('drops the oldest behind once too many wait', () => {
-    for (let i = 0; i <= MAX_BEHIND + 2; i += 1) addToast(t(`n${i}`));
-    expect(toastsSnapshot().behind).toBe(MAX_BEHIND);
-    expect(front()).toBe(`n${MAX_BEHIND + 2}`);
-  });
-
-  it('shows a toast once, however often it arrives', () => {
-    expect(addToast(t('a'))).toBe(true);
-    expect(addToast(t('a'))).toBe(false);
     expect(toastsSnapshot().behind).toBe(0);
   });
 
-  it('stands still while paused', () => {
-    addToast(t('a'));
-    vi.advanceTimersByTime(5_000);
-    pauseToasts(true);
-    vi.advanceTimersByTime(60_000);
-    expect(front()).toBe('a');
-    pauseToasts(false);
-    vi.advanceTimersByTime(2_999);
-    expect(front()).toBe('a');
-    vi.advanceTimersByTime(1);
+  it('closes them all at once', () => {
+    for (const id of ['a', 'b', 'c']) addToast(t(id));
+    dismissAllToasts();
+    expect(front()).toBe(null);
+    expect(toastsSnapshot().behind).toBe(0);
+  });
+
+  it('shows a card once, even if the stream sends it again', () => {
+    expect(addToast(t('a'))).toBe(true);
+    expect(addToast(t('a'))).toBe(false);
+    dismissToast('a');
+    expect(addToast(t('a'))).toBe(false); // closed stays closed
     expect(front()).toBe(null);
   });
 
-  it('holds a newer toast too when it arrives under the pointer', () => {
+  it('drops the oldest beyond MAX_BEHIND', () => {
+    for (let i = 0; i < MAX_BEHIND + 5; i++) addToast(t(`x${i}`));
+    expect(toastsSnapshot().behind).toBe(MAX_BEHIND);
+    expect(front()).toBe(`x${MAX_BEHIND + 4}`);
+  });
+
+  it('tells listeners of every change', () => {
+    const heard = vi.fn();
+    const off = subscribeToasts(heard);
     addToast(t('a'));
-    pauseToasts(true);
-    addToast(t('b'));
-    vi.advanceTimersByTime(60_000);
-    expect(front()).toBe('b');
-    pauseToasts(false);
-    vi.advanceTimersByTime(LIFE_MS);
-    expect(front()).toBe('a');
+    dismissToast('a');
+    dismissAllToasts(); // nothing left: no news
+    off();
+    expect(heard).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,4 +1,5 @@
 /* Taken from raitrack 2026-11-23 (its stop pop-ups), for Samad's alarm pop-ups (server/popups.go).
+ * Samad: no timer, so no countdown line; a "+N more · Close all" row instead.
  * Hallmark · component: toast stack (server toasts: stops + pushes) · genre: modern-minimal · theme: the app's own (sp4 light)
  * states (copy/open/dismiss): default · hover · focus (ring) · active (pressed in)
  *   · disabled · loading (none: instant) · error (could not copy) · success (copied)
@@ -77,26 +78,36 @@
 .tst__text span { overflow-wrap: anywhere; white-space: pre-line; }
 .tst__acts { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 
-/* The 8 seconds left, as a hairline along the foot that runs down */
-.tst__life {
+/* No timer (a card stays until closed): how many wait behind it, and Close all */
+.tst__more {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
-  background: var(--tst-act);
-  transform-origin: left center;
-  animation: tst-life linear forwards;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px 6px 16px;
+  border-top: 1px solid var(--tst-rule-soft);
+  background: var(--tst-paper-hover);
+  color: var(--tst-ink-3);
+  font-size: 12px;
+  font-weight: 600;
 }
-.tst--warning .tst__life { background: var(--tst-warn); }
-.tst--critical .tst__life { background: var(--tst-crit); }
-.tst--success .tst__life { background: var(--tst-ok); }
-@keyframes tst-life {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
+.tst:has(.tst__more) { padding-bottom: 52px; }
+.tst__all {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--tst-act);
+  font: inherit;
+  cursor: pointer;
 }
-.tst-stack:hover .tst__life,
-.tst-stack:focus-within .tst__life { animation-play-state: paused; }
+.tst__all:hover { background: color-mix(in srgb, var(--tst-act) 8%, transparent); text-decoration: underline; }
+.tst__all:active { background: color-mix(in srgb, var(--tst-act) 14%, transparent); }
+.tst__all:focus-visible { outline: 2px solid var(--tst-act); outline-offset: 1px; }
 
 /* Copy: a quiet square beside Open, the same height, so Open stays the lead */
 .tst__copy {
