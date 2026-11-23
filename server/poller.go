@@ -15,10 +15,13 @@ type Poller struct {
 	client *PartnerClient
 	store  *Store
 	hub    *Hub
-	popups *Popups // nil: no pop-ups
+	popups *Popups       // nil: no pop-ups
+	fills  chan hoursGap // silences for the hours worker (hours_gap.go); nil: none filled
 }
 
 func (p *Poller) Run(ctx context.Context) {
+	p.fills = make(chan hoursGap, hoursFillQueue)
+	go p.fillHours(ctx)
 	p.reference(ctx)
 	p.positions(ctx)
 	// The live tally (Store.tally) starts from this first read; the history
@@ -74,6 +77,10 @@ func (p *Poller) positions(ctx context.Context) {
 		log.Printf("poll positions: %v", err)
 		return
 	}
+	// A reading after a silence: its count waits while the background worker
+	// reads what the tracker recorded in it (hours_gap.go), so a dead zone is
+	// not taken for a break. The map is not held up.
+	p.queueHourFills(list)
 	for _, v := range p.store.ApplyPositions(list) {
 		p.publish("position", positionFrame(v))
 	}
