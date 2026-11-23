@@ -85,6 +85,9 @@ type Store struct {
 	byID      map[string]bool
 	roster    map[string]rosterEntry
 	hoursNew  []PEvent // breaches not yet sent (TakeHours)
+	// Vehicles whose silence is being filled from history (hours_gap.go):
+	// their live readings move the map but wait to be counted.
+	hoursFilling map[int]bool
 }
 
 // How long received alerts are kept.
@@ -217,7 +220,9 @@ func (s *Store) tally(v PVehicle) {
 	on := p.Engine == "on"
 	prev, had := s.fixes[v.VehicleID]
 	s.fixes[v.VehicleID] = lastFix{at: at, lat: p.Latitude, lng: p.Longitude, on: on}
-	s.hoursNew = append(s.hoursNew, s.hoursFix(v, at)...)
+	if !s.hoursFilling[v.VehicleID] {
+		s.hoursNew = append(s.hoursNew, s.hoursFix(v, at)...)
+	}
 	if !had || !at.After(prev.at) {
 		return
 	}
