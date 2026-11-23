@@ -1,0 +1,273 @@
+/* Road Safety Compliance — only what SensorPanel.scss and SystemScreen.scss
+ * do not own (the filter bar, chips, search, ghost buttons, the side panel).
+ * Everything named .cmp-* is this page's own, after compliance-mockup-v2.
+ *
+ * Hallmark · component: compliance page · genre: modern-minimal
+ * theme: sp4 tokens (light and dark come with them)
+ * states: row — default · hover · focus (keyboard) · open; period — picked;
+ *         table — loading · stale (dimmed while a new period loads) · empty
+ *         under the filters · error.
+ * palette: Met --sp4-ok, 60–99 % --sp4-warn, under 60 % --sp4-crit, not
+ *          measured --sp4-text-4; every pill also says its figure or word, so
+ *          none is read by colour alone. */
+
+.cmp-root {
+  /* Top fixed at 16px: the gutter grows to 64px on a wide screen, too much
+     above the title (operator, 2026-11-23). The sides keep it. */
+  padding: 16px var(--sp4-gutter, 24px) 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4-md, 16px);
+  /* Fills the tab panel (a flex column, App.scss .app-tab-panel), so the
+     table below can take the height that is left. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A row's panel open: the page stops short of it (DetailSidebar's 420px,
+   fixed down the right) instead of running under it. A phone keeps the
+   panel as a full-width sheet over the page. */
+@media (min-width: 768px) {
+  .cmp-root--panel { padding-right: calc(420px + 16px + 16px); }
+  /* The panel floats as a card, clear of the top bar and the screen's edge
+     (operator, 2026-11-23), like the cards on the page. */
+  .dsb.cmp-panel {
+    top: calc(var(--app-header-h, 52px) + 16px);
+    right: 16px;
+    bottom: 16px;
+    border: 1px solid var(--sp4-line-hi, #2e3440);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.10);
+  }
+  .app--light .dsb.cmp-panel { border-color: #e6e9ee; }
+}
+
+.cmp-tone--met { --cmp-c: var(--sp4-ok); }
+.cmp-tone--amber { --cmp-c: var(--sp4-warn); }
+.cmp-tone--red { --cmp-c: var(--sp4-crit); }
+.cmp-tone--none { --cmp-c: var(--sp4-text-4); }
+
+/* Header: title and period on the left, picker and Export on the right */
+.cmp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp4-md, 16px);
+}
+.cmp-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--sp4-text-1); }
+.cmp-head__acts { display: flex; flex-wrap: wrap; gap: var(--sp4-sm, 8px); align-items: center; }
+
+.cmp-seg {
+  display: inline-flex;
+  border: 1px solid var(--sp4-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--sp4-surface);
+}
+.cmp-seg__btn {
+  padding: 7px 14px;
+  border: 0;
+  border-left: 1px solid var(--sp4-line);
+  background: none;
+  color: var(--sp4-text-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cmp-seg__btn:first-child { border-left: 0; }
+.cmp-seg__btn:hover { background: var(--sp4-raised); }
+.cmp-seg__btn--on { color: var(--sp4-accent); font-weight: 600; background: color-mix(in srgb, var(--sp4-accent) 8%, var(--sp4-surface)); }
+.cmp-seg__btn:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
+
+/* Summary cards */
+.cmp-cards {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(110px, 0.7fr)) minmax(220px, 1.6fr);
+  gap: var(--sp4-sm, 12px);
+}
+@media (max-width: 1100px) { .cmp-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .cmp-cards { grid-template-columns: minmax(0, 1fr); } }
+.cmp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--sp4-line);
+  border-radius: 10px;
+  background: var(--sp4-surface);
+  min-width: 0;
+}
+.cmp-card--ring { flex-direction: row; align-items: center; gap: 16px; }
+.cmp-big { font-size: 28px; font-weight: 700; color: var(--sp4-text-1); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cmp-card--ring .cmp-big { display: block; font-size: 32px; }
+.cmp-label { color: var(--sp4-text-3); font-size: 13px; }
+.cmp-label--caps { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; font-weight: 600; }
+.cmp-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--cmp-c); vertical-align: 1px; }
+.cmp-dot--accent { background: var(--sp4-accent); }
+
+.cmp-ring__track { fill: none; stroke: var(--sp4-line); stroke-width: 9; }
+.cmp-ring__value { fill: none; stroke: var(--cmp-c); stroke-width: 9; stroke-linecap: round; }
+
+.cmp-card--cats { justify-content: center; }
+.cmp-cat { display: grid; grid-template-columns: 90px minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 13px; color: var(--sp4-text-2); }
+.cmp-cat b { text-align: right; color: var(--sp4-text-1); font-variant-numeric: tabular-nums; }
+
+/* A bar: the share of the width the figure is */
+.cmp-bar { display: block; height: 6px; border-radius: 3px; background: var(--sp4-line); overflow: hidden; }
+.cmp-bar > span { display: block; height: 100%; background: var(--cmp-c); border-radius: 3px; }
+
+/* Filters: one row. The bar's own padding is the page gutter (64px on a
+   wide screen), already round the page: a plain inset here. */
+.cmp-root .sp4-filterbar { padding: 10px 14px; border-radius: 10px; }
+.cmp-search { min-width: 260px; }
+.cmp-unit { display: inline-flex; align-items: center; gap: 8px; }
+.cmp-unit select {
+  height: 30px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--sp4-line);
+  border-radius: 999px;
+  background: var(--sp4-surface);
+  color: var(--sp4-text-1);
+  font: inherit;
+  font-size: 13px;
+}
+.cmp-unit select:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: 1px; }
+
+/* The table, grouped by category */
+/* The table takes the rest of the page's height, down to its foot, and
+   scrolls inside only past that (operator, 2026-11-23: "the page height
+   expanded a bit down"). The header row stays in view while it scrolls. */
+.cmp-table-wrap {
+  flex: 1 1 auto;
+  min-height: 260px;
+  border: 1px solid var(--sp4-line);
+  border-radius: 10px;
+  background: var(--sp4-surface);
+  overflow: auto;
+}
+.cmp-table thead th { position: sticky; top: 0; z-index: 1; background: var(--sp4-surface); }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp-table thead th {
+  padding: 10px 14px;
+  text-align: left;
+  color: var(--sp4-label, var(--sp4-text-3));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--sp4-line);
+}
+.cmp-table td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid var(--sp4-line); color: var(--sp4-text-2); }
+.cmp-table tbody tr:last-child td { border-bottom: 0; }
+
+/* The category tabs over the table (operator, 2026-11-23): one category at
+   a time; each tab says its count and its compliance. */
+.cmp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--sp4-line); margin-bottom: -8px; }
+.cmp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--sp4-text-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cmp-tab:hover { color: var(--sp4-text-1); }
+.cmp-tab--on { color: var(--sp4-accent); border-bottom-color: var(--sp4-accent); font-weight: 600; }
+.cmp-tab:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
+.cmp-tab__n { padding: 0 7px; border-radius: 999px; background: var(--sp4-raised); color: var(--sp4-text-3); font-size: 12px; font-weight: 600; }
+.cmp-tab__pct { color: color-mix(in srgb, var(--cmp-c) 80%, var(--sp4-text-1)); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.cmp-row { cursor: pointer; }
+.cmp-row:hover td { background: var(--sp4-raised); }
+.cmp-row:focus-visible { outline: 2px solid var(--sp4-accent); outline-offset: -2px; }
+.cmp-row--open td { background: color-mix(in srgb, var(--sp4-accent) 6%, var(--sp4-surface)); }
+.cmp-row--open td:first-child { box-shadow: inset 3px 0 0 var(--sp4-accent); }
+/* No reference column (operator, 2026-11-23): the requirement leads. */
+.cmp-table td.cmp-req { color: var(--sp4-text-1); font-weight: 500; }
+.cmp-most { color: var(--sp4-text-2); }
+.cmp-muted { color: var(--sp4-text-3); }
+
+.cmp-comp { display: grid; gap: 6px; width: 104px; }
+.cmp-pill {
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--cmp-c) 80%, var(--sp4-text-1));
+  background: color-mix(in srgb, var(--cmp-c) 14%, var(--sp4-surface));
+  white-space: nowrap;
+}
+
+.cmp-stale { opacity: 0.6; transition: opacity 120ms; }
+
+/* The side panel's own parts */
+/* "11 of 12 trucks were OK this week → 91%", then what OK means */
+.cmp-plain { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sp4-text-1); }
+.cmp-plain b { font-weight: 700; }
+.cmp-plain-ok { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--sp4-text-2); }
+.cmp-plain-since { margin: 8px 0 0; font-size: 12px; }
+.cmp-panel-kind { color: var(--sp4-accent); font-weight: 600; font-size: 13px; }
+.cmp-panel-figure { display: grid; gap: 2px; margin-bottom: 12px; }
+.cmp-panel-figure b { font-size: 26px; color: var(--sp4-text-1); font-variant-numeric: tabular-nums; }
+.cmp-panel-figure span { color: var(--sp4-text-3); font-size: 13px; }
+
+.cmp-days { display: flex; align-items: flex-end; gap: 6px; height: 72px; }
+.cmp-days__col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; }
+.cmp-days__bar { width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--sp4-crit) 45%, var(--sp4-surface)); }
+.cmp-days__bar--zero { background: color-mix(in srgb, var(--sp4-ok) 35%, var(--sp4-surface)); }
+.cmp-days__label { color: var(--sp4-text-3); font-size: 11px; }
+
+.cmp-units { list-style: none; margin: 0; padding: 0; }
+// A section heading's right-hand label (over the figures beneath it).
+.cmp-aside { margin-left: auto; }
+.cmp-units li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--sp4-line);
+  font-size: 13px;
+  color: var(--sp4-text-2);
+}
+.cmp-units li:last-child { border-bottom: 0; }
+
+// The side panel's units: a unit with incidents opens to list them.
+.cmp-units--open > li { display: block; padding: 0; }
+.cmp-urow {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 0;
+  font: inherit; font-size: 13px; color: var(--sp4-text-2); text-align: left;
+}
+.cmp-urow > span { flex: 1; min-width: 0; }
+.cmp-urow--btn { background: none; border: 0; cursor: pointer; border-radius: 4px; }
+.cmp-urow--btn:hover > span { color: var(--sp4-text-1); }
+.cmp-urow--btn:focus-visible { outline: 2px solid var(--sp4-accent, #3b82f6); outline-offset: 2px; }
+.cmp-urow--btn .ti { color: var(--sp4-text-3); font-size: 14px; }
+.cmp-items {
+  list-style: none; margin: 0 0 10px 22px; padding: 0 0 0 10px;
+  border-left: 2px solid var(--sp4-line);
+}
+.cmp-units .cmp-items li {
+  display: grid; gap: 2px; padding: 6px 0;
+  border-bottom: 0; font-size: 12.5px;
+}
+.cmp-items__when { color: var(--sp4-text-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cmp-items__what { color: var(--sp4-text-2); }
+.cmp-items a { color: var(--sp4-accent, #3b82f6); }
+.cmp-units b { color: var(--sp4-text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { .cmp-stale { transition: none; } }
+@media (max-width: 767px) {
+  .cmp-root { padding: 16px; }
+  .cmp-search { min-width: 0; }
+}

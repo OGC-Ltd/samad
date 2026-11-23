@@ -31,6 +31,7 @@ import DriversScreen     from './components/screens/DriversScreen';
 import AlertsScreen      from './components/screens/AlertsScreen';
 import DashcamIncidentsScreen from './components/screens/DashcamIncidentsScreen';
 import ReportsScreen from './components/screens/ReportsScreen';
+import ComplianceScreen from './components/screens/ComplianceScreen';
 
 // Auth + account screens
 import LoginScreen       from './components/screens/LoginScreen';
@@ -186,6 +187,14 @@ function AppShell() {
             </div>
           )}
 
+          {show('compliance') && (
+            <div className="app-tab-panel app-tab-panel--screen">
+              <ErrorBoundary label="Compliance" fullSection>
+                <ComplianceScreen />
+              </ErrorBoundary>
+            </div>
+          )}
+
           {allowedTabs.length === 0 && (
             <div className="app-tab-panel app-tab-panel--screen">
               <TabEmptyState
@@ -226,7 +235,7 @@ function AppShell() {
           // the unit comes back when the list closes.
           // Drivers as well (operator, 2026-10-03: "do the same with the
           // drivers page") — so the panel now takes width on the map only.
-          const panelAllowed = !['alerts', 'drivers', 'dashcam', 'reports'].includes(desktopActiveTab)
+          const panelAllowed = !['alerts', 'drivers', 'dashcam', 'reports', 'compliance'].includes(desktopActiveTab)
             && !fuelAlertsOpen;
           const selectedVehicle = selectedVehicleId && panelAllowed
             ? _liveVehicles.find(v => v.id === selectedVehicleId) ?? { id: selectedVehicleId }

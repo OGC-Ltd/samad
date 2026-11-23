@@ -15,13 +15,14 @@
  *   itemKey   which row is open: a new one starts at the top of the panel
  *   footer    actions that belong to the item (map, export), pinned at the foot
  *   wide      for content drawn to a chart's width (Fuel FSL's day trace)
+ *   className a page's own look for the frame (Compliance floats it as a card)
  */
 
 import { useEffect, useRef } from "react";
 import { claimSidePanel, onSidePanelClaim } from "../../lib/sidePanels";
 import "./DetailSidebar.scss";
 
-export default function DetailSidebar({ title, label, itemKey, onClose, footer = null, wide = false, children }) {
+export default function DetailSidebar({ title, label, itemKey, onClose, footer = null, wide = false, className = "", children }) {
   const body = useRef(null);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function DetailSidebar({ title, label, itemKey, onClose, footer =
   }, []);
 
   return (
-    <aside className={"dsb" + (wide ? " dsb--wide" : "")} role="dialog" aria-label={label ?? title}>
+    <aside className={"dsb" + (wide ? " dsb--wide" : "") + (className ? ` ${className}` : "")} role="dialog" aria-label={label ?? title}>
       <header className="dsb__head">
         <span className="dsb__title">{title}</span>
         <button type="button" className="dsb__x" onClick={onClose} aria-label={`Close ${String(title).toLowerCase()}`}>×</button>

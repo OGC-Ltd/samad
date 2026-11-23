@@ -48,7 +48,8 @@ const (
 	dailyRestNeeded = 11 * time.Hour
 	weekRestNeeded  = 24 * time.Hour
 
-	hoursKeepDays = 21
+	// Five weeks: Compliance shows each requirement's last four (compliance.go).
+	hoursKeepDays = 35
 )
 
 // The rules, as the feed names them (alertType HOURS_*).
