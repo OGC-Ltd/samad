@@ -196,3 +196,36 @@ func (p *Poller) fillHours(ctx context.Context) {
 		}
 	}
 }
+
+// DrivingStretches is each vehicle's continuous driving at now: the driving
+// since its last stop of 30 min or more, the stretch the 4.5 h break rule
+// counts (hoursCheck), for the Movements report (operator, 2026-11-23). A
+// vehicle stopped, or silent, for 30 min or more has had its break: 0. A
+// vehicle not yet monitored is missing.
+func (s *Store) DrivingStretches(now time.Time) map[int]float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := map[int]float64{}
+	if s.p.Hours == nil {
+		return out
+	}
+	for id, st := range s.p.Hours.Vehicles {
+		// When it stopped driving: zero while it drives and reports.
+		var stopped time.Time
+		switch {
+		case st.Driving && now.Sub(st.LastAt) <= hoursGapCap:
+		case st.Driving: // gone quiet while driving: stopped when the count did
+			stopped = st.LastAt.Add(hoursGapCap)
+		case !st.PauseSince.IsZero():
+			stopped = st.PauseSince
+		default:
+			stopped = st.LastAt
+		}
+		if !stopped.IsZero() && now.Sub(stopped) >= breakNeeded {
+			out[id] = 0
+			continue
+		}
+		out[id] = st.SinceBreak
+	}
+	return out
+}

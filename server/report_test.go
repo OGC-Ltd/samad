@@ -96,8 +96,11 @@ func TestBuildMovementsAndShift(t *testing.T) {
 	if last := rows[len(rows)-1]; last[2].Text != "Not available" {
 		t.Errorf("unknown distance last: %+v", last)
 	}
-	if rows[0][3].Text != "-1.2900, 36.8000" || rows[1][3].Text != "A109 Road, Voi" {
-		t.Errorf("place: %q %q", rows[0][3].Text, rows[1][3].Text)
+	if rows[0][4].Text != "-1.2900, 36.8000" || rows[1][4].Text != "A109 Road, Voi" {
+		t.Errorf("place: %q %q", rows[0][4].Text, rows[1][4].Text)
+	}
+	if rows[0][3].Text != "Not monitored" || !rows[0][3].Muted {
+		t.Errorf("continuous driving without hours: %+v", rows[0][3])
 	}
 	sh := buildShift(d, "Day, 07:30 to 19:30")
 	if sh.Summary["critical"] != 1 || sh.Summary["breaches"] != 5 || sh.Summary["reporting"] != 8 {
@@ -171,7 +174,7 @@ func TestLayoutPaginates(t *testing.T) {
 			if p.W != w || p.H != h {
 				t.Fatalf("%s page size %vx%v", orient, p.W, p.H)
 			}
-			heads, footer := 0, ""
+			heads, rows, footer := 0, 0, ""
 			for _, op := range p.Ops {
 				if op.X < -0.01 || op.Y < -0.01 || op.X+op.W > w+0.01 || op.Y > h+0.01 {
 					t.Errorf("%s page %d: off the page %+v", orient, i+1, op)
@@ -184,14 +187,17 @@ func TestLayoutPaginates(t *testing.T) {
 				}
 				if op.K == opText && strings.HasPrefix(op.S, "KDA ") && op.St == fBold {
 					seen[op.S]++
+					rows++
 					// Nothing runs into the footer.
 					if op.Y > h-(2+lineH(sFoot)+4) {
 						t.Errorf("%s page %d: %s under the footer line", orient, i+1, op.S)
 					}
 				}
 			}
-			if heads != 1 {
-				t.Errorf("%s page %d: table header drawn %d times", orient, i+1, heads)
+			// The header once on every page with rows; a last page holding
+			// only the notes under the table has none.
+			if want := min(rows, 1); heads != want {
+				t.Errorf("%s page %d: table header drawn %d times over %d rows", orient, i+1, heads, rows)
 			}
 			if want := fmt.Sprintf("Page %d of %d", i+1, len(pages)); footer != want {
 				t.Errorf("footer %q want %q", footer, want)
@@ -765,5 +771,37 @@ func TestShiftCustomPeriod(t *testing.T) {
 	}
 	if rec := h.do("GET", "/api/v1/reports/conduct/document?org=samad&from="+from, token, nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"kind":"conduct"`) {
 		t.Errorf("conduct: %d", rec.Code)
+	}
+}
+
+// The Movements report's continuous driving (operator, 2026-11-23).
+func TestMovementsContinuousDriving(t *testing.T) {
+	sec := func(f float64) *float64 { return &f }
+	for _, c := range []struct {
+		in   *float64
+		text string
+		bold bool
+	}{
+		{nil, "Not monitored", false}, {sec(0), "—", false}, {sec(25 * 60), "25 min", false},
+		{sec(3*3600 + 12*60), "3 h 12 min", false}, {sec(4*3600 + 30*60), "4 h 30 min", false},
+		{sec(4*3600 + 52*60), "4 h 52 min", true},
+	} {
+		if got := stretchCell(c.in); got.Text != c.text || got.Bold != c.bold {
+			t.Errorf("%v: %+v, want %q bold %v", c.in, got, c.text, c.bold)
+		}
+	}
+	doc := buildMovements(sample(10))
+	var cols []Col
+	note := ""
+	for _, b := range doc.Blocks {
+		if b.Type == "table" {
+			cols = b.Cols
+		}
+		if b.Type == "note" && strings.HasPrefix(b.Text, "Continuous driving:") {
+			note = b.Text
+		}
+	}
+	if len(cols) != 6 || cols[3].H != "Continuous driving" || note == "" {
+		t.Errorf("column %+v, note %q", cols, note)
 	}
 }

@@ -158,3 +158,29 @@ func TestHoursGapsOnlyRealSilences(t *testing.T) {
 		t.Errorf("a vehicle with no hours yet: %+v", g)
 	}
 }
+
+// Continuous driving for the Movements report: the stretch the 4.5 h rule
+// counts, ended by a stop (or silence) of 30 min or more.
+func TestHoursDrivingStretches(t *testing.T) {
+	r := newHoursRig(t, hoursMonday.Add(6*time.Hour))
+	r.run(3*time.Hour, "on", 60)
+	near := func(now time.Time, want float64) {
+		t.Helper()
+		got, ok := r.s.DrivingStretches(now)[7]
+		if !ok || got < want-60 || got > want+60 {
+			t.Errorf("at %s: %.0f s (%v), want about %.0f", now.Format("15:04"), got, ok, want)
+		}
+	}
+	near(r.at, 3*3600)                   // driving
+	r.run(20*time.Minute, "on", 0)       // a 20-minute stop is not a break
+	near(r.at, 3*3600)                   //
+	r.run(15*time.Minute, "off", 0)      // 35 minutes stopped: the break
+	near(r.at, 0)                        //
+	r.run(time.Hour, "on", 60)           // a new stretch
+	near(r.at, 3600)                     //
+	near(r.at.Add(10*time.Minute), 3600) // gone quiet, 10 min: still the stretch
+	near(r.at.Add(45*time.Minute), 0)    // quiet 45 min: taken as stopped
+	if _, ok := r.s.DrivingStretches(r.at)[99]; ok {
+		t.Error("a vehicle with no hours has no stretch")
+	}
+}
