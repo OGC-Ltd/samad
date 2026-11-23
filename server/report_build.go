@@ -119,6 +119,9 @@ type rptUnit struct {
 	Online, Moving                 bool
 	ZoneNow                        string
 	Last                           time.Time // its last fix
+	// Stretch: continuous driving at the report's time, seconds since its last
+	// stop of 30 min or more (Store.DrivingStretches); nil: not monitored.
+	Stretch *float64
 }
 
 type rptData struct {
@@ -139,6 +142,7 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 	}
 	plates := map[int]string{}
 	zones := s.store.Geofences()
+	stretches := s.store.DrivingStretches(now)
 	for _, v := range s.store.Vehicles() {
 		u := rptUnit{ID: v.VehicleID, VehicleID: vehicleKey(v.VehicleID), Plate: v.Registration, Type: vehicleType(v)}
 		if n := driverName(v); n != "Unassigned" {
@@ -148,6 +152,9 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 			u.Plate = u.VehicleID
 		}
 		plates[v.VehicleID] = u.Plate
+		if sec, ok := stretches[v.VehicleID]; ok {
+			u.Stretch = &sec
+		}
 		if p := v.Position; p != nil {
 			u.Online, u.Moving = online(p), p.MotionStatus == "moving"
 			u.Last = parseTime(p.LastUpdate)
@@ -227,6 +234,23 @@ func kmCell(k *float64) Cell {
 		return Cell{Text: "Not available", Muted: true}
 	}
 	return Cell{Text: fmt.Sprintf("%.1f km", *k)}
+}
+
+// stretchCell is a unit's continuous driving: "3 h 12 min", bold over 4.5 h,
+// "—" after a stop of 30 min or more, "Not monitored" without hours.
+func stretchCell(sec *float64) Cell {
+	switch {
+	case sec == nil:
+		return Cell{Text: "Not monitored", Muted: true}
+	case *sec < 60:
+		return Cell{Text: "—", Muted: true}
+	}
+	m := int(*sec / 60)
+	text := fmt.Sprintf("%d min", m)
+	if m >= 60 {
+		text = fmt.Sprintf("%d h %02d min", m/60, m%60)
+	}
+	return Cell{Text: text, Bold: *sec > driveBeforeRest.Seconds()}
 }
 
 func stateCell(st string) Cell { return Cell{Text: st, Muted: st == "Offline"} }
@@ -551,15 +575,18 @@ func buildMovements(d *rptData) *ReportDoc {
 			moving++
 		}
 		rows = append(rows, []Cell{{Text: u.Plate, Bold: true}, orDash(u.Driver), kmCell(k),
-			{Text: d.place(u), Wrap: true}, stateCell(u.state())})
+			stretchCell(u.Stretch), {Text: d.place(u), Wrap: true}, stateCell(u.state())})
 	}
 	doc := newDoc("movements", "Movements Report", "MV", d, []InfoPair{{"Units", strconv.Itoa(len(units))}})
 	doc.Blocks = []Block{
 		{Type: "heading", Text: "1. Overview", Small: "At " + when(d.Now, d.Now)},
 		{Type: "kpis", KPIs: []KPI{{Label: "Units", Value: strconv.Itoa(len(units))}, {Label: "Moving now", Value: strconv.Itoa(moving)}}},
 		{Type: "heading", Text: "2. Assets Location", Small: fmt.Sprintf("%s · %s km in the period", nOf(len(units), "unit", "units"), num(total))},
-		{Type: "table", Cols: []Col{{H: "Vehicle", W: 24}, {H: "Driver", W: 40}, {H: "Distance", W: 26, Right: true},
-			{H: "Current location", W: 70}, {H: "State", W: 18}}, Rows: rows},
+		{Type: "table", Cols: []Col{{H: "Vehicle", W: 24}, {H: "Driver", W: 36}, {H: "Distance", W: 24, Right: true},
+			{H: "Continuous driving", W: 28, Right: true}, {H: "Current location", W: 58}, {H: "State", W: 18}}, Rows: rows},
+		{Type: "note", Text: "Continuous driving: how long the truck has been driving since its last stop of 30 minutes or more, at " +
+			when(d.Now, d.Now) + ". Over 4½ hours (in bold) breaks the rule of a 30-minute break after 4½ hours of driving. " +
+			"— : stopped for 30 minutes or more."},
 	}
 	if unknown {
 		doc.Blocks = append(doc.Blocks, Block{Type: "note", Text: "Not available: the unit's trip history for the period could not be read."})
