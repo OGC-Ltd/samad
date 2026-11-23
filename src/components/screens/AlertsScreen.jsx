@@ -49,6 +49,7 @@ import FilterBar from "../body/FilterBar";
 import EmptyNote from "../shared/EmptyNote";
 import DetailSidebar, { DetailSidebarFacts, DetailSidebarIdent, DetailSidebarSection } from "../shared/DetailSidebar";
 import { watchTableLabels } from "../../lib/tableLabels";
+import { onAlertsRequest, takeAlertsRequest } from "../../lib/alertsRequest";
 
 const POLL_MS = 60_000;
 const rowKey = (a) => `${a.kind}:${a.id}`;
@@ -611,6 +612,23 @@ export default function AlertsScreen() {
   const [open, setOpen] = useState(null); // { key, start }
   const [toast, setToast] = useState(null);
   const [epoch, setEpoch] = useState(0);
+
+  // A pop-up's Open (components/shared/ToastStack, lib/alertsRequest): that
+  // alarm's list, with nothing left on that could hide the new alert.
+  useEffect(() => {
+    const take = () => {
+      const r = takeAlertsRequest();
+      if (!r) return;
+      setKind(r.kind);
+      setAlarmPick(r.alarm);
+      setStatus("open");
+      setReadF("all");
+      setSearch("");
+      setPeriod((p) => (p === "custom" ? "7d" : p));
+    };
+    take();
+    return onAlertsRequest(take);
+  }, []);
 
   // Fleet days, first to last. A chip's run to today and Refresh moves them on
   // past a midnight; picked days stay put.

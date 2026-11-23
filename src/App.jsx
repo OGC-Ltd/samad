@@ -13,6 +13,7 @@ import { NAV_ITEMS } from './components/layout/SidePanel';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import TabEmptyState from './components/shared/TabEmptyState';
 import ProductTour from './components/shared/ProductTour';
+import ToastStack from './components/shared/ToastStack';
 
 // New layout components
 import AppHeader          from './components/layout/AppHeader';
@@ -246,6 +247,8 @@ function AppShell() {
       <MobileCompanyProfile open={mobileProfileOpen} onClose={() => setMobileProfileOpen(false)} />
       {/* The first-time tour: starts once per person, again from the account menu. */}
       <ProductTour />
+      {/* Alarm pop-ups in the bottom corner (server/popups.go): only for those who may read alerts. */}
+      {can(['alerts:read', 'fuel_theft:read', 'analytics:read']) && <ToastStack />}
     </div>
   );
 }

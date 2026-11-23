@@ -15,6 +15,7 @@ type Poller struct {
 	client *PartnerClient
 	store  *Store
 	hub    *Hub
+	popups *Popups // nil: no pop-ups
 }
 
 func (p *Poller) Run(ctx context.Context) {
@@ -95,7 +96,8 @@ func (p *Poller) events(ctx context.Context) {
 		}
 		// The partner's events are listed on the Alerts page, not sent to
 		// the bell: the bell is for driver hours (operator, 2026-11-07).
-		p.store.AddEvents(page.Events, page.NextCursor)
+		fresh := p.store.AddEvents(page.Events, page.NextCursor)
+		p.popup(fresh)
 		if page.NextCursor != "" {
 			cursor = page.NextCursor
 		}
@@ -170,6 +172,28 @@ func tallyHistory(hist []PHistoryPoint) (km float64, trips int) {
 		prev, prevAt = h, at
 	}
 	return km, trips
+}
+
+// popup sends the pop-up cards for newly arrived events (popups.go). A
+// failure here costs the cards, never the events: they are stored already.
+func (p *Poller) popup(fresh []PEvent) {
+	if p.popups == nil || len(fresh) == 0 {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("pop-ups: %v", r)
+		}
+	}()
+	name := func(id int) (string, string) {
+		if v, ok := p.store.Vehicle(id); ok {
+			return v.Registration, driverName(v)
+		}
+		return "", ""
+	}
+	for _, t := range p.popups.Take(fresh, time.Now(), name) {
+		p.publish("toast", t)
+	}
 }
 
 func (p *Poller) publish(event string, v any) {

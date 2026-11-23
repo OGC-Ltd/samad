@@ -65,7 +65,7 @@ func main() {
 	shutdownTracing := setupTracing(ctx)
 	obs.streams = hub.Count
 	go obs.runSampler(ctx.Done(), cfg.DataDir)
-	go (&Poller{cfg: cfg, client: client, store: store, hub: hub}).Run(ctx)
+	go (&Poller{cfg: cfg, client: client, store: store, hub: hub, popups: NewPopups()}).Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

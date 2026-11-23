@@ -102,6 +102,8 @@ func (s *Server) live(w http.ResponseWriter, r *http.Request) {
 
 	ch := s.hub.Subscribe()
 	defer s.hub.Unsubscribe(ch)
+	// Pop-up cards (popups.go) are alerts: only for those who may read them.
+	seesAlerts := holds(currentUser(r.Context()).Permissions(), "alerts:read", "fuel_theft:read", "analytics:read")
 
 	send := func(event string, v any) {
 		b, err := json.Marshal(v)
@@ -128,6 +130,9 @@ func (s *Server) live(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case f := <-ch:
+			if f.Event == "toast" && !seesAlerts {
+				continue
+			}
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", f.Event, f.Data)
 			fl.Flush()
 		case <-ping.C:
