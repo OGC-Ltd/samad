@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"strings"
@@ -69,21 +70,13 @@ func TestFenceShapesAndChecks(t *testing.T) {
 	for _, c := range bad {
 		_, err := f.Create(c.b, "Tester", fenceNow)
 		var bf badFence
-		if err == nil || !strings.Contains(err.Error(), c.want) || !errorsAs(err, &bf) {
+		if err == nil || !strings.Contains(err.Error(), c.want) || !errors.As(err, &bf) {
 			t.Errorf("%s: got %v, want a bad-fence error about %q", c.name, err, c.want)
 		}
 	}
 	if n := len(f.Live()); n != 3 {
 		t.Errorf("%d fences kept, want 3 (the bad ones not)", n)
 	}
-}
-
-func errorsAs(err error, bf *badFence) bool {
-	b, ok := err.(badFence)
-	if ok {
-		*bf = b
-	}
-	return ok
 }
 
 func TestFenceChangeRemoveAndReload(t *testing.T) {
@@ -128,10 +121,10 @@ func TestFenceChangeRemoveAndReload(t *testing.T) {
 	if len(f.Live()) != 0 {
 		t.Fatal("a removed fence is still listed")
 	}
-	if err := f.Remove(x.ID, "Cat", later); err != errNoFence {
+	if err := f.Remove(x.ID, "Cat", later); !errors.Is(err, errNoFence) {
 		t.Fatalf("second removal: %v", err)
 	}
-	if _, err := f.Update(x.ID, fenceBody{Name: ptr("x")}, "Cat", later); err != errNoFence {
+	if _, err := f.Update(x.ID, fenceBody{Name: ptr("x")}, "Cat", later); !errors.Is(err, errNoFence) {
 		t.Fatalf("change after removal: %v", err)
 	}
 	g := NewFences(dir)
