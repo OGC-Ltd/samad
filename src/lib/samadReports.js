@@ -51,11 +51,16 @@ export const PRESETS = [
   { key: 'today',     label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
   { key: '7d',        label: 'Last 7 days' },
+  { key: '4h',        label: 'Last 4 hours', tabs: ['movements'] },
   { key: 'custom',    label: 'Custom' },
 ]
 
+/** The periods a report tab offers (some are for one tab only). */
+export const presetsFor = (tab) => PRESETS.filter((p) => !p.tabs || p.tabs.includes(tab))
+
 export function presetRange(key, now = Date.now()) {
   const today = dayStart(now)
+  if (key === '4h') return { from: now - 4 * HOUR, to: now }
   if (key === 'yesterday') return { from: today - DAY, to: today }
   if (key === '7d') return { from: today - 6 * DAY, to: now }
   return { from: today, to: now }
