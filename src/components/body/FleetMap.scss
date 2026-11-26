@@ -1504,6 +1504,20 @@ html[data-theme="light"] #root {
 .zone-info strong { font-size: 13px; }
 .zone-info-plan { font-size: 11px; font-weight: 600; opacity: 0.75; }
 .zone-info-state { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; opacity: 0.65; }
+/* A Samad fence's Change button: opens the geofence tool on it (from Rai Track). */
+.zone-info-edit {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font: 600 11.5px var(--font-body, system-ui);
+  cursor: pointer;
+}
+.zone-info-edit:hover { background: #eff6ff; }
+.zone-info-edit:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
 
 /* Below 768px MapOverlay's panels go static and stop overlaying the map, so the
    centre band constraint no longer applies and the controls can use the width. */

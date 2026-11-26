@@ -14,6 +14,7 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.13.0",
     "@tanstack/react-query": "^5.105.0",
+    "@turf/turf": "^7.4.0",
     "clsx": "^2.1.1",
     "driver.js": "^1.10.2",
     "html2canvas": "^1.4.1",

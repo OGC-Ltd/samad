@@ -1,15 +1,9 @@
-// Estate zone geometry for the map overlay — the planted areas, farm blocks,
-// nurseries, wetlands, rivers and haulage roads that make up the Kasulu estate.
+// The organisation's geofences for the map: IntelliFleet's zones (read-only)
+// and the ones drawn in Samad (server/fences.go), as one GeoJSON collection
+// from /geofences/geojson. The stranded-stop test and playback read it too.
 //
-// These are the SAME rows the geofence violation engine evaluates, served as
-// GeoJSON by /geofences/geojson. Drawing them from the fences themselves rather
-// than from a separately-imported copy of the CAD drawing means the overlay and
-// the alerts can never drift apart: if a zone moves in Wialon, one sync updates
-// both what operators see and what the engine enforces.
-//
-// Fetched ONCE per org and cached. Zone boundaries change on the order of
-// months — there is nothing live here, and this must never be put on a poll
-// alongside the 30 s telemetry stream.
+// Fetched once per org and cached; reloadEstateZones fetches it again after a
+// fence is drawn, changed or removed. Never put on the 30 s telemetry poll.
 
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../services/api'
@@ -21,7 +15,8 @@ const cacheKey = (orgId) => `ft-zones:${orgId}`
 // several components ask for it.
 const inflight = new Map()
 
-function loadZones(orgId) {
+/** The organisation's geofences as GeoJSON, fetched once per page load (the Tankers Report reads MORL's). */
+export function loadZones(orgId) {
   if (!inflight.has(orgId)) {
     inflight.set(
       orgId,
@@ -34,6 +29,18 @@ function loadZones(orgId) {
     )
   }
   return inflight.get(orgId)
+}
+
+// Mounted hooks per org, so a fence drawn on the map reaches every one of them.
+const listeners = new Map()
+
+/** Fetch an org's geofences again (after one is drawn, changed or removed). */
+export function reloadEstateZones(orgId) {
+  inflight.delete(orgId)
+  return loadZones(orgId).then((fc) => {
+    for (const fn of listeners.get(orgId) ?? []) fn(fc)
+    return fc
+  })
 }
 
 /**
@@ -62,7 +69,11 @@ export function useEstateZones(orgId) {
       .then((fc) => { if (!cancelled) { setZones(fc); setError(null); setLoading(false) } })
       .catch((err) => { if (!cancelled) { setError(err); setLoading(false) } })
 
-    return () => { cancelled = true }
+    const onReload = (fc) => { if (!cancelled) setZones(fc) }
+    if (!listeners.has(orgId)) listeners.set(orgId, new Set())
+    listeners.get(orgId).add(onReload)
+
+    return () => { cancelled = true; listeners.get(orgId)?.delete(onReload) }
   }, [orgId])
 
   return { zones, loading, error }

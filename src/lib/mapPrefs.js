@@ -85,6 +85,8 @@ export const LAYER_DEFAULTS = {
   // 600 m of it — so the layer's camera fit frames the ground the map was
   // going to show anyway, rather than flying away from the fleet to find it.
   sukari:    { site: true },
+  // Samad's geofences: IntelliFleet's and the ones drawn in Samad (2026-11-26).
+  samad:     { zones: true },
   // Menengai has two surveys and neither is listed: this is an oil refinery
   // with a national fleet, and Big Farm is one estate inside it. The map of
   // Menengai is the fleet. Both layers are offered, both are off until asked
