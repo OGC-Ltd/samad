@@ -357,6 +357,56 @@ func (x Fence) areaHa() float64 {
 	return math.Abs(s) / 2 / 10_000
 }
 
+// contains: is the point inside the fence? A polygon by its ring, a circle by
+// its radius, a road by half its width either side of its line.
+func (x Fence) contains(lat, lng float64) bool {
+	switch x.Type {
+	case "CIRCLE":
+		return haversineKm(lat, lng, x.CenterLat, x.CenterLng)*1000 <= x.RadiusM
+	case "LINE":
+		// Metres on a flat projection around the point: fine at road widths.
+		const mPerDeg = 111_320.0
+		k := math.Cos(lat * math.Pi / 180)
+		xy := func(p [2]float64) (float64, float64) { return (p[0] - lng) * mPerDeg * k, (p[1] - lat) * mPerDeg }
+		for i := 1; i < len(x.Coords); i++ {
+			ax, ay := xy(x.Coords[i-1])
+			bx, by := xy(x.Coords[i])
+			dx, dy := bx-ax, by-ay
+			t := 0.0
+			if l2 := dx*dx + dy*dy; l2 > 0 {
+				t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/l2))
+			}
+			if math.Hypot(ax+t*dx, ay+t*dy) <= x.WidthM/2 {
+				return true
+			}
+		}
+		return false
+	}
+	in := false
+	for i, j := 0, len(x.Coords)-1; i < len(x.Coords); j, i = i, i+1 {
+		a, b := x.Coords[i], x.Coords[j] // [lng, lat]
+		if (a[1] > lat) != (b[1] > lat) && lng < (b[0]-a[0])*(lat-a[1])/(b[1]-a[1])+a[0] {
+			in = !in
+		}
+	}
+	return in
+}
+
+// fenceAt is the name of the fence the point is inside: the smallest, when
+// fences nest (a yard inside a depot), or "".
+func fenceAt(fences []Fence, lat, lng float64) string {
+	name, best := "", math.Inf(1)
+	for _, x := range fences {
+		if !x.contains(lat, lng) {
+			continue
+		}
+		if ha := x.areaHa(); ha < best {
+			name, best = x.Name, ha
+		}
+	}
+	return name
+}
+
 // feature is the fence as the map's GeoJSON draws it, beside the partner's
 // (geofencesGeoJSON): a Polygon, a Point with radiusM, or a LineString with
 // widthM. source "samad" marks it as ours to change.

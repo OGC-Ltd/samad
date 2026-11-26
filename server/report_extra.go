@@ -248,17 +248,18 @@ func placeWords(r geoResult) string {
 	return strings.TrimSpace(text)
 }
 
-// places is where each unit is now, in words: its zone when it is in one,
-// else the place Google names. A unit with neither is left out (the report
-// then shows its coordinates). Without a key, only zones.
+// places is where each unit is now, in words: the fence drawn in Samad it is
+// in, else the place Google names. A unit with neither is left out (the
+// report then shows its coordinates). Without a key, only fences.
 func (c *reportCache) places(ctx context.Context, key string, units []rptUnit) map[string]string {
 	out := map[string]string{}
 	for _, u := range units {
 		if !u.HasPos {
 			continue
 		}
-		if u.ZoneNow != "" {
-			out[u.VehicleID] = u.ZoneNow
+		// Inside a fence drawn in Samad: its name, and no lookup.
+		if u.Yard != "" {
+			out[u.VehicleID] = u.Yard
 			continue
 		}
 		if key == "" || ctx.Err() != nil {

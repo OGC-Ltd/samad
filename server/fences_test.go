@@ -229,3 +229,77 @@ func TestEveryRoleMayDrawFences(t *testing.T) {
 		t.Fatalf("only %d roles have the map", n)
 	}
 }
+
+// Inside a fence: by its ring, its radius, or half its width either side.
+func TestFenceContains(t *testing.T) {
+	depot := Fence{Name: "Depot", Type: "POLYGON", Coords: [][2]float64{{36.8500, -1.3090}, {36.8545, -1.3090}, {36.8545, -1.3125}, {36.8500, -1.3125}, {36.8500, -1.3090}}}
+	yard := Fence{Name: "Yard", Type: "CIRCLE", CenterLat: -1.3110, CenterLng: 36.8510, RadiusM: 60}
+	road := Fence{Name: "Road", Type: "LINE", WidthM: 20, Coords: [][2]float64{{36.86, -1.32}, {36.87, -1.32}}}
+	cases := []struct {
+		f        Fence
+		lat, lng float64
+		in       bool
+	}{
+		{depot, -1.3110, 36.8520, true},
+		{depot, -1.3080, 36.8520, false}, // 110 m north
+		{depot, -1.3110, 36.8550, false}, // 55 m east
+		{yard, -1.3110, 36.8514, true},   // 45 m from the centre
+		{yard, -1.3110, 36.8517, false},  // 78 m
+		{road, -1.32005, 36.865, true},   // 6 m off the line
+		{road, -1.32015, 36.865, false},  // 17 m off: beyond 10 m
+		{road, -1.32, 36.8705, false},    // past its end
+	}
+	for _, c := range cases {
+		if got := c.f.contains(c.lat, c.lng); got != c.in {
+			t.Errorf("%s contains (%v, %v) = %v, want %v", c.f.Name, c.lat, c.lng, got, c.in)
+		}
+	}
+	// Nested: the yard inside the depot names the yard; elsewhere in the depot, the depot.
+	all := []Fence{depot, yard, road}
+	if got := fenceAt(all, -1.3110, 36.8510); got != "Yard" {
+		t.Errorf("in the yard: %q", got)
+	}
+	if got := fenceAt(all, -1.3100, 36.8540); got != "Depot" {
+		t.Errorf("in the depot: %q", got)
+	}
+	if got := fenceAt(all, -1.0, 36.0); got != "" {
+		t.Errorf("nowhere: %q", got)
+	}
+}
+
+// The Movements report names the fence a unit is in, ahead of the place name.
+func TestMovementsNamesTheYard(t *testing.T) {
+	dir := t.TempDir()
+	s := &Server{store: NewStore(dir), fences: NewFences(dir)}
+	if _, err := s.fences.Create(fenceBody{Name: ptr("Mombasa Yard"), Purpose: ptr("yard"), Type: ptr("POLYGON"),
+		PolygonCoords: depotRing()}, "Tester", fenceNow); err != nil {
+		t.Fatal(err)
+	}
+	// KDA 002B sits in an IntelliFleet zone: not named (operator: "no intelifleet zone").
+	s.store.SetGeofences([]PGeofence{{ZoneID: 9, Name: "IntelliFleet Zone", Status: "active",
+		Center: &struct {
+			Lat float64 `json:"lat"`
+			Lng float64 `json:"lng"`
+		}{-1.4, 36.9}, RadiusM: ptr(500.0)}})
+	at := time.Now().UTC().Format(time.RFC3339)
+	s.store.ApplyPositions([]PVehicle{
+		{VehicleID: 1, Registration: "KDA 001A", Position: &PPosition{Latitude: -1.3110, Longitude: 36.8520, MotionStatus: "stopped", LastUpdate: at}},
+		{VehicleID: 2, Registration: "KDA 002B", Position: &PPosition{Latitude: -1.4000, Longitude: 36.9000, MotionStatus: "moving", Speed: 50, LastUpdate: at}},
+	})
+	d := s.reportData(time.Now().Add(-time.Hour), time.Now(), time.Now())
+	d.Km = map[string]*float64{}
+	d.Places = map[string]string{"1": "Industrial Area, Nairobi", "2": "Mombasa Road, Athi River"}
+	var rows [][]Cell
+	for _, b := range buildMovements(d).Blocks {
+		if b.Type == "table" {
+			rows = b.Rows
+		}
+	}
+	where := map[string]string{}
+	for _, r := range rows {
+		where[r[0].Text] = r[3].Text
+	}
+	if where["KDA 001A"] != "Mombasa Yard" || where["KDA 002B"] != "Mombasa Road, Athi River" {
+		t.Fatalf("current location: %v", where)
+	}
+}

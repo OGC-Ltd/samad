@@ -117,8 +117,10 @@ type rptUnit struct {
 	HasPos                         bool
 	Lat, Lng                       float64
 	Online, Moving                 bool
-	ZoneNow                        string
-	Last                           time.Time // its last fix
+	// The fence drawn in Samad it is inside now (the smallest, when they
+	// nest), or "": the Movements report names it (fences.go fenceAt).
+	Yard string
+	Last time.Time // its last fix
 }
 
 type rptData struct {
@@ -138,7 +140,10 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 		d.Untracked = append(d.Untracked, e.Truck)
 	}
 	plates := map[int]string{}
-	zones := s.store.Geofences()
+	var fences []Fence
+	if s.fences != nil {
+		fences = s.fences.Live()
+	}
 	for _, v := range s.store.Vehicles() {
 		u := rptUnit{ID: v.VehicleID, VehicleID: vehicleKey(v.VehicleID), Plate: v.Registration, Type: vehicleType(v)}
 		if n := driverName(v); n != "Unassigned" {
@@ -153,7 +158,7 @@ func (s *Server) reportData(from, to, now time.Time) *rptData {
 			u.Last = parseTime(p.LastUpdate)
 			if p.Latitude != 0 || p.Longitude != 0 {
 				u.HasPos, u.Lat, u.Lng = true, p.Latitude, p.Longitude
-				u.ZoneNow, _, _ = whereNow(zones, p.Latitude, p.Longitude)
+				u.Yard = fenceAt(fences, p.Latitude, p.Longitude)
 			}
 		}
 		d.Units = append(d.Units, u)
@@ -205,17 +210,20 @@ func (u rptUnit) state() string {
 	return "Stopped"
 }
 
-// place is where the unit is now, in words: the place name looked up for it,
-// else its zone, else its coordinates.
+// place is where the unit is now, in words: the fence drawn in Samad it is
+// inside (operator, 2026-11-26: "units within the yards ... should indicate
+// the name of the yard"), else the place name looked up for it, else its
+// coordinates. IntelliFleet's zones are not named (operator: "no intelifleet
+// zone").
 func (d *rptData) place(u rptUnit) string {
+	if u.Yard != "" {
+		return u.Yard
+	}
 	if p := d.Places[u.VehicleID]; p != "" {
 		return p
 	}
 	if !u.HasPos {
 		return "No position"
-	}
-	if u.ZoneNow != "" {
-		return u.ZoneNow
 	}
 	return fmt.Sprintf("%.4f, %.4f", u.Lat, u.Lng)
 }
