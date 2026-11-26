@@ -99,7 +99,9 @@ import { useGoogleRoutingOn } from "../../lib/googleRouting";
 
 import { liveTrip } from "../../lib/tripProgress";
 
-import { ZONE_STYLE, ZONE_FALLBACK, legendFor, zoneColor } from "../../lib/zoneLegend";
+import { ZONE_STYLE, ZONE_FALLBACK, legendFor, zoneColor, fenceColor, fenceColorKey } from "../../lib/zoneLegend";
+import { shapeOf, outlineOf } from "../../lib/fenceShape";
+import GeofenceDrawer from "./GeofenceDrawer";
 import { claimSidePanel, onSidePanelClaim, claimMapWindow, onMapWindowClaim } from "../../lib/sidePanels";
 const STATUS_COLORS = {
   ok:       ONLINE_COLORS.transit,
@@ -198,6 +200,11 @@ const TRUCK_ROW_FOR = { stationary: "ok", "signal-lost": "ok" };
 // the planting plan. The geometry is still fetched for the stranded-stop test
 // and playback. Set back to "kasulu" to restore the layer.
 const ZONE_AREAS_COMPANY = null;
+
+// Samad draws its geofences on this layer: IntelliFleet's zones and the ones
+// drawn in Samad (operator, 2026-11-26), in their purpose's colour, circles
+// included. Their own switch is "Geofences", not "Estate areas".
+const FENCE_LAYER_COMPANY = "samad";
 
 // The 67 `VES-nnn` sample points are omitted from the overlay. They are
 // 1 km-radius circles that blanket the whole estate and would bury the
@@ -331,7 +338,8 @@ function zoneLabelHtml(name, color, detail, plan) {
   // repeating "Nursery A / NURSERY A" on the plate is noise.
   const alias = plan && plan.toUpperCase() !== name.toUpperCase()
     ? `<span class="zone-label-plan">${plan}</span>` : "";
-  return `<div class="zone-label" style="--zone-color:${color}">${name}${alias}${sub}</div>`;
+  // Escaped: a fence drawn in Samad is named by whoever drew it.
+  return `<div class="zone-label" style="--zone-color:${color}">${esc(name)}${alias}${sub}</div>`;
 }
 
 // ── Estate PLAN overlay (the CAD drawing) ──────────────────────────────────
@@ -2346,6 +2354,12 @@ export default function FleetMap() {
   const [measurePts, setMeasurePts] = useState([]);
   const measuringRef = useRef(false);
   measuringRef.current = measuring;
+  // The geofence tool: { editing: feature | null } while it is open.
+  const [fenceDraw, setFenceDraw] = useState(null);
+  const fenceDrawRef = useRef(null);
+  fenceDrawRef.current = fenceDraw;
+  // Clicks that land on a fence go to the tool while it is drawing.
+  const fenceClickRef = useRef(null);
   // Base map. Google only where a key was built in; otherwise OSM, always.
   const [baseMap, setBaseMap] = useState(() => {
     const stored = readCache(BASE_MAP_KEY);
@@ -2458,6 +2472,9 @@ export default function FleetMap() {
   // guest-survey sweep below is gated on the same permission and runs long
   // before the menu is built.
   const { can: canDo, orgId: permOrgId } = usePermissions();
+  // For the fence card's Change button, built outside render.
+  const canEditFencesRef = useRef(false);
+  canEditFencesRef.current = canDo("geofence:update");
   const { publishLayers, registerFocus, registerFilter, registerPlayback, publishFilter, publishStranded, registerFocusBridge, registerReveal, unitsOpen, setUnitsOpen, strandedOpen, setStrandedOpen, fuelAlertsOpen, setFuelAlertsOpen } = useMapLayers();
   const { isCompact, isMobile } = useBreakpoint();
   /* Where the side panel exists (desktop) a click selects the unit and the
@@ -2609,7 +2626,8 @@ export default function FleetMap() {
   }, [sitePlanLinks, setSitePlanLinks]);
 
   // And so do the surveyed boundaries beside it.
-  const zonesAllowed = activeCompanyId === ZONE_AREAS_COMPANY;
+  const fenceLayer = activeCompanyId === FENCE_LAYER_COMPANY;
+  const zonesAllowed = activeCompanyId === ZONE_AREAS_COMPANY || fenceLayer;
   const hasZones = zonesAllowed && (zones?.features?.length ?? 0) > 0;
 
   /**
@@ -2626,10 +2644,10 @@ export default function FleetMap() {
       const p = f.properties ?? {};
       if (ZONE_SKIP_CATEGORIES.has(p.category)) continue;
       if (ZONE_EXCLUDE.has(zoneKey(p.name))) continue;
-      seen.add(p.category && ZONE_STYLE[p.category] ? p.category : "other");
+      seen.add(fenceLayer ? fenceColorKey(f) : p.category && ZONE_STYLE[p.category] ? p.category : "other");
     }
     return [...seen];
-  }, [zones]);
+  }, [zones, fenceLayer]);
 
   /* The scales, with the last ticket each one took.
    *
@@ -4007,7 +4025,7 @@ export default function FleetMap() {
         // "Estate areas", not "Geofences": an operator navigates by the ground,
         // and what these rows are to the violation engine is not what they are
         // on a map.
-        label: "Estate areas",
+        label: fenceLayer ? "Geofences" : "Estate areas",
         on: showZones,
         onToggle: () => setShowZones(v => {
           zonesRequestedRef.current = !v;
@@ -4065,7 +4083,7 @@ export default function FleetMap() {
     });
     return out;
   }, [showTraffic, showWeather, weatherNote, showBridges, hasBridges, bridgesLoading, activeCompanyId,
-      showZones, zonesAllowed, hasZones, zoneCategories,
+      showZones, zonesAllowed, hasZones, zoneCategories, fenceLayer,
       showPlan, planAllowed, planState,
       sitePlans, siteOn, siteStatus, siteCats, canDo, baseMap]);
 
@@ -4215,8 +4233,9 @@ export default function FleetMap() {
       // click, so the deselect gesture has to take both away or the annotated
       // line is left behind describing a unit that is no longer selected.
       map.addListener("click", () => {
-        // The ruler owns clicks while it is on (see the measure effect).
-        if (measuringRef.current) return;
+        // The ruler owns clicks while it is on (see the measure effect), and
+        // so does the geofence tool (GeofenceDrawer).
+        if (measuringRef.current || fenceDrawRef.current) return;
         clearHover();
         clearTripPath();
         const prevId = activeRouteRef.current;
@@ -4495,7 +4514,34 @@ export default function FleetMap() {
   const toggleMeasure = useCallback(() => {
     setMeasuring(v => !v);
     setMeasurePts([]);
+    setFenceDraw(null);
   }, []);
+
+  // The geofence tool: the rail's Draw button opens it for a new fence (and
+  // closes it); a fence card's Change button opens it on that fence. The card
+  // is HTML in the map's info window, so its button is found by delegation.
+  const toggleFenceDraw = useCallback(() => {
+    setFenceDraw((v) => (v && !v.editing ? null : { editing: null }));
+    setMeasuring(false);
+    setMeasurePts([]);
+    zoneLayerRef.current?.info?.close();
+  }, []);
+  useEffect(() => {
+    const onClick = (e) => {
+      const btn = e.target?.closest?.("[data-fence-edit]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-fence-edit");
+      const f = zonesRef.current?.features?.find((x) => x.properties?.id === id && x.properties?.source === "samad");
+      if (!f) return;
+      zoneLayerRef.current?.info?.close();
+      setMeasuring(false);
+      setFenceDraw({ editing: f });
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+  // Another company's map is not where a drawing in progress belongs.
+  useEffect(() => { setFenceDraw(null); }, [orgId]);
 
   // While the ruler is on, a click on the map adds a point. Backspace takes
   // the last one back and Escape ends the measurement. The map's own click
@@ -4625,8 +4671,11 @@ export default function FleetMap() {
       // The outline and fill follow the base map; the name plate does not. It
       // sits on its own dark backing whatever is under it, which is what the
       // satellite palette was chosen against.
-      const color = zoneColor(p.category, baseMapRef.current);
-      const plateColor = (ZONE_STYLE[p.category] ?? ZONE_FALLBACK).color;
+      // On Samad's geofence layer a fence draws in its chosen colour, else its
+      // purpose's (lib/zoneLegend fenceColor), as in Rai Track.
+      const styleKey = fenceLayer ? fenceColorKey(f) : p.category;
+      const color = fenceLayer ? fenceColor(f, baseMapRef.current) : zoneColor(p.category, baseMapRef.current);
+      const plateColor = fenceLayer && p.color ? p.color : (ZONE_STYLE[styleKey] ?? ZONE_FALLBACK).color;
       const geom  = f.geometry;
       const alias = ZONE_PLAN_ALIAS[key];
       let shape = null;
@@ -4660,12 +4709,35 @@ export default function FleetMap() {
         });
         labelAt      = pathMidpoint(path);
         labelMinZoom = ZONE_CORRIDOR_LABEL_MIN_ZOOM;
+      } else if (geom?.type === "Point" && fenceLayer && p.radiusM > 0) {
+        // A circle (IntelliFleet's, or drawn in Samad): its ring, as the
+        // drawer previews it.
+        const [lng, lat] = geom.coordinates ?? [];
+        const ring = outlineOf(shapeOf({ kind: "circle", points: [{ lat, lng }], radiusM: p.radiusM }));
+        if (ring.length < 3) continue;
+        for (const pt of ring) bounds.extend(pt);
+        shape = new maps.Polygon({
+          paths: ring,
+          strokeColor: color, strokeWeight: 2, strokeOpacity: 0.95,
+          fillColor: color, fillOpacity: 0.14,
+          clickable: true, zIndex: 1,
+        });
+        labelAt      = { lat, lng };
+        labelMinZoom = zoneLabelMinZoom(p.areaHa ?? (Math.PI * p.radiusM * p.radiusM) / 10_000);
       }
       if (!shape) continue;
 
-      const detail = geom.type === "Polygon"
-        ? `${(p.areaHa ?? 0).toLocaleString()} ha`
-        : `corridor · ${p.widthM ?? "?"} m wide`;
+      const filled = geom.type !== "LineString";
+      const detail = geom.type === "Point"
+        ? `${Math.round(p.radiusM).toLocaleString()} m radius`
+        : geom.type === "Polygon"
+          ? `${(p.areaHa ?? 0).toLocaleString()} ha`
+          : `corridor · ${p.widthM ?? "?"} m wide`;
+      // Where it comes from, on the geofence layer: ours can be changed here.
+      const ours = fenceLayer && p.source === "samad";
+      const stateLine = !fenceLayer
+        ? (p.isActive ? "Enforced" : "Not enforced")
+        : ours ? `Drawn in Samad${p.updatedBy ? ` · ${esc(p.updatedBy)}` : ""}` : "From IntelliFleet";
       // What the printed plan says, next to what our geometry measures. The two
       // disagree by design (envelope vs plantable subset) and by accident
       // (Rain-fed: 250 ha printed, 1,933 ha ring) — showing both is the only
@@ -4677,12 +4749,20 @@ export default function FleetMap() {
              alias.planHa ? ` · ${alias.planHa.toLocaleString()} ha printed` : ""}</span>`
         : "";
       shape.addListener("click", (e) => {
+        // Drawing: a click on a fence is a point of the new one.
+        if (fenceDrawRef.current) {
+          fenceClickRef.current?.({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+          return;
+        }
+        const change = ours && canEditFencesRef.current && p.id
+          ? `<button type="button" class="zone-info-edit" data-fence-edit="${esc(p.id)}">Change</button>` : "";
         info.setContent(
           `<div class="zone-info">
-             <strong>${p.name}</strong>
-             <span>${(ZONE_STYLE[p.category] ?? ZONE_FALLBACK).label} · ${detail}</span>
+             <strong>${esc(p.name)}</strong>
+             <span>${(ZONE_STYLE[styleKey] ?? ZONE_FALLBACK).label} · ${detail}</span>
              ${planLine}
-             <span class="zone-info-state">${p.isActive ? "Enforced" : "Not enforced"}</span>
+             <span class="zone-info-state">${stateLine}</span>
+             ${change}
            </div>`,
         );
         info.setPosition(e.latLng);
@@ -4693,7 +4773,7 @@ export default function FleetMap() {
       // "corridor · 3 m wide", and nothing at all for the yard-sized zones that
       // round to 0 ha — a plate reading "Dispensary / 0 ha" states something
       // false, and every pixel of plate width is a pixel that can collide.
-      const labelSub = geom.type === "Polygon"
+      const labelSub = filled
         ? ((p.areaHa ?? 0) >= 1 ? `${p.areaHa.toLocaleString()} ha` : "")
         : `${p.widthM ?? "?"} m wide`;
 
@@ -4712,12 +4792,12 @@ export default function FleetMap() {
           // Declutter priority. Area first so the significant zone keeps its
           // name; corridors last because a river's plate can sit anywhere along
           // it, while a block's belongs at its centre.
-          priority: geom.type === "Polygon" ? (p.areaHa ?? 0) : -1,
+          priority: filled ? (p.areaHa ?? 0) : -1,
         });
       }
 
       shapes.push(shape);
-      tinted.push({ shape, category: p.category, filled: geom.type === "Polygon" });
+      tinted.push({ shape, category: p.category, filled, feature: fenceLayer ? f : null });
     }
 
     labels.sort((a, b) => b.priority - a.priority);
@@ -4732,7 +4812,7 @@ export default function FleetMap() {
       info.close();
       zoneLayerRef.current = null;
     };
-  }, [mapReady, zones, zonesAllowed]);
+  }, [mapReady, zones, zonesAllowed, fenceLayer]);
 
   // Show/hide the built layer. Cheap — no geometry is created or destroyed.
   //
@@ -5281,7 +5361,7 @@ export default function FleetMap() {
   // the same reason. A layer built after the switch already read the new base.
   useEffect(() => {
     for (const t of zoneLayerRef.current?.tinted ?? []) {
-      const color = zoneColor(t.category, baseMap);
+      const color = t.feature ? fenceColor(t.feature, baseMap) : zoneColor(t.category, baseMap);
       t.shape.setOptions(t.filled ? { strokeColor: color, fillColor: color } : { strokeColor: color });
     }
   }, [baseMap]);
@@ -7219,6 +7299,24 @@ export default function FleetMap() {
             halted={canDo("map:filter")
               ? { count: strandedVehicles.length, open: strandedOpen, onOpen: () => setStrandedOpen(v => !v) }
               : null}
+            drawFence={fenceLayer && canDo("geofence:create")
+              ? { on: Boolean(fenceDraw && !fenceDraw.editing), onToggle: toggleFenceDraw }
+              : null}
+          />
+        )}
+        {/* The geofence tool (GeofenceDrawer, ported from Rai Track). */}
+        {fenceDraw && mapReady && mapRef.current && (
+          <GeofenceDrawer
+            key={fenceDraw.editing?.properties?.id ?? "new"}
+            map={mapRef.current}
+            maps={mapsLibRef.current}
+            DomMarker={DomMarkerRef.current}
+            orgId={orgId}
+            fences={zones?.features ?? []}
+            editing={fenceDraw.editing}
+            canDelete={canDo("geofence:delete")}
+            clickRef={fenceClickRef}
+            onClose={() => setFenceDraw(null)}
           />
         )}
 

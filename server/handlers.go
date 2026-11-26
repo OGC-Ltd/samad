@@ -26,6 +26,8 @@ type Server struct {
 	reports *reportCache
 	// The reefer consignment register (consignments.go).
 	consign *Consignments
+	// Geofences drawn in Samad (fences.go).
+	fences *Fences
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -296,6 +298,10 @@ func (s *Server) geofencesGeoJSON(w http.ResponseWriter, r *http.Request) {
 			features = append(features, map[string]any{"type": "Feature", "properties": props,
 				"geometry": map[string]any{"type": "Polygon", "coordinates": [][][]float64{ring}}})
 		}
+	}
+	// And the ones drawn in Samad (fences.go), after the partner's.
+	for _, x := range s.fences.Live() {
+		features = append(features, x.feature())
 	}
 	writeData(w, map[string]any{"type": "FeatureCollection", "features": features})
 }

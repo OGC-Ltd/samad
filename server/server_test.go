@@ -65,7 +65,7 @@ func newHarness(t *testing.T) *harness {
 	store := NewStore(cfg.DataDir)
 	hub := NewHub()
 	srv := &Server{cfg: cfg, store: store, hub: hub, routing: NewRouting(nil, store), reports: newReportCache(),
-		consign: NewConsignments(cfg.DataDir)}
+		consign: NewConsignments(cfg.DataDir), fences: NewFences(cfg.DataDir)}
 	auth := NewAuth(cfg)
 	return &harness{t: t, h: routes(srv, auth), store: store, cfg: cfg, auth: auth, hub: hub}
 }

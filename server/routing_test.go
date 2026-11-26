@@ -58,7 +58,7 @@ func TestDecodePolyline(t *testing.T) {
 func TestRoutingAndWeather(t *testing.T) {
 	h := newHarness(t)
 	g, routeCalls, weather := fakeGoogle(t)
-	srv := &Server{cfg: h.cfg, store: h.store, hub: NewHub(), routing: NewRouting(g, h.store)}
+	srv := &Server{cfg: h.cfg, store: h.store, hub: NewHub(), routing: NewRouting(g, h.store), fences: NewFences(h.cfg.DataDir)}
 	h.h = routes(srv, h.auth)
 	token, _ := h.login()
 

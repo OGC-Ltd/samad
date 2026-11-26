@@ -31,7 +31,11 @@ type roleDef struct {
 }
 
 var (
-	tracking = []string{"vehicle:read", "telemetry:read", "map:read", "notification:read"}
+	tracking = []string{"vehicle:read", "telemetry:read", "map:read", "notification:read",
+		// Anyone signed in may draw, change and remove geofences (operator,
+		// 2026-11-26: "anyone who logged in but we might change this later").
+		// To narrow it, take these out of here and give them to chosen roles.
+		"geofence:read", "geofence:create", "geofence:update", "geofence:delete"}
 	mapTools = []string{"map:layers", "map:fuel_alerts", "map:filter"}
 
 	// Everything a role confined to one organisation can be given.

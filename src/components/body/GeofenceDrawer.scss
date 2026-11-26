@@ -1,0 +1,459 @@
+/* Hallmark · component: map tool panel (Draw geofence) · genre: modern-minimal · theme: brand (the app's light tokens, index.css; the map tools' blue, MapToolRail.css) · v2.0.0
+ * states: default, hover, active, focus-visible, disabled, drawing, done, error, saving · axes: light/grotesk-sans/cool · contrast: pass */
+/* Hallmark · pre-emit critique: P4 H5 E5 S4 R5 V4 · weakest: P, on purpose: a tool panel beside the rail, set like the map's other pops rather than as a page */
+/* Hallmark · dismissed F24 · hairline plus soft shadow is the map pops' own edge (.mtr-pop, .mtr-card), kept so the drawer reads as one of them */
+/* Hallmark · dismissed 74 · #1d4ed8 is the map tools' blue (.mtr-btn--on, the ruler), the colour the rail's Draw button lights in beside this panel */
+
+/* The Draw geofence panel and its handles on the map.
+ *
+ * Colours come from the app's tokens (index.css): ink, muted text, border,
+ * surface, the alert red. The one blue is the map tools' own, so the panel,
+ * the rail button that opened it and the ruler agree. Type is the app's:
+ * Inter at the map's 12.5px, labels a step smaller, and figures (area,
+ * length, coordinates) in the mono face the ruler uses for its readout. */
+
+:root {
+  --gfd-ink: var(--color-text-primary, #0f172a);
+  --gfd-text: var(--color-text-sec, #475569);
+  --gfd-sub: var(--color-text-muted, #5f6e83);
+  --gfd-line: var(--color-border, #e2e8f0);
+  --gfd-field-line: #cbd5e1;
+  --gfd-surface: var(--color-surface, #ffffff);
+  --gfd-raised: var(--color-bg, #f8fafc);
+  --gfd-well: #f1f5f9;
+  --gfd-accent: #1d4ed8;
+  --gfd-accent-deep: #1e40af;
+  --gfd-accent-press: #1e3a8a;
+  --gfd-accent-wash: #eff6ff;
+  --gfd-on-accent: #ffffff;
+  --gfd-crit: var(--accent-crit, #b91c1c);
+  --gfd-crit-deep: #991b1b;
+  --gfd-crit-wash: rgba(185, 28, 28, 0.06);
+  --gfd-shadow: rgba(15, 23, 42, 0.18);
+  --gfd-shadow-soft: rgba(15, 23, 42, 0.14);
+  --gfd-handle-shadow: rgba(15, 23, 42, 0.35);
+  --gfd-ring: rgba(15, 23, 42, 0.18);
+}
+
+.gfd {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  border: 1px solid var(--gfd-line);
+  border-radius: 10px;
+  background: var(--gfd-surface);
+  box-shadow: 0 10px 28px var(--gfd-shadow);
+  color: var(--gfd-text);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gfd__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px 8px 16px;
+  border-bottom: 1px solid var(--gfd-line);
+}
+.gfd__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--gfd-ink);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: break-word;
+}
+.gfd__x {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--gfd-sub);
+  cursor: pointer;
+}
+.gfd__x:hover { background: var(--gfd-well); color: var(--gfd-ink); }
+.gfd__x:active { background: var(--gfd-line); }
+
+.gfd__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* The shape picker: a well with the chosen shape raised out of it. */
+.gfd__shapes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--gfd-well);
+}
+.gfd__shape {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--gfd-text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gfd__shape .ti { font-size: 16px; }
+.gfd__shape:hover { color: var(--gfd-ink); }
+.gfd__shape:active { background: var(--gfd-line); }
+.gfd__shape[aria-checked="true"] {
+  background: var(--gfd-surface);
+  color: var(--gfd-accent);
+  box-shadow: 0 1px 3px var(--gfd-shadow-soft);
+}
+
+.gfd__hint,
+.gfd__note,
+.gfd__sub { margin: 0; color: var(--gfd-sub); font-size: 12px; }
+.gfd__note { padding: 8px 12px; border-radius: 6px; background: var(--gfd-raised); }
+.gfd__bad { margin: 0; color: var(--gfd-crit); font-size: 12px; font-weight: 600; }
+
+/* Fields: label above, sentence case, a step smaller than the value. */
+.gfd__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.gfd__field > span:first-child,
+.gfd__field > legend {
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--gfd-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.gfd__field input[type="text"],
+.gfd__field input[type="number"],
+.gfd__field select,
+.gfd__field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 8px;
+  border: 1px solid var(--gfd-field-line);
+  border-radius: 6px;
+  background: var(--gfd-surface);
+  color: var(--gfd-ink);
+  font: inherit;
+}
+.gfd__field input:hover:not(:disabled),
+.gfd__field select:hover,
+.gfd__field textarea:hover { border-color: var(--gfd-sub); }
+.gfd__field input[type="number"],
+.gfd__field textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.gfd__field textarea { resize: vertical; }
+.gfd__field input:disabled { background: var(--gfd-raised); color: var(--gfd-sub); }
+.gfd__field--inline { flex-direction: row; align-items: center; gap: 8px; }
+.gfd__field--inline > span:first-child { width: 52px; margin: 0; }
+.gfd__field--inline input[type="number"] { width: 112px; }
+.gfd__unit { color: var(--gfd-sub); }
+
+/* Colour: the purpose's own, ten fixed, and any. */
+.gfd__swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gfd__swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--gfd-surface);
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: 0 0 0 1px var(--gfd-ring);
+  cursor: pointer;
+}
+.gfd__swatch:hover { transform: scale(1.08); }
+.gfd__swatch:active { transform: scale(0.96); }
+.gfd__swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--gfd-ink); }
+.gfd__swatch--purpose {
+  position: relative;
+  width: auto;
+  padding: 0 8px 0 24px;
+  border-radius: 12px;
+  background: var(--gfd-surface);
+  color: var(--gfd-ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.gfd__swatch--purpose:hover,
+.gfd__swatch--purpose:active { transform: none; background: var(--gfd-raised); }
+.gfd__swatch--purpose::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--sw);
+}
+.gfd__custom {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--gfd-ring);
+  color: var(--gfd-text);
+  cursor: pointer;
+}
+.gfd__custom:hover { color: var(--gfd-ink); background: var(--gfd-well); }
+.gfd__custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+/* The figures, in the ruler's face. */
+.gfd__size { display: flex; gap: 20px; margin: 0; }
+.gfd__size dt { color: var(--gfd-sub); font-size: 11.5px; }
+.gfd__size dd {
+  margin: 0;
+  color: var(--gfd-ink);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gfd__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--gfd-line);
+}
+.gfd__spacer { flex: 1; }
+.gfd__btn {
+  padding: 8px 12px;
+  border: 1px solid var(--gfd-field-line);
+  border-radius: 6px;
+  background: var(--gfd-surface);
+  color: var(--gfd-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gfd__btn:hover:not(:disabled) { background: var(--gfd-raised); }
+.gfd__btn:active:not(:disabled) { background: var(--gfd-well); }
+.gfd__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gfd__btn--primary { border-color: var(--gfd-accent); background: var(--gfd-accent); color: var(--gfd-on-accent); }
+.gfd__btn--primary:hover:not(:disabled) { background: var(--gfd-accent-deep); }
+.gfd__btn--primary:active:not(:disabled) { background: var(--gfd-accent-press); }
+.gfd__btn--danger { border-color: transparent; color: var(--gfd-crit); }
+.gfd__btn--danger:hover:not(:disabled) { background: var(--gfd-crit-wash); }
+.gfd__btn--armed,
+.gfd__btn--armed:hover:not(:disabled) { border-color: var(--gfd-crit); background: var(--gfd-crit); color: var(--gfd-on-accent); }
+.gfd__btn--armed:active:not(:disabled) { background: var(--gfd-crit-deep); }
+
+/* The rule: who may not use the fence, and the alert it raises. The sentence
+ * leads, on the alert red's wash, so what was picked is read back before the
+ * controls that pick it. */
+.gfd__rule { gap: 8px; }
+.gfd__rule-add { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.gfd__rule-words {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  /* The wash alone, no side stripe: a stripe bent round the corners read as a heavy shadow (operator, 13 Nov 2026) */
+  border-radius: 6px;
+  background: var(--gfd-crit-wash);
+  color: var(--gfd-ink);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.gfd__rule-words .ti { flex: none; margin-top: 1px; color: var(--gfd-crit); font-size: 16px; }
+.gfd__rule-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.gfd__rule-label { width: 100%; color: var(--gfd-text); font-size: 12px; font-weight: 600; }
+.gfd__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The drawer's own type (operator, 13 Nov 2026): body size and weight, a step under the 600 labels
+   they sit beneath, 24px tall to suit a 340px panel; picked ones carry the weight */
+.gfd__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--gfd-field-line);
+  border-radius: 999px;
+  background: var(--gfd-surface);
+  color: var(--gfd-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.gfd__chip:hover { border-color: var(--gfd-sub); color: var(--gfd-ink); }
+.gfd__chip[aria-pressed="true"] { border-color: var(--gfd-accent); background: var(--gfd-accent-wash); color: var(--gfd-accent); font-weight: 600; }
+.gfd__chip-n { color: var(--gfd-sub); font-weight: 400; font-variant-numeric: tabular-nums; }
+.gfd__chip[aria-pressed="true"] .gfd__chip-n { color: var(--gfd-accent); }
+/* Units picked one by one: chips with their own remove button, and a plate search */
+.gfd__chip--unit { gap: 2px; padding-right: 2px; cursor: default; font-family: var(--font-mono); }
+.gfd__chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.gfd__chip-x:hover { background: var(--gfd-surface); }
+.gfd__chip-x .ti { font-size: 12px; }
+.gfd__units { flex-direction: column; align-items: stretch; }
+.gfd__unit-find { position: relative; }
+.gfd__unit-find .ti {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  color: var(--gfd-sub);
+  font-size: 14px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.gfd__field .gfd__unit-find input { padding-left: 28px; }
+.gfd__unit-list {
+  max-height: 220px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--gfd-line);
+  border-radius: 6px;
+  background: var(--gfd-surface);
+  list-style: none;
+}
+.gfd__unit-list button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--gfd-ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.gfd__unit-list button:hover { background: var(--gfd-accent-wash); }
+.gfd__unit-list .ti { align-self: center; color: var(--gfd-accent); font-size: 13px; }
+.gfd__unit-plate { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
+.gfd__unit-sub { overflow: hidden; color: var(--gfd-sub); text-overflow: ellipsis; white-space: nowrap; }
+.gfd__unit-none { padding: 6px 8px; color: var(--gfd-sub); font-size: 12px; }
+
+.gfd__seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--gfd-well); }
+.gfd__seg button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--gfd-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gfd__seg button:hover { color: var(--gfd-ink); }
+.gfd__seg button[aria-checked="true"] { background: var(--gfd-surface); color: var(--gfd-accent); box-shadow: 0 1px 3px var(--gfd-shadow-soft); }
+.gfd__check { display: inline-flex; align-items: center; gap: 6px; color: var(--gfd-ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+.gfd__hours { display: inline-flex; align-items: center; gap: 6px; color: var(--gfd-sub); }
+.gfd__hours input {
+  padding: 4px 6px;
+  border: 1px solid var(--gfd-field-line);
+  border-radius: 6px;
+  background: var(--gfd-surface);
+  color: var(--gfd-ink);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.gfd__link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gfd-crit);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gfd__link:hover { text-decoration: underline; }
+
+.gfd button:focus-visible,
+.gfd input:focus-visible,
+.gfd select:focus-visible,
+.gfd textarea:focus-visible,
+.gfd__custom:focus-within { outline: 2px solid var(--gfd-accent); outline-offset: 2px; }
+
+/* ── on the map ── */
+
+/* While drawing, the cursor says so, over fences as well. */
+.gfd-drawing .leaflet-container,
+.gfd-drawing .leaflet-interactive { cursor: crosshair !important; }
+
+/* The handles take the fence's own colour (--gfd, set on each one). */
+.gfd-handle,
+.gfd-mid {
+  box-sizing: border-box;
+  border: 2px solid var(--gfd, var(--gfd-accent));
+  border-radius: 50%;
+  background: var(--gfd-surface);
+  cursor: grab;
+  touch-action: none;
+}
+.gfd-handle { width: 12px; height: 12px; box-shadow: 0 1px 3px var(--gfd-handle-shadow); }
+.gfd-handle:active,
+.gfd-mid:active { cursor: grabbing; }
+.gfd-handle--close { width: 16px; height: 16px; background: var(--gfd, var(--gfd-accent)); cursor: pointer; }
+.gfd-handle--edge { background: var(--gfd, var(--gfd-accent)); }
+.gfd-mid { width: 8px; height: 8px; opacity: 0.75; }
+.gfd-mid:hover,
+.gfd-handle:hover { transform: scale(1.25); }
+.gfd-mid:hover { opacity: 1; }
+
+@media (max-width: 767px) {
+  .gfd {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-width: none;
+    max-height: 58%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfd__swatch:hover,
+  .gfd__swatch:active,
+  .gfd-mid:hover,
+  .gfd-handle:hover { transform: none; }
+}

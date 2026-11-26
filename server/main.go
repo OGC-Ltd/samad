@@ -51,7 +51,7 @@ func main() {
 	client := NewPartnerClient(cfg.PartnerBaseURL, cfg.PartnerAPIKey)
 	srv := &Server{cfg: cfg, client: client, store: store, hub: hub, ai: NewInsighter(cfg),
 		routing: NewRouting(NewGoogle(cfg.GoogleKey()), store), reports: newReportCache(),
-		consign: NewConsignments(cfg.DataDir)}
+		consign: NewConsignments(cfg.DataDir), fences: NewFences(cfg.DataDir)}
 	if srv.ai == nil {
 		log.Printf("no OPENAI_API_KEY: the Fleet summary shows facts, not an AI brief")
 	}
@@ -168,6 +168,10 @@ func routes(s *Server, a *Auth) http.Handler {
 	org.Handle("/vehicles/{vehicleId}/track", unitsVisible(needFunc(s.track, "map:read", "map:playback"))).Methods("GET")
 	org.Handle("/vehicles/{vehicleId}/playback", unitsVisible(needFunc(s.playback, "map:playback"))).Methods("GET")
 	org.Handle("/geofences/geojson", needFunc(s.geofencesGeoJSON, "geofence:read", "map:read")).Methods("GET")
+	// Geofences drawn in Samad (fences.go).
+	org.Handle("/geofences", needFunc(s.createFence, "geofence:create")).Methods("POST")
+	org.Handle("/geofences/{id}", needFunc(s.updateFence, "geofence:update")).Methods("PATCH")
+	org.Handle("/geofences/{id}", needFunc(s.removeFence, "geofence:delete")).Methods("DELETE")
 	org.Handle("/analytics/drivers/overview", needFunc(s.driversOverview, "driver:read")).Methods("GET")
 	org.Handle("/dashboard/ai-insight", needFunc(s.fleetInsight, "dashboard:read")).Methods("GET")
 	org.Handle("/incidents/{kind:speeding|camera|event|hours}/{id}/review", needFunc(s.reviewAlert, alerts...)).Methods("POST")

@@ -250,6 +250,7 @@ export default function MapToolRail({
   weather,          // the "weather" map layer ({ on, onToggle, note }) or null
   halted,           // { count, open, onOpen } or null without map:filter
   dashcam,          // { count, critical, onOpen } or null where there are no VSS cameras
+  drawFence,        // { on, onToggle } or null without geofence:create
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -296,6 +297,15 @@ export default function MapToolRail({
             title={measuring ? "Stop measuring (Esc)" : "Measure a distance: click points on the map"}
             on={measuring} expanded={expanded} onClick={onToggleMeasure}
           />
+          {/* Draw a geofence (operator, 2026-11-26: "the option to draw
+              geofence in Samad like the way we are doing with Rai Track"). */}
+          {drawFence && (
+            <RailButton
+              icon="ti-polygon" label={drawFence.on ? "Stop drawing" : "Draw geofence"}
+              title={drawFence.on ? "Close the geofence tool (Esc)" : "Draw a geofence on the map"}
+              on={drawFence.on} expanded={expanded} onClick={drawFence.onToggle}
+            />
+          )}
           {!flaggedOnly && (<>
           {/* Live traffic: its own tool rather than a row in the Maps panel. */}
           <RailButton
