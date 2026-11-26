@@ -191,7 +191,7 @@ func (s *Server) alertJSON(r alertRow) map[string]any {
 		"cleared":     nil,
 	}
 	if r.kind == kindHours {
-		rule, detail, _ := strings.Cut(e.TypeLabel, ": ")
+		rule, detail := s.store.HoursText(e, time.Now()) // today's words with the running figure, old breaches too
 		if e.Driver != "" {
 			driver = e.Driver // who had the vehicle at the time
 		}
