@@ -2628,7 +2628,15 @@ export default function FleetMap() {
   // And so do the surveyed boundaries beside it.
   const fenceLayer = activeCompanyId === FENCE_LAYER_COMPANY;
   const zonesAllowed = activeCompanyId === ZONE_AREAS_COMPANY || fenceLayer;
-  const hasZones = zonesAllowed && (zones?.features?.length ?? 0) > 0;
+  // What the layer draws. On Samad's map, only the fences drawn in Samad:
+  // IntelliFleet's zones stay off it (operator, 2026-11-26: "im not
+  // interested in intelifleet zones"). They are still in `zones`, which the
+  // stranded-stop test and playback read.
+  const layerFences = useMemo(
+    () => (zones?.features ?? []).filter((f) => !fenceLayer || f.properties?.source === "samad"),
+    [zones, fenceLayer],
+  );
+  const hasZones = zonesAllowed && layerFences.length > 0;
 
   /**
    * The categories this organisation actually has on the map, for the key.
@@ -2640,14 +2648,14 @@ export default function FleetMap() {
    */
   const zoneCategories = useMemo(() => {
     const seen = new Set();
-    for (const f of zones?.features ?? []) {
+    for (const f of layerFences) {
       const p = f.properties ?? {};
       if (ZONE_SKIP_CATEGORIES.has(p.category)) continue;
       if (ZONE_EXCLUDE.has(zoneKey(p.name))) continue;
       seen.add(fenceLayer ? fenceColorKey(f) : p.category && ZONE_STYLE[p.category] ? p.category : "other");
     }
     return [...seen];
-  }, [zones, fenceLayer]);
+  }, [layerFences, fenceLayer]);
 
   /* The scales, with the last ticket each one took.
    *
@@ -4660,7 +4668,7 @@ export default function FleetMap() {
     // Accumulated while building, so the shared camera fit can frame the layer.
     const bounds = new maps.LatLngBounds();
 
-    for (const f of zones.features) {
+    for (const f of layerFences) {
       const p = f.properties ?? {};
       if (ZONE_SKIP_CATEGORIES.has(p.category)) continue;
       // Ahead of every bounds.extend below, so an excluded zone cannot drag the
@@ -4812,7 +4820,7 @@ export default function FleetMap() {
       info.close();
       zoneLayerRef.current = null;
     };
-  }, [mapReady, zones, zonesAllowed, fenceLayer]);
+  }, [mapReady, zones, layerFences, zonesAllowed, fenceLayer]);
 
   // Show/hide the built layer. Cheap — no geometry is created or destroyed.
   //
@@ -7312,7 +7320,7 @@ export default function FleetMap() {
             maps={mapsLibRef.current}
             DomMarker={DomMarkerRef.current}
             orgId={orgId}
-            fences={zones?.features ?? []}
+            fences={layerFences}
             editing={fenceDraw.editing}
             canDelete={canDo("geofence:delete")}
             clickRef={fenceClickRef}
