@@ -83,9 +83,13 @@ type dutyState struct {
 	SinceBreak   float64   `json:"sinceBreak"`
 	StretchStart time.Time `json:"stretchStart"`
 
-	// The 24 h duty window (rule 4): when it opened and its longest rest.
-	WindowStart time.Time `json:"windowStart"`
-	WindowRest  float64   `json:"windowRest"`
+	// The 24 h duty window (rule 4): when it opened and its longest rest,
+	// with when that rest began and ended inside the window (zero when not
+	// known: a window opened before these were kept).
+	WindowStart    time.Time `json:"windowStart"`
+	WindowRest     float64   `json:"windowRest"`
+	WindowRestFrom time.Time `json:"windowRestFrom"`
+	WindowRestTo   time.Time `json:"windowRestTo"`
 
 	Days     map[string]*dutyDay `json:"days"`
 	WeekRest map[string]float64  `json:"weekRest"` // longest rest per week (its Monday)
@@ -103,6 +107,13 @@ func fleetWeek(t time.Time) time.Time {
 }
 
 func overlapSec(a0, a1, b0, b1 time.Time) float64 {
+	_, _, sec := overlap(a0, a1, b0, b1)
+	return sec
+}
+
+// overlap is the part of [a0, a1) inside [b0, b1), and its length in seconds
+// (zero times and 0 when they don't meet).
+func overlap(a0, a1, b0, b1 time.Time) (from, to time.Time, sec float64) {
 	if a0.Before(b0) {
 		a0 = b0
 	}
@@ -110,15 +121,15 @@ func overlapSec(a0, a1, b0, b1 time.Time) float64 {
 		a1 = b1
 	}
 	if !a1.After(a0) {
-		return 0
+		return time.Time{}, time.Time{}, 0
 	}
-	return a1.Sub(a0).Seconds()
+	return a0, a1, a1.Sub(a0).Seconds()
 }
 
-// hm is "8 h 05 min".
-func hm(sec float64) string {
-	m := int(sec / 60)
-	return fmt.Sprintf("%d h %02d min", m/60, m%60)
+// openWindow starts a new 24 h duty window at t (zero: none open).
+func (st *dutyState) openWindow(t time.Time) {
+	st.WindowStart, st.WindowRest = t, 0
+	st.WindowRestFrom, st.WindowRestTo = time.Time{}, time.Time{}
 }
 
 // working and driving, as the operator defined them.
@@ -144,7 +155,7 @@ func (s *Store) hoursFix(v PVehicle, at time.Time) []PEvent {
 		st = &dutyState{Since: at, LastAt: at, Days: map[string]*dutyDay{}, WeekRest: map[string]float64{}}
 		h.Vehicles[v.VehicleID] = st
 		if working {
-			st.WindowStart = at
+			st.openWindow(at)
 		} else {
 			st.RestSince = at
 		}
@@ -194,7 +205,7 @@ func (s *Store) hoursFix(v PVehicle, at time.Time) []PEvent {
 		st.endRest(at)
 	}
 	if working && st.WindowStart.IsZero() {
-		st.WindowStart, st.WindowRest = at, 0
+		st.openWindow(at)
 	}
 	if !working && st.Working {
 		st.RestSince = at
@@ -202,6 +213,7 @@ func (s *Store) hoursFix(v PVehicle, at time.Time) []PEvent {
 	// Driving resumes: a pause of 30 min or more was the break.
 	if driving && !st.Driving {
 		if !st.PauseSince.IsZero() && at.Sub(st.PauseSince) >= breakNeeded {
+			s.stretchEnded(v.VehicleID, st)
 			st.SinceBreak, st.StretchStart = 0, at
 		}
 		if st.StretchStart.IsZero() {
@@ -228,8 +240,8 @@ func (st *dutyState) endRest(at time.Time) {
 	from := st.RestSince
 	if !st.WindowStart.IsZero() {
 		end := st.WindowStart.Add(24 * time.Hour)
-		if r := overlapSec(from, at, st.WindowStart, end); r > st.WindowRest {
-			st.WindowRest = r
+		if f, t, r := overlap(from, at, st.WindowStart, end); r > st.WindowRest {
+			st.WindowRest, st.WindowRestFrom, st.WindowRestTo = r, f, t
 		}
 	}
 	for wk := fleetWeek(from); wk.Before(at); wk = wk.AddDate(0, 0, 7) {
@@ -240,7 +252,28 @@ func (st *dutyState) endRest(at time.Time) {
 	}
 	// A full daily rest closes the duty window; the next one opens with work.
 	if at.Sub(from) >= dailyRestNeeded {
-		st.WindowStart, st.WindowRest = time.Time{}, 0
+		st.openWindow(time.Time{})
+	}
+}
+
+// stretchEnded notes, on the vehicle's No break breach for the stretch that
+// just ended with a break (if it had one), how long that stretch drove, for
+// its words ("5 h 25 min driven before the break"). Called with s.mu held.
+func (s *Store) stretchEnded(vid int, st *dutyState) {
+	if st.StretchStart.IsZero() || st.SinceBreak <= driveBeforeRest.Seconds() {
+		return
+	}
+	id := fmt.Sprintf("hours:%s:%d:%s", ruleBreak, vid, st.StretchStart.UTC().Format(stampLayout))
+	for i := len(s.p.Hours.Events) - 1; i >= 0; i-- {
+		if e := &s.p.Hours.Events[i]; e.EventID == id {
+			f := hoursFacts{}
+			if e.Hours != nil {
+				f = *e.Hours
+			}
+			f.Driven = st.SinceBreak
+			e.Hours = &f // a new value: copies already handed out keep theirs
+			return
+		}
 	}
 }
 
@@ -273,16 +306,21 @@ func (st *dutyState) prune(at time.Time) {
 func (s *Store) hoursCheck(v PVehicle, st *dutyState, at time.Time) []PEvent {
 	var out []PEvent
 	driver := driverName(v)
-	add := func(rule, period, label, text string) {
+	// f: the figures the words need (the rest rules' longest rest), or nil.
+	add := func(rule, period string, f *hoursFacts) {
 		id := fmt.Sprintf("hours:%s:%d:%s", rule, v.VehicleID, period)
 		if s.byHours(id) {
 			return
 		}
+		if f == nil {
+			f = &hoursFacts{}
+		}
+		title, detail := hoursWords(rule, period, at, *f, nil)
 		e := PEvent{
-			EventID: id, Source: "hours", Type: rule, TypeLabel: label + ": " + text,
+			EventID: id, Source: "hours", Type: rule, TypeLabel: title + ": " + detail,
 			Severity: "warning", OccurredAt: at.UTC().Format(time.RFC3339),
 			ReceivedAt: time.Now().UTC().Format(time.RFC3339), VehicleID: v.VehicleID, Registration: v.Registration,
-			Driver: driver,
+			Driver: driver, Hours: f,
 		}
 		s.p.Hours.Events = append(s.p.Hours.Events, e)
 		out = append(out, e)
@@ -298,41 +336,44 @@ func (s *Store) hoursCheck(v PVehicle, st *dutyState, at time.Time) []PEvent {
 
 	// 1 and 2: working hours, then with overtime.
 	if d.Work > workDayLimit.Seconds() {
-		add(ruleWorkDay, today, "Working hours", fmt.Sprintf("%s today, over the 8 h day", hm(d.Work)))
+		add(ruleWorkDay, today, nil)
 	}
 	if work > workWeekLimit.Seconds() {
-		add(ruleWorkWeek, wkKey, "Working hours", fmt.Sprintf("%s this week, over the 48 h week", hm(work)))
+		add(ruleWorkWeek, wkKey, nil)
 	}
 	if d.Work > totalDayLimit.Seconds() {
-		add(ruleTotalDay, today, "Overtime", fmt.Sprintf("%s worked today, over 12 h with overtime", hm(d.Work)))
+		add(ruleTotalDay, today, nil)
 	}
 	if work > totalWeekLimit.Seconds() {
-		add(ruleTotalWeek, wkKey, "Overtime", fmt.Sprintf("%s worked this week, over 60 h with overtime", hm(work)))
+		add(ruleTotalWeek, wkKey, nil)
 	}
 
 	// 3: 4.5 h of driving with no 30 min break.
 	if st.SinceBreak > driveBeforeRest.Seconds() && !st.StretchStart.IsZero() {
-		add(ruleBreak, st.StretchStart.UTC().Format("20060102T150405"), "No break",
-			fmt.Sprintf("%s driving without a 30 min break", hm(st.SinceBreak)))
+		add(ruleBreak, st.StretchStart.UTC().Format(stampLayout), nil)
 	}
 
 	// 4: the 24 h duty window closed without 11 h of rest in one piece.
 	if !st.WindowStart.IsZero() && !at.Before(st.WindowStart.Add(24*time.Hour)) {
 		end := st.WindowStart.Add(24 * time.Hour)
-		longest := st.WindowRest
+		longest, from, to := st.WindowRest, st.WindowRestFrom, st.WindowRestTo
 		if !st.Working && !st.RestSince.IsZero() {
-			if r := overlapSec(st.RestSince, at, st.WindowStart, end); r > longest {
-				longest = r
+			if f, t, r := overlap(st.RestSince, at, st.WindowStart, end); r > longest {
+				longest, from, to = r, f, t
 			}
 		}
 		if longest < dailyRestNeeded.Seconds() {
-			add(ruleRestDay, st.WindowStart.UTC().Format("20060102T150405"), "Daily rest",
-				fmt.Sprintf("longest rest %s in 24 h, under 11 h", hm(longest)))
+			f := &hoursFacts{Longest: longest}
+			if longest > 0 && !from.IsZero() && !to.IsZero() {
+				f.RestFrom, f.RestTo = from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339)
+			}
+			add(ruleRestDay, st.WindowStart.UTC().Format(stampLayout), f)
 		}
 		// The next window opens now if working, else with the next work.
-		st.WindowStart, st.WindowRest = time.Time{}, 0
 		if st.Working {
-			st.WindowStart = at
+			st.openWindow(at)
+		} else {
+			st.openWindow(time.Time{})
 		}
 	}
 
@@ -351,17 +392,16 @@ func (s *Store) hoursCheck(v PVehicle, st *dutyState, at time.Time) []PEvent {
 			}
 		}
 		if longest < weekRestNeeded.Seconds() && wk.AddDate(0, 0, 7).Sub(start) < weekRestNeeded {
-			add(ruleRestWeek, wkKey, "Weekly rest",
-				fmt.Sprintf("no 24 h rest this week, longest %s", hm(longest)))
+			add(ruleRestWeek, wkKey, &hoursFacts{Longest: longest})
 		}
 	}
 
 	// 6: driving time.
 	if d.Drive > driveDayLimit.Seconds() {
-		add(ruleDriveDay, today, "Driving time", fmt.Sprintf("%s today, over the 9 h day", hm(d.Drive)))
+		add(ruleDriveDay, today, nil)
 	}
 	if drive > driveWeekLimit.Seconds() {
-		add(ruleDriveWeek, wkKey, "Driving time", fmt.Sprintf("%s this week, over the 48 h week", hm(drive)))
+		add(ruleDriveWeek, wkKey, nil)
 	}
 	return out
 }
@@ -416,10 +456,14 @@ func (s *Store) pruneHours(floor time.Time) {
 	s.p.Hours.Events = kept
 }
 
-// hoursFeedItem is a breach as the bell's feed draws it: a warning, its words
-// as written (not upper-cased like the partner's types).
+// hoursFeedItem is a breach as the bell's feed draws it: a warning, in
+// today's words (hours_words.go), not upper-cased like the partner's types.
 func hoursFeedItem(e PEvent) map[string]any {
-	text := e.TypeLabel
+	title, detail := hoursText(e, nil) // as it fired: no running figure
+	text := title
+	if detail != "" {
+		text += ": " + detail
+	}
 	if e.Driver != "" {
 		text += ", " + e.Driver
 	}
