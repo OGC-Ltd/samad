@@ -26,7 +26,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAppActions } from '../../context/AppContext'
 import { loadReportDoc, previewReport, downloadReport } from '../../api/reportDocs'
-import { PRESETS, presetRange, SHIFTS, currentShift, shiftRange, periodWords, dayKey } from '../../lib/samadReports'
+import { presetsFor, presetRange, SHIFTS, currentShift, shiftRange, periodWords, dayKey } from '../../lib/samadReports'
 import EmptyNote from '../shared/EmptyNote'
 import ReportEditor from './ReportEditor'
 import ConsignmentsPanel from './ConsignmentsPanel'
@@ -94,7 +94,10 @@ export default function ReportsScreen() {
   const { setDesktopActiveTab } = useAppActions()
 
   const [tab, setTab] = useState('conduct')
-  const [preset, setPreset] = useState('today')
+  const [picked, setPreset] = useState('today')
+  // A period this tab doesn't offer (Last 4 hours outside Movements) reads as Today.
+  const presets = presetsFor(tab)
+  const preset = presets.some((p) => p.key === picked) ? picked : 'today'
   const [custom, setCustom] = useState(() => { const r = presetRange('7d'); return { from: toInput(r.from), to: toInput(r.to) } })
   const [shift, setShift] = useState(currentShift)
   const [weeks, setWeeks] = useState(4)
@@ -269,7 +272,7 @@ export default function ReportsScreen() {
                 <div className="rpt-field">
                   <span>Period</span>
                   <Segmented label="Period" value={preset} onPick={(k) => { setPreset(k); setStamp(Date.now()) }}
-                             options={PRESETS.map((p) => ({ key: p.key, label: p.label }))} />
+                             options={presets.map((p) => ({ key: p.key, label: p.label }))} />
                 </div>
                 {preset === 'custom' && customFields}
               </>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayStart, shiftRange, currentShift, presetRange, span, periodWords } from './samadReports'
+import { dayStart, shiftRange, currentShift, presetRange, presetsFor, span, periodWords } from './samadReports'
 
 const H = 3_600_000
 const NOW = Date.parse('2026-11-03T14:05:00+03:00')
@@ -20,6 +20,11 @@ describe('time', () => {
     expect(at('07:45')).toEqual({ day: '2026-11-02', shift: 'night' }) // last night's, just ended
     expect(at('08:00')).toEqual({ day: '2026-11-03', shift: 'day' })
     expect(presetRange('yesterday', NOW).from).toBe(Date.parse('2026-11-02T00:00:00+03:00'))
+  })
+  it('offers the last 4 hours on Movements only', () => {
+    expect(presetRange('4h', NOW)).toEqual({ from: Date.parse('2026-11-03T10:05:00+03:00'), to: NOW })
+    expect(presetsFor('movements').map((p) => p.key)).toContain('4h')
+    expect(presetsFor('conduct').map((p) => p.key)).not.toContain('4h')
   })
   it('writes spans and periods', () => {
     expect(span(12 * 60_000)).toBe('12 min')
